@@ -34,13 +34,13 @@ describe('useRoomPresence', () => {
 
   it('connects immediately and gracefully disconnects on cleanup', async () => {
     const { unmount } = renderHook(() =>
-      useRoomPresence('ROOM2', 'private-player-key'),
+      useRoomPresence('ROOM2', 'client-token'),
     )
 
     await waitFor(() => {
       expect(mocks.heartbeat).toHaveBeenCalledWith({
         roomCode: 'ROOM2',
-        privatePlayerKey: 'private-player-key',
+        clientToken: 'client-token',
         sessionId: expect.any(String),
       })
     })

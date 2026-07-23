@@ -3,44 +3,47 @@
 import { useQuery } from 'convex/react'
 import type { FunctionReturnType } from 'convex/server'
 import Link from 'next/link'
-import { useEffect, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
 import {
-  getPrivatePlayerKey,
-  removePrivatePlayerKey,
+  getClientToken,
+  migrateLegacyClientToken,
+  subscribeToClientToken,
 } from '@/lib/player-session'
 import { useRoomPresence } from '@/lib/use-room-presence'
 
 export function RoomLobby({ roomCode }: { roomCode: string }) {
-  const privatePlayerKey = useSyncExternalStore(
-    subscribeToPlayerKey,
-    () => getPrivatePlayerKey(roomCode),
-    getServerPlayerKey,
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => subscribeToClientToken(onStoreChange),
+    [],
+  )
+  const clientToken = useSyncExternalStore(
+    subscribe,
+    () => getClientToken(roomCode),
+    getServerClientToken,
   )
 
   const lobby = useQuery(
     api.rooms.getLobby,
-    privatePlayerKey
+    clientToken
       ? {
           roomCode,
-          privatePlayerKey,
+          clientToken,
         }
       : 'skip',
   )
 
   useEffect(() => {
-    if (lobby === null) {
-      removePrivatePlayerKey(roomCode)
-    }
-  }, [lobby, roomCode])
+    migrateLegacyClientToken(roomCode)
+  }, [roomCode])
 
-  if (privatePlayerKey === undefined) {
+  if (clientToken === undefined) {
     return <LobbyLoading />
   }
 
-  if (!privatePlayerKey) {
+  if (!clientToken) {
     return <LobbyMembershipRequired roomCode={roomCode} />
   }
 
@@ -55,7 +58,7 @@ export function RoomLobby({ roomCode }: { roomCode: string }) {
   return (
     <ConnectedRoomLobby
       lobby={lobby}
-      privatePlayerKey={privatePlayerKey}
+      clientToken={clientToken}
       roomCode={roomCode}
     />
   )
@@ -63,14 +66,14 @@ export function RoomLobby({ roomCode }: { roomCode: string }) {
 
 function ConnectedRoomLobby({
   lobby,
-  privatePlayerKey,
+  clientToken,
   roomCode,
 }: {
   lobby: NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
-  privatePlayerKey: string
+  clientToken: string
   roomCode: string
 }) {
-  useRoomPresence(roomCode, privatePlayerKey)
+  useRoomPresence(roomCode, clientToken)
 
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
@@ -131,11 +134,7 @@ function ConnectedRoomLobby({
   )
 }
 
-function subscribeToPlayerKey() {
-  return () => {}
-}
-
-function getServerPlayerKey() {
+function getServerClientToken() {
   return undefined
 }
 

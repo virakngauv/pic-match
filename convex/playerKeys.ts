@@ -2,6 +2,15 @@ const HEX_CHARACTERS = '0123456789abcdef'
 
 export const PRIVATE_PLAYER_KEY_LENGTH = 32
 export const MAX_PRIVATE_KEY_ATTEMPTS = 10
+export const CLIENT_TOKEN_PATTERN = /^[0-9a-f]{32}$/
+
+export function validateClientToken(clientToken: string) {
+  if (!CLIENT_TOKEN_PATTERN.test(clientToken)) {
+    throw new Error('Invalid client token.')
+  }
+
+  return clientToken
+}
 
 function pickCharacter(characters: string, random: () => number) {
   return characters.charAt(Math.floor(random() * characters.length))

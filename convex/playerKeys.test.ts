@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   findAvailablePrivatePlayerKey,
   generatePrivatePlayerKey,
+  validateClientToken,
 } from './playerKeys'
 
 describe('private player keys', () => {
@@ -24,5 +25,20 @@ describe('private player keys', () => {
     ).resolves.toBe('b'.repeat(32))
     expect(generate).toHaveBeenCalledTimes(2)
     expect(isTaken).toHaveBeenCalledTimes(2)
+  })
+
+  it('accepts only a 128-bit lowercase hexadecimal client token', () => {
+    const token = 'a1'.repeat(16)
+
+    expect(validateClientToken(token)).toBe(token)
+    expect(() => validateClientToken('A1'.repeat(16))).toThrow(
+      'Invalid client token.',
+    )
+    expect(() => validateClientToken('a'.repeat(31))).toThrow(
+      'Invalid client token.',
+    )
+    expect(() => validateClientToken('g'.repeat(32))).toThrow(
+      'Invalid client token.',
+    )
   })
 })

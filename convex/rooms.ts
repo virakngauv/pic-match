@@ -1,9 +1,7 @@
 import { v } from 'convex/values'
 
-import type { Id } from './_generated/dataModel'
-import type { QueryCtx } from './_generated/server'
 import { mutation, query } from './_generated/server'
-import { findAvailablePrivatePlayerKey } from './playerKeys'
+import { validateClientToken } from './playerKeys'
 import {
   findAvailableRoomCode,
   normalizeRoomCode,
@@ -16,7 +14,6 @@ const MAX_ROOM_MEMBERS = 64
 
 const roomEntryResult = v.object({
   roomCode: v.string(),
-  privatePlayerKey: v.string(),
 })
 
 const lobbyMember = v.object({
@@ -40,29 +37,15 @@ function normalizeName(name: string) {
   return normalizedName
 }
 
-async function generateMemberKey(
-  ctx: Pick<QueryCtx, 'db'>,
-  roomId: Id<'rooms'>,
-) {
-  return await findAvailablePrivatePlayerKey(async (privatePlayerKey) => {
-    const member = await ctx.db
-      .query('roomMembers')
-      .withIndex('by_room_id_and_private_player_key', (index) =>
-        index.eq('roomId', roomId).eq('privatePlayerKey', privatePlayerKey),
-      )
-      .unique()
-
-    return member !== null
-  })
-}
-
 export const create = mutation({
   args: {
     name: v.string(),
+    clientToken: v.string(),
   },
   returns: roomEntryResult,
-  handler: async (ctx, { name }) => {
+  handler: async (ctx, { name, clientToken }) => {
     const creatorName = normalizeName(name)
+    const validatedClientToken = validateClientToken(clientToken)
     const roomCode = await findAvailableRoomCode(async (code) => {
       const room = await ctx.db
         .query('rooms')
@@ -77,17 +60,16 @@ export const create = mutation({
       creatorName,
       createdAt: Date.now(),
     })
-    const privatePlayerKey = await generateMemberKey(ctx, roomId)
 
     await ctx.db.insert('roomMembers', {
       roomId,
       name: creatorName,
-      privatePlayerKey,
+      privatePlayerKey: validatedClientToken,
       role: 'host',
       joinedAt: Date.now(),
     })
 
-    return { roomCode, privatePlayerKey }
+    return { roomCode }
   },
 })
 
@@ -95,11 +77,13 @@ export const join = mutation({
   args: {
     roomCode: v.string(),
     name: v.string(),
+    clientToken: v.string(),
   },
   returns: v.union(v.null(), roomEntryResult),
-  handler: async (ctx, { roomCode, name }) => {
+  handler: async (ctx, { roomCode, name, clientToken }) => {
     const normalizedRoomCode = normalizeRoomCode(roomCode)
     const playerName = normalizeName(name)
+    const validatedClientToken = validateClientToken(clientToken)
 
     if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
       return null
@@ -114,6 +98,19 @@ export const join = mutation({
       return null
     }
 
+    const existingMember = await ctx.db
+      .query('roomMembers')
+      .withIndex('by_room_id_and_private_player_key', (index) =>
+        index
+          .eq('roomId', room._id)
+          .eq('privatePlayerKey', validatedClientToken),
+      )
+      .unique()
+
+    if (existingMember) {
+      return { roomCode: room.code }
+    }
+
     const existingMembers = await ctx.db
       .query('roomMembers')
       .withIndex('by_room_id_and_joined_at', (index) =>
@@ -125,24 +122,22 @@ export const join = mutation({
       throw new Error('This room is full.')
     }
 
-    const privatePlayerKey = await generateMemberKey(ctx, room._id)
-
     await ctx.db.insert('roomMembers', {
       roomId: room._id,
       name: playerName,
-      privatePlayerKey,
+      privatePlayerKey: validatedClientToken,
       role: 'player',
       joinedAt: Date.now(),
     })
 
-    return { roomCode: room.code, privatePlayerKey }
+    return { roomCode: room.code }
   },
 })
 
 export const getLobby = query({
   args: {
     roomCode: v.string(),
-    privatePlayerKey: v.string(),
+    clientToken: v.string(),
   },
   returns: v.union(
     v.null(),
@@ -151,8 +146,9 @@ export const getLobby = query({
       members: v.array(lobbyMember),
     }),
   ),
-  handler: async (ctx, { roomCode, privatePlayerKey }) => {
+  handler: async (ctx, { roomCode, clientToken }) => {
     const normalizedRoomCode = normalizeRoomCode(roomCode)
+    const validatedClientToken = validateClientToken(clientToken)
 
     if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
       return null
@@ -170,7 +166,9 @@ export const getLobby = query({
     const currentMember = await ctx.db
       .query('roomMembers')
       .withIndex('by_room_id_and_private_player_key', (index) =>
-        index.eq('roomId', room._id).eq('privatePlayerKey', privatePlayerKey),
+        index
+          .eq('roomId', room._id)
+          .eq('privatePlayerKey', validatedClientToken),
       )
       .unique()
 

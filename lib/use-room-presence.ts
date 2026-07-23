@@ -7,7 +7,7 @@ import { api } from '@/convex/_generated/api'
 
 export const ROOM_HEARTBEAT_INTERVAL_MS = 4_000
 
-export function useRoomPresence(roomCode: string, privatePlayerKey: string) {
+export function useRoomPresence(roomCode: string, clientToken: string) {
   const convex = useConvex()
   const heartbeat = useMutation(api.presence.heartbeat)
   const disconnect = useMutation(api.presence.disconnect)
@@ -30,7 +30,7 @@ export function useRoomPresence(roomCode: string, privatePlayerKey: string) {
       try {
         const result = await heartbeat({
           roomCode,
-          privatePlayerKey,
+          clientToken,
           sessionId,
         })
 
@@ -136,5 +136,5 @@ export function useRoomPresence(roomCode: string, privatePlayerKey: string) {
         void disconnect({ sessionToken })
       }
     }
-  }, [convex.url, disconnect, heartbeat, privatePlayerKey, roomCode, sessionId])
+  }, [clientToken, convex.url, disconnect, heartbeat, roomCode, sessionId])
 }

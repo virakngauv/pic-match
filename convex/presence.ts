@@ -4,6 +4,7 @@ import { v } from 'convex/values'
 import { components } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { mutation } from './_generated/server'
+import { validateClientToken } from './playerKeys'
 import { normalizeRoomCode, ROOM_CODE_PATTERN } from './roomCode'
 
 const ROOM_HEARTBEAT_INTERVAL_MS = 4_000
@@ -20,12 +21,13 @@ const heartbeatResult = v.object({
 export const heartbeat = mutation({
   args: {
     roomCode: v.string(),
-    privatePlayerKey: v.string(),
+    clientToken: v.string(),
     sessionId: v.string(),
   },
   returns: heartbeatResult,
-  handler: async (ctx, { roomCode, privatePlayerKey, sessionId }) => {
+  handler: async (ctx, { roomCode, clientToken, sessionId }) => {
     const normalizedRoomCode = normalizeRoomCode(roomCode)
+    const validatedClientToken = validateClientToken(clientToken)
 
     if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
       throw new Error('This room is not available.')
@@ -43,7 +45,9 @@ export const heartbeat = mutation({
     const member = await ctx.db
       .query('roomMembers')
       .withIndex('by_room_id_and_private_player_key', (index) =>
-        index.eq('roomId', room._id).eq('privatePlayerKey', privatePlayerKey),
+        index
+          .eq('roomId', room._id)
+          .eq('privatePlayerKey', validatedClientToken),
       )
       .unique()
 

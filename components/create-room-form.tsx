@@ -7,7 +7,7 @@ import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/convex/_generated/api'
-import { savePrivatePlayerKey } from '@/lib/player-session'
+import { getOrCreateClientToken } from '@/lib/player-session'
 
 export function CreateRoomForm() {
   const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL)
@@ -52,10 +52,11 @@ function ConnectedCreateRoomForm() {
     setIsCreating(true)
 
     try {
-      const { roomCode, privatePlayerKey } = await createRoom({
+      const clientToken = getOrCreateClientToken()
+      const { roomCode } = await createRoom({
         name: normalizedName,
+        clientToken,
       })
-      savePrivatePlayerKey(roomCode, privatePlayerKey)
       router.push(`/${roomCode}`)
     } catch (caughtError) {
       setError(
