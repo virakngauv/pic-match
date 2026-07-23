@@ -9,6 +9,7 @@ import {
   normalizeRoomCode,
   ROOM_CODE_PATTERN,
 } from './roomCode'
+import { roomPresence } from './presence'
 
 const MAX_NAME_LENGTH = 50
 const MAX_ROOM_MEMBERS = 64
@@ -183,15 +184,26 @@ export const getLobby = query({
         index.eq('roomId', room._id),
       )
       .take(MAX_ROOM_MEMBERS)
+    const presence = await roomPresence.listRoom(
+      ctx,
+      room._id,
+      true,
+      MAX_ROOM_MEMBERS,
+    )
+    const onlineMemberIds = new Set(
+      presence.map((memberPresence) => memberPresence.userId),
+    )
 
     return {
       roomCode: room.code,
-      members: members.map((member) => ({
-        playerId: member._id,
-        name: member.name,
-        role: member.role,
-        isSelf: member._id === currentMember._id,
-      })),
+      members: members
+        .filter((member) => onlineMemberIds.has(member._id))
+        .map((member) => ({
+          playerId: member._id,
+          name: member.name,
+          role: member.role,
+          isSelf: member._id === currentMember._id,
+        })),
     }
   },
 })

@@ -1,6 +1,7 @@
 'use client'
 
 import { useQuery } from 'convex/react'
+import type { FunctionReturnType } from 'convex/server'
 import Link from 'next/link'
 import { useEffect, useSyncExternalStore } from 'react'
 
@@ -10,6 +11,7 @@ import {
   getPrivatePlayerKey,
   removePrivatePlayerKey,
 } from '@/lib/player-session'
+import { useRoomPresence } from '@/lib/use-room-presence'
 
 export function RoomLobby({ roomCode }: { roomCode: string }) {
   const privatePlayerKey = useSyncExternalStore(
@@ -49,6 +51,26 @@ export function RoomLobby({ roomCode }: { roomCode: string }) {
   if (lobby === null) {
     return <LobbyMembershipRequired roomCode={roomCode} />
   }
+
+  return (
+    <ConnectedRoomLobby
+      lobby={lobby}
+      privatePlayerKey={privatePlayerKey}
+      roomCode={roomCode}
+    />
+  )
+}
+
+function ConnectedRoomLobby({
+  lobby,
+  privatePlayerKey,
+  roomCode,
+}: {
+  lobby: NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
+  privatePlayerKey: string
+  roomCode: string
+}) {
+  useRoomPresence(roomCode, privatePlayerKey)
 
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
