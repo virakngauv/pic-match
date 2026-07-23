@@ -1,9 +1,10 @@
 'use client'
 
-import { useQuery } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
 import type { FunctionReturnType } from 'convex/server'
 import Link from 'next/link'
-import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
@@ -25,16 +26,6 @@ export function RoomLobby({ roomCode }: { roomCode: string }) {
     getServerClientToken,
   )
 
-  const lobby = useQuery(
-    api.rooms.getLobby,
-    clientToken
-      ? {
-          roomCode,
-          clientToken,
-        }
-      : 'skip',
-  )
-
   useEffect(() => {
     migrateLegacyClientToken(roomCode)
   }, [roomCode])
@@ -46,6 +37,27 @@ export function RoomLobby({ roomCode }: { roomCode: string }) {
   if (!clientToken) {
     return <LobbyMembershipRequired roomCode={roomCode} />
   }
+
+  return <PresentRoomLobby roomCode={roomCode} clientToken={clientToken} />
+}
+
+function PresentRoomLobby({
+  roomCode,
+  clientToken,
+}: {
+  roomCode: string
+  clientToken: string
+}) {
+  const heartbeatStarted = useRoomPresence(roomCode, clientToken)
+  const lobby = useQuery(
+    api.rooms.getLobby,
+    heartbeatStarted
+      ? {
+          roomCode,
+          clientToken,
+        }
+      : 'skip',
+  )
 
   if (lobby === undefined) {
     return <LobbyLoading />
@@ -73,7 +85,23 @@ function ConnectedRoomLobby({
   clientToken: string
   roomCode: string
 }) {
-  useRoomPresence(roomCode, clientToken)
+  const router = useRouter()
+  const leaveRoom = useMutation(api.rooms.leave)
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [leaveError, setLeaveError] = useState<string | null>(null)
+
+  const handleLeaveRoom = async () => {
+    setIsLeaving(true)
+    setLeaveError(null)
+
+    try {
+      await leaveRoom({ roomCode, clientToken })
+      router.push('/home')
+    } catch {
+      setLeaveError('Unable to leave the room. Please try again.')
+      setIsLeaving(false)
+    }
+  }
 
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
@@ -124,9 +152,19 @@ function ConnectedRoomLobby({
           </ul>
         </div>
 
-        <div className="mt-8 flex justify-center">
-          <Button asChild variant="outline">
-            <Link href="/home">Back to home</Link>
+        <div className="mt-8 grid justify-items-center gap-3">
+          {leaveError ? (
+            <p className="text-destructive text-sm" role="alert">
+              {leaveError}
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isLeaving}
+            onClick={handleLeaveRoom}
+          >
+            {isLeaving ? 'Leaving…' : 'Leave room'}
           </Button>
         </div>
       </section>

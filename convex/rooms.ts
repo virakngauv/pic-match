@@ -2,6 +2,7 @@ import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
 import { validateClientToken } from './playerKeys'
+import { isActiveRoomMember } from './roomMembers'
 import {
   findAvailableRoomCode,
   normalizeRoomCode,
@@ -66,6 +67,7 @@ export const create = mutation({
       name: creatorName,
       privatePlayerKey: validatedClientToken,
       role: 'host',
+      status: 'active',
       joinedAt: Date.now(),
     })
 
@@ -108,13 +110,20 @@ export const join = mutation({
       .unique()
 
     if (existingMember) {
+      if (!isActiveRoomMember(existingMember.status)) {
+        await ctx.db.patch(existingMember._id, {
+          name: playerName,
+          status: 'active',
+        })
+      }
+
       return { roomCode: room.code }
     }
 
     const existingMembers = await ctx.db
       .query('roomMembers')
-      .withIndex('by_room_id_and_joined_at', (index) =>
-        index.eq('roomId', room._id),
+      .withIndex('by_room_id_and_status_and_joined_at', (index) =>
+        index.eq('roomId', room._id).eq('status', 'active'),
       )
       .take(MAX_ROOM_MEMBERS)
 
@@ -127,10 +136,51 @@ export const join = mutation({
       name: playerName,
       privatePlayerKey: validatedClientToken,
       role: 'player',
+      status: 'active',
       joinedAt: Date.now(),
     })
 
     return { roomCode: room.code }
+  },
+})
+
+export const leave = mutation({
+  args: {
+    roomCode: v.string(),
+    clientToken: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { roomCode, clientToken }) => {
+    const normalizedRoomCode = normalizeRoomCode(roomCode)
+    const validatedClientToken = validateClientToken(clientToken)
+
+    if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
+      return null
+    }
+
+    const room = await ctx.db
+      .query('rooms')
+      .withIndex('by_code', (index) => index.eq('code', normalizedRoomCode))
+      .unique()
+
+    if (!room) {
+      return null
+    }
+
+    const member = await ctx.db
+      .query('roomMembers')
+      .withIndex('by_room_id_and_private_player_key', (index) =>
+        index
+          .eq('roomId', room._id)
+          .eq('privatePlayerKey', validatedClientToken),
+      )
+      .unique()
+
+    if (member && isActiveRoomMember(member.status)) {
+      await ctx.db.patch(member._id, { status: 'left' })
+    }
+
+    return null
   },
 })
 
@@ -172,14 +222,14 @@ export const getLobby = query({
       )
       .unique()
 
-    if (!currentMember) {
+    if (!currentMember || !isActiveRoomMember(currentMember.status)) {
       return null
     }
 
     const members = await ctx.db
       .query('roomMembers')
-      .withIndex('by_room_id_and_joined_at', (index) =>
-        index.eq('roomId', room._id),
+      .withIndex('by_room_id_and_status_and_joined_at', (index) =>
+        index.eq('roomId', room._id).eq('status', 'active'),
       )
       .take(MAX_ROOM_MEMBERS)
     const presence = await roomPresence.listRoom(

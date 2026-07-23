@@ -1,43 +1,39 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useRoomPresence } from './use-room-presence'
 
 const mocks = vi.hoisted(() => ({
-  disconnect: vi.fn().mockResolvedValue(null),
-  heartbeat: vi.fn().mockResolvedValue({
-    roomToken: 'room-token',
-    sessionToken: 'session-token',
-  }),
+  heartbeat: vi.fn().mockResolvedValue(true),
 }))
 
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     presence: {
-      disconnect: 'disconnect',
       heartbeat: 'heartbeat',
     },
   },
 }))
 
 vi.mock('convex/react', () => ({
-  useConvex: () => ({ url: 'https://example.convex.cloud' }),
-  useMutation: (reference: string) =>
-    reference === 'heartbeat' ? mocks.heartbeat : mocks.disconnect,
+  useMutation: () => mocks.heartbeat,
 }))
 
 describe('useRoomPresence', () => {
   afterEach(() => {
-    mocks.disconnect.mockClear()
     mocks.heartbeat.mockClear()
   })
 
-  it('connects immediately and gracefully disconnects on cleanup', async () => {
-    const { unmount } = renderHook(() =>
+  it('reports that the first heartbeat was dispatched without waiting for it', async () => {
+    const pendingHeartbeat = new Promise(() => {})
+    mocks.heartbeat.mockReturnValueOnce(pendingHeartbeat)
+
+    const { result, unmount } = renderHook(() =>
       useRoomPresence('ROOM2', 'client-token'),
     )
 
     await waitFor(() => {
+      expect(result.current).toBe(true)
       expect(mocks.heartbeat).toHaveBeenCalledWith({
         roomCode: 'ROOM2',
         clientToken: 'client-token',
@@ -45,14 +41,19 @@ describe('useRoomPresence', () => {
       })
     })
 
-    act(() => {
-      unmount()
-    })
+    unmount()
+  })
+
+  it('does not send a disconnect mutation during cleanup', async () => {
+    const { unmount } = renderHook(() =>
+      useRoomPresence('ROOM2', 'client-token'),
+    )
 
     await waitFor(() => {
-      expect(mocks.disconnect).toHaveBeenCalledWith({
-        sessionToken: 'session-token',
-      })
+      expect(mocks.heartbeat).toHaveBeenCalledTimes(1)
     })
+
+    unmount()
+    expect(mocks.heartbeat).toHaveBeenCalledTimes(1)
   })
 })

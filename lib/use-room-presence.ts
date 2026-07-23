@@ -1,19 +1,20 @@
 'use client'
 
-import { useConvex, useMutation } from 'convex/react'
-import { useEffect, useRef, useState } from 'react'
+import { useMutation } from 'convex/react'
+import { useEffect, useState } from 'react'
 
 import { api } from '@/convex/_generated/api'
 
 export const ROOM_HEARTBEAT_INTERVAL_MS = 4_000
 
 export function useRoomPresence(roomCode: string, clientToken: string) {
-  const convex = useConvex()
   const heartbeat = useMutation(api.presence.heartbeat)
-  const disconnect = useMutation(api.presence.disconnect)
   const [instanceId] = useState(() => crypto.randomUUID())
   const sessionId = JSON.stringify([instanceId, roomCode])
-  const sessionTokenRef = useRef<string | null>(null)
+  const heartbeatKey = JSON.stringify([clientToken, roomCode])
+  const [startedHeartbeatKey, setStartedHeartbeatKey] = useState<string | null>(
+    null,
+  )
 
   useEffect(() => {
     let canceled = false
@@ -28,18 +29,15 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
       heartbeatInFlight = true
 
       try {
-        const result = await heartbeat({
+        const heartbeatAccepted = await heartbeat({
           roomCode,
           clientToken,
           sessionId,
         })
 
-        if (canceled) {
-          await disconnect({ sessionToken: result.sessionToken })
-          return
+        if (!heartbeatAccepted) {
+          stopHeartbeat()
         }
-
-        sessionTokenRef.current = result.sessionToken
       } catch (error) {
         if (!canceled) {
           console.error('Unable to update room presence.', error)
@@ -49,32 +47,26 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
       }
     }
 
-    const startHeartbeat = () => {
+    function startHeartbeat() {
       if (intervalId) {
         clearInterval(intervalId)
       }
 
       void sendHeartbeat()
+      setStartedHeartbeatKey(heartbeatKey)
       intervalId = setInterval(sendHeartbeat, ROOM_HEARTBEAT_INTERVAL_MS)
     }
 
-    const stopHeartbeat = async () => {
+    function stopHeartbeat() {
       if (intervalId) {
         clearInterval(intervalId)
         intervalId = null
-      }
-
-      const sessionToken = sessionTokenRef.current
-      sessionTokenRef.current = null
-
-      if (sessionToken) {
-        await disconnect({ sessionToken })
       }
     }
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        void stopHeartbeat()
+        stopHeartbeat()
       } else {
         startHeartbeat()
       }
@@ -91,50 +83,20 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
       }
     }
 
-    const handleBeforeUnload = () => {
-      const sessionToken = sessionTokenRef.current
-
-      if (!sessionToken) {
-        return
-      }
-
-      const body = new Blob(
-        [
-          JSON.stringify({
-            path: 'presence:disconnect',
-            args: { sessionToken },
-          }),
-        ],
-        { type: 'application/json' },
-      )
-
-      navigator.sendBeacon(`${convex.url}/api/mutation`, body)
-    }
-
     startHeartbeat()
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
-    window.addEventListener('beforeunload', handleBeforeUnload)
 
     return () => {
       canceled = true
-
-      if (intervalId) {
-        clearInterval(intervalId)
-      }
+      stopHeartbeat()
 
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-
-      const sessionToken = sessionTokenRef.current
-      sessionTokenRef.current = null
-
-      if (sessionToken) {
-        void disconnect({ sessionToken })
-      }
     }
-  }, [clientToken, convex.url, disconnect, heartbeat, roomCode, sessionId])
+  }, [clientToken, heartbeat, heartbeatKey, roomCode, sessionId])
+
+  return startedHeartbeatKey === heartbeatKey
 }

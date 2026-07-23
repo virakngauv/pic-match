@@ -5,6 +5,7 @@ import { components } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { mutation } from './_generated/server'
 import { validateClientToken } from './playerKeys'
+import { isActiveRoomMember } from './roomMembers'
 import { normalizeRoomCode, ROOM_CODE_PATTERN } from './roomCode'
 
 const ROOM_HEARTBEAT_INTERVAL_MS = 4_000
@@ -13,24 +14,19 @@ export const roomPresence = new Presence<Id<'rooms'>, Id<'roomMembers'>>(
   components.presence,
 )
 
-const heartbeatResult = v.object({
-  roomToken: v.string(),
-  sessionToken: v.string(),
-})
-
 export const heartbeat = mutation({
   args: {
     roomCode: v.string(),
     clientToken: v.string(),
     sessionId: v.string(),
   },
-  returns: heartbeatResult,
+  returns: v.boolean(),
   handler: async (ctx, { roomCode, clientToken, sessionId }) => {
     const normalizedRoomCode = normalizeRoomCode(roomCode)
     const validatedClientToken = validateClientToken(clientToken)
 
     if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
-      throw new Error('This room is not available.')
+      return false
     }
 
     const room = await ctx.db
@@ -39,7 +35,7 @@ export const heartbeat = mutation({
       .unique()
 
     if (!room) {
-      throw new Error('This room is not available.')
+      return false
     }
 
     const member = await ctx.db
@@ -51,26 +47,18 @@ export const heartbeat = mutation({
       )
       .unique()
 
-    if (!member) {
-      throw new Error('Your player session is no longer valid.')
+    if (!member || !isActiveRoomMember(member.status)) {
+      return false
     }
 
-    return await roomPresence.heartbeat(
+    await roomPresence.heartbeat(
       ctx,
       room._id,
       member._id,
       sessionId,
       ROOM_HEARTBEAT_INTERVAL_MS,
     )
-  },
-})
 
-export const disconnect = mutation({
-  args: {
-    sessionToken: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, { sessionToken }) => {
-    return await roomPresence.disconnect(ctx, sessionToken)
+    return true
   },
 })
