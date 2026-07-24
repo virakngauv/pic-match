@@ -4,7 +4,6 @@ import {
   generateClientToken,
   getClientToken,
   getOrCreateClientToken,
-  migrateLegacyClientToken,
   saveClientToken,
 } from './player-session'
 
@@ -29,15 +28,6 @@ describe('player session storage', () => {
 
     expect(firstToken).toMatch(/^[0-9a-f]{32}$/)
     expect(secondToken).toBe(firstToken)
-  })
-
-  it('migrates a valid legacy session token to local storage', () => {
-    const token = 'b'.repeat(32)
-    window.sessionStorage.setItem('spot-it:player-key:bcdf2', token)
-
-    expect(migrateLegacyClientToken('bcdf2')).toBe(token)
-    expect(window.localStorage.getItem('spot-it:client-token')).toBe(token)
-    expect(window.sessionStorage.getItem('spot-it:player-key:bcdf2')).toBeNull()
   })
 
   it('rejects malformed tokens before persisting them', () => {

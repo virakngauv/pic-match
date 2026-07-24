@@ -4,15 +4,11 @@ import { useMutation, useQuery } from 'convex/react'
 import type { FunctionReturnType } from 'convex/server'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
-import {
-  getClientToken,
-  migrateLegacyClientToken,
-  subscribeToClientToken,
-} from '@/lib/player-session'
+import { getClientToken, subscribeToClientToken } from '@/lib/player-session'
 import { useRoomPresence } from '@/lib/use-room-presence'
 
 export function RoomLobby({ roomCode }: { roomCode: string }) {
@@ -22,13 +18,9 @@ export function RoomLobby({ roomCode }: { roomCode: string }) {
   )
   const clientToken = useSyncExternalStore(
     subscribe,
-    () => getClientToken(roomCode),
+    getClientToken,
     getServerClientToken,
   )
-
-  useEffect(() => {
-    migrateLegacyClientToken(roomCode)
-  }, [roomCode])
 
   if (clientToken === undefined) {
     return <LobbyLoading />

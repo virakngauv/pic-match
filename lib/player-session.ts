@@ -1,15 +1,6 @@
 const CLIENT_TOKEN_KEY = 'spot-it:client-token'
-const LEGACY_PLAYER_KEY_PREFIX = 'spot-it:player-key'
 const CLIENT_TOKEN_PATTERN = /^[0-9a-f]{32}$/
 const CLIENT_TOKEN_CHANGED_EVENT = 'spot-it:client-token-changed'
-
-function legacyStorageKey(roomCode: string) {
-  return `${LEGACY_PLAYER_KEY_PREFIX}:${normalizeRoomCode(roomCode)}`
-}
-
-function normalizeRoomCode(roomCode: string) {
-  return roomCode.trim().toLowerCase()
-}
 
 export function generateClientToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
@@ -27,49 +18,12 @@ export function saveClientToken(clientToken: string) {
   window.dispatchEvent(new Event(CLIENT_TOKEN_CHANGED_EVENT))
 }
 
-export function getClientToken(legacyRoomCode?: string) {
+export function getClientToken() {
   const storedToken = window.localStorage.getItem(CLIENT_TOKEN_KEY)
 
-  if (storedToken && CLIENT_TOKEN_PATTERN.test(storedToken)) {
-    return storedToken
-  }
-
-  if (!legacyRoomCode) {
-    return null
-  }
-
-  const legacyToken = window.sessionStorage.getItem(
-    legacyStorageKey(legacyRoomCode),
-  )
-  return legacyToken && CLIENT_TOKEN_PATTERN.test(legacyToken)
-    ? legacyToken
+  return storedToken && CLIENT_TOKEN_PATTERN.test(storedToken)
+    ? storedToken
     : null
-}
-
-export function migrateLegacyClientToken(roomCode: string) {
-  const storedToken = window.localStorage.getItem(CLIENT_TOKEN_KEY)
-
-  if (storedToken && CLIENT_TOKEN_PATTERN.test(storedToken)) {
-    return storedToken
-  }
-
-  if (storedToken) {
-    window.localStorage.removeItem(CLIENT_TOKEN_KEY)
-  }
-
-  const legacyKey = legacyStorageKey(roomCode)
-  const legacyToken = window.sessionStorage.getItem(legacyKey)
-
-  if (!legacyToken || !CLIENT_TOKEN_PATTERN.test(legacyToken)) {
-    if (legacyToken) {
-      window.sessionStorage.removeItem(legacyKey)
-    }
-    return null
-  }
-
-  saveClientToken(legacyToken)
-  window.sessionStorage.removeItem(legacyKey)
-  return legacyToken
 }
 
 export function getOrCreateClientToken() {
