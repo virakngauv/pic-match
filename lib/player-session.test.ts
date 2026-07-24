@@ -1,23 +1,43 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
-  getPrivatePlayerKey,
-  removePrivatePlayerKey,
-  savePrivatePlayerKey,
+  generateClientToken,
+  getClientToken,
+  getOrCreateClientToken,
+  saveClientToken,
 } from './player-session'
 
 describe('player session storage', () => {
   beforeEach(() => {
+    window.localStorage.clear()
     window.sessionStorage.clear()
   })
 
-  it('keeps private player keys scoped to their normalized room code', () => {
-    savePrivatePlayerKey(' ABCD2 ', 'private-key')
+  it('keeps one client token in persistent browser storage', () => {
+    const token = 'a'.repeat(32)
+    saveClientToken(token)
 
-    expect(getPrivatePlayerKey('abcd2')).toBe('private-key')
-    expect(getPrivatePlayerKey('other2')).toBeNull()
+    expect(getClientToken()).toBe(token)
+    expect(window.localStorage.getItem('spot-it:client-token')).toBe(token)
+    expect(window.sessionStorage).toHaveLength(0)
+  })
 
-    removePrivatePlayerKey('ABCD2')
-    expect(getPrivatePlayerKey('abcd2')).toBeNull()
+  it('reuses one token across tabs and rooms in the same browser', () => {
+    const firstToken = getOrCreateClientToken()
+    const secondToken = getOrCreateClientToken()
+
+    expect(firstToken).toMatch(/^[0-9a-f]{32}$/)
+    expect(secondToken).toBe(firstToken)
+  })
+
+  it('rejects malformed tokens before persisting them', () => {
+    expect(() => saveClientToken('not-a-token')).toThrow(
+      'Invalid client token.',
+    )
+    expect(window.localStorage).toHaveLength(0)
+  })
+
+  it('generates a 128-bit hexadecimal token', () => {
+    expect(generateClientToken()).toMatch(/^[0-9a-f]{32}$/)
   })
 })

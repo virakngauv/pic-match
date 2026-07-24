@@ -9,7 +9,9 @@
  */
 
 import type * as playerKeys from "../playerKeys.js";
+import type * as presence from "../presence.js";
 import type * as roomCode from "../roomCode.js";
+import type * as roomMembers from "../roomMembers.js";
 import type * as rooms from "../rooms.js";
 
 import type {
@@ -20,7 +22,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   playerKeys: typeof playerKeys;
+  presence: typeof presence;
   roomCode: typeof roomCode;
+  roomMembers: typeof roomMembers;
   rooms: typeof rooms;
 }>;
 
@@ -50,4 +54,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  presence: import("@convex-dev/presence/_generated/component.js").ComponentApi<"presence">;
+};

@@ -7,7 +7,7 @@ import { useState, type ComponentProps, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/convex/_generated/api'
-import { savePrivatePlayerKey } from '@/lib/player-session'
+import { getOrCreateClientToken } from '@/lib/player-session'
 import { cn } from '@/lib/utils'
 
 const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
@@ -72,9 +72,11 @@ function ConnectedJoinRoomForm({
     setIsJoining(true)
 
     try {
+      const clientToken = getOrCreateClientToken()
       const room = await joinRoom({
         roomCode: normalizedRoomCode,
         name: normalizedName,
+        clientToken,
       })
 
       if (!room) {
@@ -83,7 +85,6 @@ function ConnectedJoinRoomForm({
         return
       }
 
-      savePrivatePlayerKey(room.roomCode, room.privatePlayerKey)
       router.push(`/${room.roomCode}`)
     } catch {
       setError('The room could not be checked. Please try again.')

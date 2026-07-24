@@ -1,46 +1,55 @@
 'use client'
 
-import { useQuery } from 'convex/react'
+import { useMutation, useQuery } from 'convex/react'
+import type { FunctionReturnType } from 'convex/server'
 import Link from 'next/link'
-import { useEffect, useSyncExternalStore } from 'react'
+import { useRouter } from 'next/navigation'
+import { useCallback, useState, useSyncExternalStore } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
-import {
-  getPrivatePlayerKey,
-  removePrivatePlayerKey,
-} from '@/lib/player-session'
+import { getClientToken, subscribeToClientToken } from '@/lib/player-session'
+import { useRoomPresence } from '@/lib/use-room-presence'
 
 export function RoomLobby({ roomCode }: { roomCode: string }) {
-  const privatePlayerKey = useSyncExternalStore(
-    subscribeToPlayerKey,
-    () => getPrivatePlayerKey(roomCode),
-    getServerPlayerKey,
+  const subscribe = useCallback(
+    (onStoreChange: () => void) => subscribeToClientToken(onStoreChange),
+    [],
+  )
+  const clientToken = useSyncExternalStore(
+    subscribe,
+    getClientToken,
+    getServerClientToken,
   )
 
-  const lobby = useQuery(
-    api.rooms.getLobby,
-    privatePlayerKey
-      ? {
-          roomCode,
-          privatePlayerKey,
-        }
-      : 'skip',
-  )
-
-  useEffect(() => {
-    if (lobby === null) {
-      removePrivatePlayerKey(roomCode)
-    }
-  }, [lobby, roomCode])
-
-  if (privatePlayerKey === undefined) {
+  if (clientToken === undefined) {
     return <LobbyLoading />
   }
 
-  if (!privatePlayerKey) {
+  if (!clientToken) {
     return <LobbyMembershipRequired roomCode={roomCode} />
   }
+
+  return <PresentRoomLobby roomCode={roomCode} clientToken={clientToken} />
+}
+
+function PresentRoomLobby({
+  roomCode,
+  clientToken,
+}: {
+  roomCode: string
+  clientToken: string
+}) {
+  const heartbeatStarted = useRoomPresence(roomCode, clientToken)
+  const lobby = useQuery(
+    api.rooms.getLobby,
+    heartbeatStarted
+      ? {
+          roomCode,
+          clientToken,
+        }
+      : 'skip',
+  )
 
   if (lobby === undefined) {
     return <LobbyLoading />
@@ -48,6 +57,42 @@ export function RoomLobby({ roomCode }: { roomCode: string }) {
 
   if (lobby === null) {
     return <LobbyMembershipRequired roomCode={roomCode} />
+  }
+
+  return (
+    <ConnectedRoomLobby
+      lobby={lobby}
+      clientToken={clientToken}
+      roomCode={roomCode}
+    />
+  )
+}
+
+function ConnectedRoomLobby({
+  lobby,
+  clientToken,
+  roomCode,
+}: {
+  lobby: NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
+  clientToken: string
+  roomCode: string
+}) {
+  const router = useRouter()
+  const leaveRoom = useMutation(api.rooms.leave)
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [leaveError, setLeaveError] = useState<string | null>(null)
+
+  const handleLeaveRoom = async () => {
+    setIsLeaving(true)
+    setLeaveError(null)
+
+    try {
+      await leaveRoom({ roomCode, clientToken })
+      router.push('/home')
+    } catch {
+      setLeaveError('Unable to leave the room. Please try again.')
+      setIsLeaving(false)
+    }
   }
 
   return (
@@ -99,9 +144,19 @@ export function RoomLobby({ roomCode }: { roomCode: string }) {
           </ul>
         </div>
 
-        <div className="mt-8 flex justify-center">
-          <Button asChild variant="outline">
-            <Link href="/home">Back to home</Link>
+        <div className="mt-8 grid justify-items-center gap-3">
+          {leaveError ? (
+            <p className="text-destructive text-sm" role="alert">
+              {leaveError}
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isLeaving}
+            onClick={handleLeaveRoom}
+          >
+            {isLeaving ? 'Leaving…' : 'Leave room'}
           </Button>
         </div>
       </section>
@@ -109,11 +164,7 @@ export function RoomLobby({ roomCode }: { roomCode: string }) {
   )
 }
 
-function subscribeToPlayerKey() {
-  return () => {}
-}
-
-function getServerPlayerKey() {
+function getServerClientToken() {
   return undefined
 }
 
