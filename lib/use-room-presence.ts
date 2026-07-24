@@ -8,28 +8,24 @@ import { api } from '@/convex/_generated/api'
 export const ROOM_HEARTBEAT_INTERVAL_MS = 4_000
 export const MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 
-export function useRoomPresence(roomCode: string, clientToken: string) {
+export function useRoomPresence(
+  roomCode: string,
+  clientToken: string | null | undefined,
+  enabled: boolean,
+) {
   const heartbeat = useMutation(api.presence.heartbeat)
   const [instanceId] = useState(() => crypto.randomUUID())
   const sessionId = JSON.stringify([instanceId, roomCode])
-  const heartbeatKey = JSON.stringify([clientToken, roomCode])
-  const [startedHeartbeatKey, setStartedHeartbeatKey] = useState<string | null>(
-    null,
-  )
 
   useEffect(() => {
+    if (!enabled || !clientToken) {
+      return
+    }
+
     let canceled = false
     let heartbeatInFlight = false
     let consecutiveHeartbeatFailures = 0
     let intervalId: ReturnType<typeof setInterval> | null = null
-
-    const clearStartedHeartbeat = () => {
-      if (!canceled) {
-        setStartedHeartbeatKey((current) =>
-          current === heartbeatKey ? null : current,
-        )
-      }
-    }
 
     const sendHeartbeat = async () => {
       if (heartbeatInFlight) {
@@ -46,7 +42,6 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
         })
 
         if (!heartbeatAccepted) {
-          clearStartedHeartbeat()
           stopHeartbeat()
           return
         }
@@ -61,7 +56,6 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
           if (
             consecutiveHeartbeatFailures >= MAX_CONSECUTIVE_HEARTBEAT_FAILURES
           ) {
-            clearStartedHeartbeat()
             stopHeartbeat()
           }
         }
@@ -77,7 +71,6 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
 
       consecutiveHeartbeatFailures = 0
       void sendHeartbeat()
-      setStartedHeartbeatKey(heartbeatKey)
       intervalId = setInterval(sendHeartbeat, ROOM_HEARTBEAT_INTERVAL_MS)
     }
 
@@ -120,7 +113,5 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [clientToken, heartbeat, heartbeatKey, roomCode, sessionId])
-
-  return startedHeartbeatKey === heartbeatKey
+  }, [clientToken, enabled, heartbeat, roomCode, sessionId])
 }

@@ -31,16 +31,26 @@ describe('useRoomPresence', () => {
     vi.useRealTimers()
   })
 
-  it('reports that the first heartbeat was dispatched without waiting for it', async () => {
+  it('does not start presence before membership is confirmed', async () => {
+    const { unmount } = renderHook(() =>
+      useRoomPresence('ROOM2', 'client-token', false),
+    )
+
+    await act(async () => {})
+    expect(mocks.heartbeat).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('dispatches the first heartbeat after membership is confirmed', async () => {
     const pendingHeartbeat = new Promise(() => {})
     mocks.heartbeat.mockReturnValueOnce(pendingHeartbeat)
 
-    const { result, unmount } = renderHook(() =>
-      useRoomPresence('ROOM2', 'client-token'),
+    const { unmount } = renderHook(() =>
+      useRoomPresence('ROOM2', 'client-token', true),
     )
 
     await waitFor(() => {
-      expect(result.current).toBe(true)
       expect(mocks.heartbeat).toHaveBeenCalledWith({
         roomCode: 'ROOM2',
         clientToken: 'client-token',
@@ -53,7 +63,7 @@ describe('useRoomPresence', () => {
 
   it('does not send a disconnect mutation during cleanup', async () => {
     const { unmount } = renderHook(() =>
-      useRoomPresence('ROOM2', 'client-token'),
+      useRoomPresence('ROOM2', 'client-token', true),
     )
 
     await waitFor(() => {
@@ -64,17 +74,21 @@ describe('useRoomPresence', () => {
     expect(mocks.heartbeat).toHaveBeenCalledTimes(1)
   })
 
-  it('reports inactive presence when the server rejects a heartbeat', async () => {
+  it('stops presence when the server rejects a heartbeat', async () => {
+    vi.useFakeTimers()
     mocks.heartbeat.mockResolvedValue(false)
 
-    const { result, unmount } = renderHook(() =>
-      useRoomPresence('ROOM2', 'client-token'),
+    const { unmount } = renderHook(() =>
+      useRoomPresence('ROOM2', 'client-token', true),
     )
 
-    await waitFor(() => {
-      expect(mocks.heartbeat).toHaveBeenCalledTimes(1)
-      expect(result.current).toBe(false)
+    await act(async () => {})
+    expect(mocks.heartbeat).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ROOM_HEARTBEAT_INTERVAL_MS * 2)
     })
+    expect(mocks.heartbeat).toHaveBeenCalledTimes(1)
 
     unmount()
   })
@@ -84,8 +98,8 @@ describe('useRoomPresence', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     mocks.heartbeat.mockRejectedValue(new Error('deterministic failure'))
 
-    const { result, unmount } = renderHook(() =>
-      useRoomPresence('ROOM2', 'client-token'),
+    const { unmount } = renderHook(() =>
+      useRoomPresence('ROOM2', 'client-token', true),
     )
 
     await act(async () => {})
@@ -103,7 +117,6 @@ describe('useRoomPresence', () => {
     expect(mocks.heartbeat).toHaveBeenCalledTimes(
       MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
     )
-    expect(result.current).toBe(false)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(ROOM_HEARTBEAT_INTERVAL_MS * 2)
@@ -126,8 +139,8 @@ describe('useRoomPresence', () => {
       .mockRejectedValueOnce(new Error('transient failure'))
       .mockResolvedValueOnce(true)
 
-    const { result, unmount } = renderHook(() =>
-      useRoomPresence('ROOM2', 'client-token'),
+    const { unmount } = renderHook(() =>
+      useRoomPresence('ROOM2', 'client-token', true),
     )
 
     await act(async () => {})
@@ -139,7 +152,6 @@ describe('useRoomPresence', () => {
     }
 
     expect(mocks.heartbeat).toHaveBeenCalledTimes(6)
-    expect(result.current).toBe(true)
 
     unmount()
   })

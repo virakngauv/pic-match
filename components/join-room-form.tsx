@@ -4,10 +4,10 @@ import { useMutation } from 'convex/react'
 import { useRouter } from 'next/navigation'
 import { useState, type ComponentProps, type FormEvent } from 'react'
 
+import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/convex/_generated/api'
-import { getOrCreateClientToken } from '@/lib/player-session'
 import { cn } from '@/lib/utils'
 
 const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
@@ -48,6 +48,7 @@ function ConnectedJoinRoomForm({
 }) {
   const joinRoom = useMutation(api.rooms.join)
   const router = useRouter()
+  const { ensureClientToken } = usePlayerSession()
   const [roomCode, setRoomCode] = useState(initialRoomCode)
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +73,7 @@ function ConnectedJoinRoomForm({
     setIsJoining(true)
 
     try {
-      const clientToken = getOrCreateClientToken()
+      const clientToken = ensureClientToken()
       const room = await joinRoom({
         roomCode: normalizedRoomCode,
         name: normalizedName,
