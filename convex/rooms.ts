@@ -2,7 +2,7 @@ import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
 import { validateClientToken } from './playerKeys'
-import { isActiveRoomMember } from './roomMembers'
+import { isActiveRoomMember, shouldIncludeLobbyMember } from './roomMembers'
 import {
   findAvailableRoomCode,
   normalizeRoomCode,
@@ -245,7 +245,13 @@ export const getLobby = query({
     return {
       roomCode: room.code,
       members: members
-        .filter((member) => onlineMemberIds.has(member._id))
+        .filter((member) =>
+          shouldIncludeLobbyMember(
+            member._id,
+            currentMember._id,
+            onlineMemberIds,
+          ),
+        )
         .map((member) => ({
           playerId: member._id,
           name: member.name,

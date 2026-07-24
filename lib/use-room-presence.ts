@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { api } from '@/convex/_generated/api'
 
 export const ROOM_HEARTBEAT_INTERVAL_MS = 4_000
+export const MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 
 export function useRoomPresence(roomCode: string, clientToken: string) {
   const heartbeat = useMutation(api.presence.heartbeat)
@@ -19,7 +20,16 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
   useEffect(() => {
     let canceled = false
     let heartbeatInFlight = false
+    let consecutiveHeartbeatFailures = 0
     let intervalId: ReturnType<typeof setInterval> | null = null
+
+    const clearStartedHeartbeat = () => {
+      if (!canceled) {
+        setStartedHeartbeatKey((current) =>
+          current === heartbeatKey ? null : current,
+        )
+      }
+    }
 
     const sendHeartbeat = async () => {
       if (heartbeatInFlight) {
@@ -36,11 +46,24 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
         })
 
         if (!heartbeatAccepted) {
+          clearStartedHeartbeat()
           stopHeartbeat()
+          return
         }
+
+        consecutiveHeartbeatFailures = 0
       } catch (error) {
         if (!canceled) {
           console.error('Unable to update room presence.', error)
+
+          consecutiveHeartbeatFailures += 1
+
+          if (
+            consecutiveHeartbeatFailures >= MAX_CONSECUTIVE_HEARTBEAT_FAILURES
+          ) {
+            clearStartedHeartbeat()
+            stopHeartbeat()
+          }
         }
       } finally {
         heartbeatInFlight = false
@@ -52,6 +75,7 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
         clearInterval(intervalId)
       }
 
+      consecutiveHeartbeatFailures = 0
       void sendHeartbeat()
       setStartedHeartbeatKey(heartbeatKey)
       intervalId = setInterval(sendHeartbeat, ROOM_HEARTBEAT_INTERVAL_MS)
