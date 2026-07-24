@@ -30,23 +30,36 @@ function PresentRoomLobby({
     api.rooms.getCurrentMember,
     clientToken ? { roomCode, clientToken } : 'skip',
   )
-  const currentMember = clientToken === null ? null : queriedCurrentMember
 
   useRoomPresence(
     roomCode,
     clientToken,
-    currentMember !== null && currentMember !== undefined,
+    Boolean(clientToken && queriedCurrentMember),
   )
 
   if (lobby === null) {
     return <RoomNotFound roomCode={roomCode} />
   }
 
-  if (lobby === undefined || currentMember === undefined) {
+  if (lobby === undefined || clientToken === undefined) {
     return <RoomEntrySkeleton />
   }
 
-  if (lobby && currentMember === null) {
+  if (clientToken === null) {
+    return (
+      <JoinRoomScreen
+        initialRoomCode={lobby.roomCode}
+        roomCodeLocked
+        navigateAfterJoin={false}
+      />
+    )
+  }
+
+  if (queriedCurrentMember === undefined) {
+    return <RoomEntrySkeleton />
+  }
+
+  if (queriedCurrentMember === null) {
     return (
       <JoinRoomScreen
         initialRoomCode={lobby.roomCode}
@@ -60,8 +73,7 @@ function PresentRoomLobby({
     <ConnectedRoomLobby
       lobby={lobby}
       clientToken={clientToken}
-      currentMember={currentMember}
-      roomCode={roomCode}
+      currentMember={queriedCurrentMember}
     />
   )
 }
@@ -93,30 +105,24 @@ function ConnectedRoomLobby({
   lobby,
   clientToken,
   currentMember,
-  roomCode,
 }: {
-  lobby: NonNullable<FunctionReturnType<typeof api.rooms.getLobby>> | undefined
-  clientToken: string | null | undefined
-  currentMember:
-    FunctionReturnType<typeof api.rooms.getCurrentMember> | undefined
-  roomCode: string
+  lobby: NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
+  clientToken: string
+  currentMember: NonNullable<
+    FunctionReturnType<typeof api.rooms.getCurrentMember>
+  >
 }) {
-  const isLobbyLoading = lobby === undefined
   const router = useRouter()
   const leaveRoom = useMutation(api.rooms.leave)
   const [isLeaving, setIsLeaving] = useState(false)
   const [leaveError, setLeaveError] = useState<string | null>(null)
 
   const handleLeaveRoom = async () => {
-    if (!clientToken || !currentMember) {
-      return
-    }
-
     setIsLeaving(true)
     setLeaveError(null)
 
     try {
-      await leaveRoom({ roomCode, clientToken })
+      await leaveRoom({ roomCode: lobby.roomCode, clientToken })
       router.push('/home')
     } catch {
       setLeaveError('Unable to leave the room. Please try again.')
@@ -125,10 +131,7 @@ function ConnectedRoomLobby({
   }
 
   return (
-    <main
-      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
-      aria-busy={isLobbyLoading}
-    >
+    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 shadow-sm sm:p-10">
         <div className="text-center">
           <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
@@ -142,7 +145,7 @@ function ConnectedRoomLobby({
             when you’re ready.
           </p>
           <output className="bg-foreground text-background mt-8 block rounded-2xl px-5 py-6 font-mono text-3xl font-bold tracking-[0.22em] uppercase sm:text-4xl">
-            {lobby?.roomCode ?? roomCode}
+            {lobby.roomCode}
           </output>
         </div>
 
@@ -151,40 +154,29 @@ function ConnectedRoomLobby({
             <h2 className="text-xl font-semibold tracking-tight">
               In this room
             </h2>
-            {lobby ? (
-              <span className="text-muted-foreground text-sm">
-                {lobby.members.length}{' '}
-                {lobby.members.length === 1 ? 'player' : 'players'}
-              </span>
-            ) : (
-              <span
-                className="bg-muted h-4 w-16 animate-pulse rounded-full"
-                aria-hidden="true"
-              />
-            )}
+            <span className="text-muted-foreground text-sm">
+              {lobby.members.length}{' '}
+              {lobby.members.length === 1 ? 'player' : 'players'}
+            </span>
           </div>
           <ul className="mt-4 grid gap-2" aria-label="Players in this room">
-            {lobby ? (
-              lobby.members.map((member) => (
-                <li
-                  key={member.playerId}
-                  className="bg-background flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
-                >
-                  <span className="font-semibold">{member.name}</span>
-                  <span className="text-muted-foreground text-xs font-bold tracking-[0.12em] uppercase">
-                    {member.playerId === currentMember?.playerId
-                      ? member.role === 'host'
-                        ? 'You · Host'
-                        : 'You'
-                      : member.role === 'host'
-                        ? 'Host'
-                        : 'Player'}
-                  </span>
-                </li>
-              ))
-            ) : (
-              <LobbyMemberSkeleton />
-            )}
+            {lobby.members.map((member) => (
+              <li
+                key={member.playerId}
+                className="bg-background flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
+              >
+                <span className="font-semibold">{member.name}</span>
+                <span className="text-muted-foreground text-xs font-bold tracking-[0.12em] uppercase">
+                  {member.playerId === currentMember.playerId
+                    ? member.role === 'host'
+                      ? 'You · Host'
+                      : 'You'
+                    : member.role === 'host'
+                      ? 'Host'
+                      : 'Player'}
+                </span>
+              </li>
+            ))}
           </ul>
         </div>
 
@@ -194,40 +186,17 @@ function ConnectedRoomLobby({
               {leaveError}
             </p>
           ) : null}
-          {lobby && currentMember ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isLeaving}
-              onClick={handleLeaveRoom}
-            >
-              {isLeaving ? 'Leaving…' : 'Leave room'}
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isLeaving}
+            onClick={handleLeaveRoom}
+          >
+            {isLeaving ? 'Leaving…' : 'Leave room'}
+          </Button>
         </div>
       </section>
     </main>
-  )
-}
-
-function LobbyMemberSkeleton() {
-  return (
-    <>
-      <li
-        className="bg-background flex items-center justify-between rounded-xl border px-4 py-3"
-        aria-hidden="true"
-      >
-        <span className="bg-muted h-5 w-28 animate-pulse rounded-full" />
-        <span className="bg-muted h-3 w-12 animate-pulse rounded-full" />
-      </li>
-      <li
-        className="bg-background flex items-center justify-between rounded-xl border px-4 py-3"
-        aria-hidden="true"
-      >
-        <span className="bg-muted h-5 w-20 animate-pulse rounded-full" />
-        <span className="bg-muted h-3 w-14 animate-pulse rounded-full" />
-      </li>
-    </>
   )
 }
 
