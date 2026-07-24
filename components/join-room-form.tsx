@@ -14,22 +14,50 @@ const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
 
 export function JoinRoomForm({
   initialRoomCode = '',
+  roomCodeLocked = false,
+  navigateAfterJoin = true,
 }: {
   initialRoomCode?: string
+  roomCodeLocked?: boolean
+  navigateAfterJoin?: boolean
 }) {
   const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL)
 
   if (!convexConfigured) {
-    return <UnavailableJoinRoomForm />
+    return (
+      <UnavailableJoinRoomForm
+        initialRoomCode={initialRoomCode}
+        roomCodeLocked={roomCodeLocked}
+      />
+    )
   }
 
-  return <ConnectedJoinRoomForm initialRoomCode={initialRoomCode} />
+  return (
+    <ConnectedJoinRoomForm
+      initialRoomCode={initialRoomCode}
+      roomCodeLocked={roomCodeLocked}
+      navigateAfterJoin={navigateAfterJoin}
+    />
+  )
 }
 
-function UnavailableJoinRoomForm() {
+function UnavailableJoinRoomForm({
+  initialRoomCode,
+  roomCodeLocked,
+}: {
+  initialRoomCode: string
+  roomCodeLocked: boolean
+}) {
   return (
     <div className="mt-7 grid gap-5">
-      <Field label="Room code" id="room-code" placeholder="bcdf2" disabled />
+      <Field
+        label="Room code"
+        id="room-code"
+        placeholder="bcdf2"
+        value={initialRoomCode}
+        readOnly={roomCodeLocked}
+        disabled
+      />
       <Field label="Name" id="name" placeholder="Your name" disabled />
       <p className="text-muted-foreground text-sm" role="status">
         Room joining is unavailable until Convex is configured.
@@ -43,8 +71,12 @@ function UnavailableJoinRoomForm() {
 
 function ConnectedJoinRoomForm({
   initialRoomCode,
+  roomCodeLocked,
+  navigateAfterJoin,
 }: {
   initialRoomCode: string
+  roomCodeLocked: boolean
+  navigateAfterJoin: boolean
 }) {
   const joinRoom = useMutation(api.rooms.join)
   const router = useRouter()
@@ -86,7 +118,9 @@ function ConnectedJoinRoomForm({
         return
       }
 
-      router.push(`/${room.roomCode}`)
+      if (navigateAfterJoin) {
+        router.push(`/${room.roomCode}`)
+      }
     } catch {
       setError('The room could not be checked. Please try again.')
       setIsJoining(false)
@@ -108,7 +142,8 @@ function ConnectedJoinRoomForm({
           autoCorrect="off"
           spellCheck={false}
           className="font-mono tracking-[0.15em] lowercase"
-          autoFocus
+          autoFocus={!roomCodeLocked}
+          readOnly={roomCodeLocked}
           required
           disabled={isJoining}
         />
@@ -121,6 +156,7 @@ function ConnectedJoinRoomForm({
           onChange={(event) => setName(event.target.value)}
           autoComplete="name"
           maxLength={50}
+          autoFocus={roomCodeLocked}
           required
           disabled={isJoining}
         />

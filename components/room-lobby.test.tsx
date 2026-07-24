@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RoomLobby } from './room-lobby'
 
@@ -36,6 +36,7 @@ vi.mock('@/convex/_generated/api', () => ({
     rooms: {
       getCurrentMember: 'getCurrentMember',
       getLobby: 'getLobby',
+      join: 'join',
       leave: 'leave',
     },
   },
@@ -70,6 +71,7 @@ vi.mock('@/lib/use-room-presence', () => ({
 
 describe('RoomLobby', () => {
   beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', 'https://example.convex.cloud')
     mocks.clientToken = 'a'.repeat(32)
     mocks.currentMember = null
     mocks.heartbeatEnabled = false
@@ -85,31 +87,36 @@ describe('RoomLobby', () => {
     }
   })
 
-  it('shows a public lobby and join action for a token from another room', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('shows an inline locked join form for a non-member', () => {
     render(<RoomLobby roomCode="frvg7" />)
 
-    expect(screen.queryByText('Loading room…')).not.toBeInTheDocument()
-    expect(screen.getByText('Firefox host')).toBeInTheDocument()
-    expect(
-      screen.getByRole('link', { name: 'Join this room' }),
-    ).toHaveAttribute('href', '/join?roomCode=frvg7')
+    expect(screen.getByRole('main')).toHaveTextContent('Join your friends.')
+    expect(screen.getByLabelText('Room code')).toHaveValue('frvg7')
+    expect(screen.getByLabelText('Room code')).toHaveAttribute('readonly')
+    expect(screen.getByLabelText('Name')).toHaveFocus()
     expect(mocks.heartbeatEnabled).toBe(false)
   })
 
-  it('renders lobby data without showing a player-session loading message', () => {
+  it('shows a neutral state while the player session hydrates', () => {
     mocks.clientToken = undefined
     mocks.currentMember = undefined
 
     render(<RoomLobby roomCode="frvg7" />)
 
-    expect(screen.getByText('Firefox host')).toBeInTheDocument()
+    expect(
+      screen.getByRole('main', { name: 'Checking room access' }),
+    ).toHaveAttribute('aria-busy', 'true')
     expect(
       screen.queryByText('Checking your player session…'),
     ).not.toBeInTheDocument()
     expect(mocks.heartbeatEnabled).toBe(false)
   })
 
-  it('renders the room shell instead of a visible loading message', () => {
+  it('renders a neutral skeleton while room access is unresolved', () => {
     mocks.lobby = undefined
     mocks.currentMember = undefined
 
@@ -117,11 +124,8 @@ describe('RoomLobby', () => {
 
     expect(screen.queryByText('Loading room…')).not.toBeInTheDocument()
     expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
-    expect(screen.getByText('frvg7')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('link', { name: 'Join this room' }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Ready to play.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Join your friends.')).not.toBeInTheDocument()
   })
 
   it('starts presence only for a confirmed room member', () => {
@@ -132,5 +136,24 @@ describe('RoomLobby', () => {
     expect(screen.getByText('You · Host')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Leave room' })).toBeEnabled()
     expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
+  it('shows recovery actions when the room does not exist', () => {
+    mocks.lobby = null
+
+    render(<RoomLobby roomCode="zzzzz" />)
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Sorry, room zzzzz doesn’t exist.',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(
+      'href',
+      '/home',
+    )
+    expect(
+      screen.getByRole('link', { name: 'Create a new room' }),
+    ).toHaveAttribute('href', '/create')
   })
 })

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { JoinRoomScreen } from '@/components/join-room-screen'
 import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
@@ -41,6 +42,20 @@ function PresentRoomLobby({
     return <RoomNotFound roomCode={roomCode} />
   }
 
+  if (lobby === undefined || currentMember === undefined) {
+    return <RoomEntrySkeleton />
+  }
+
+  if (lobby && currentMember === null) {
+    return (
+      <JoinRoomScreen
+        initialRoomCode={lobby.roomCode}
+        roomCodeLocked
+        navigateAfterJoin={false}
+      />
+    )
+  }
+
   return (
     <ConnectedRoomLobby
       lobby={lobby}
@@ -48,6 +63,29 @@ function PresentRoomLobby({
       currentMember={currentMember}
       roomCode={roomCode}
     />
+  )
+}
+
+function RoomEntrySkeleton() {
+  return (
+    <main
+      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
+      aria-busy="true"
+      aria-label="Checking room access"
+    >
+      <section
+        className="bg-card mx-auto w-full max-w-lg rounded-[2rem] border p-7 shadow-sm sm:p-10"
+        aria-hidden="true"
+      >
+        <div className="bg-muted h-3 w-24 animate-pulse rounded-full" />
+        <div className="bg-muted mt-5 h-12 w-4/5 animate-pulse rounded-2xl" />
+        <div className="bg-muted mt-4 h-5 w-full animate-pulse rounded-full" />
+        <div className="bg-muted mt-2 h-5 w-2/3 animate-pulse rounded-full" />
+        <div className="bg-muted mt-8 h-11 w-full animate-pulse rounded-xl" />
+        <div className="bg-muted mt-5 h-11 w-full animate-pulse rounded-xl" />
+        <div className="bg-muted mt-8 h-12 w-full animate-pulse rounded-full" />
+      </section>
+    </main>
   )
 }
 
@@ -165,12 +203,6 @@ function ConnectedRoomLobby({
             >
               {isLeaving ? 'Leaving…' : 'Leave room'}
             </Button>
-          ) : lobby && currentMember === null ? (
-            <Button asChild>
-              <Link href={`/join?roomCode=${encodeURIComponent(roomCode)}`}>
-                Join this room
-              </Link>
-            </Button>
           ) : null}
         </div>
       </section>
@@ -207,14 +239,17 @@ function RoomNotFound({ roomCode }: { roomCode: string }) {
           Room {roomCode}
         </p>
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          Room not found.
+          Sorry, room {roomCode} doesn’t exist.
         </h1>
         <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-          Check the room code and try again.
+          You can return home or create a new room to start playing.
         </p>
-        <div className="mt-8 flex justify-center">
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <Button asChild>
+            <Link href="/create">Create a new room</Link>
+          </Button>
           <Button asChild variant="outline">
-            <Link href="/home">Back to home</Link>
+            <Link href="/home">Go home</Link>
           </Button>
         </div>
       </section>
