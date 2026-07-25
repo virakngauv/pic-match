@@ -4,14 +4,14 @@ import { JoinRoomForm } from '@/components/join-room-form'
 import { Button } from '@/components/ui/button'
 
 export function JoinRoomScreen({
-  initialRoomCode,
-  roomCodeLocked = false,
+  roomCode,
   navigateAfterJoin = true,
 }: {
-  initialRoomCode?: string
-  roomCodeLocked?: boolean
+  roomCode?: string
   navigateAfterJoin?: boolean
 }) {
+  const roomCodeLocked = roomCode !== undefined
+
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
       <section className="bg-card mx-auto w-full max-w-lg rounded-[2rem] border p-7 shadow-sm sm:p-10">
@@ -27,8 +27,7 @@ export function JoinRoomScreen({
             : 'Enter the room code you were given and tell us what to call you.'}
         </p>
         <JoinRoomForm
-          initialRoomCode={initialRoomCode}
-          roomCodeLocked={roomCodeLocked}
+          roomCode={roomCode}
           navigateAfterJoin={navigateAfterJoin}
         />
         <Button asChild variant="outline" className="mt-3 w-full">

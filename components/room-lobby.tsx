@@ -47,11 +47,7 @@ function PresentRoomLobby({
 
   if (clientToken === null) {
     return (
-      <JoinRoomScreen
-        initialRoomCode={lobby.roomCode}
-        roomCodeLocked
-        navigateAfterJoin={false}
-      />
+      <JoinRoomScreen roomCode={lobby.roomCode} navigateAfterJoin={false} />
     )
   }
 
@@ -61,11 +57,7 @@ function PresentRoomLobby({
 
   if (queriedCurrentMember === null) {
     return (
-      <JoinRoomScreen
-        initialRoomCode={lobby.roomCode}
-        roomCodeLocked
-        navigateAfterJoin={false}
-      />
+      <JoinRoomScreen roomCode={lobby.roomCode} navigateAfterJoin={false} />
     )
   }
 

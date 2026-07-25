@@ -46,7 +46,7 @@ describe('JoinRoomForm', () => {
   })
 
   it('locks a room code supplied by the room route', () => {
-    render(<JoinRoomForm initialRoomCode="frvg7" roomCodeLocked={true} />)
+    render(<JoinRoomForm roomCode="frvg7" />)
 
     expect(screen.getByLabelText('Room code')).toHaveValue('frvg7')
     expect(screen.getByLabelText('Room code')).toHaveAttribute('readonly')
@@ -63,13 +63,7 @@ describe('JoinRoomForm', () => {
   it('stays on the room route after an inline join', async () => {
     const user = userEvent.setup()
 
-    render(
-      <JoinRoomForm
-        initialRoomCode="frvg7"
-        roomCodeLocked
-        navigateAfterJoin={false}
-      />,
-    )
+    render(<JoinRoomForm roomCode="frvg7" navigateAfterJoin={false} />)
 
     await user.type(screen.getByLabelText('Name'), 'Browser player')
     await user.click(screen.getByRole('button', { name: 'Join' }))

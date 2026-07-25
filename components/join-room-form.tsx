@@ -13,48 +13,36 @@ import { cn } from '@/lib/utils'
 const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
 
 export function JoinRoomForm({
-  initialRoomCode = '',
-  roomCodeLocked = false,
+  roomCode,
   navigateAfterJoin = true,
 }: {
-  initialRoomCode?: string
-  roomCodeLocked?: boolean
+  roomCode?: string
   navigateAfterJoin?: boolean
 }) {
   const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL)
 
   if (!convexConfigured) {
-    return (
-      <UnavailableJoinRoomForm
-        initialRoomCode={initialRoomCode}
-        roomCodeLocked={roomCodeLocked}
-      />
-    )
+    return <UnavailableJoinRoomForm roomCode={roomCode} />
   }
 
   return (
     <ConnectedJoinRoomForm
-      initialRoomCode={initialRoomCode}
-      roomCodeLocked={roomCodeLocked}
+      roomCode={roomCode}
       navigateAfterJoin={navigateAfterJoin}
     />
   )
 }
 
-function UnavailableJoinRoomForm({
-  initialRoomCode,
-  roomCodeLocked,
-}: {
-  initialRoomCode: string
-  roomCodeLocked: boolean
-}) {
+function UnavailableJoinRoomForm({ roomCode }: { roomCode?: string }) {
+  const roomCodeLocked = roomCode !== undefined
+
   return (
     <div className="mt-7 grid gap-5">
       <Field
         label="Room code"
         id="room-code"
         placeholder="bcdf2"
-        value={initialRoomCode}
+        value={roomCode ?? ''}
         readOnly={roomCodeLocked}
         disabled
       />
@@ -70,25 +58,24 @@ function UnavailableJoinRoomForm({
 }
 
 function ConnectedJoinRoomForm({
-  initialRoomCode,
-  roomCodeLocked,
+  roomCode,
   navigateAfterJoin,
 }: {
-  initialRoomCode: string
-  roomCodeLocked: boolean
+  roomCode?: string
   navigateAfterJoin: boolean
 }) {
+  const roomCodeLocked = roomCode !== undefined
   const joinRoom = useMutation(api.rooms.join)
   const router = useRouter()
   const { ensureClientToken } = usePlayerSession()
-  const [roomCode, setRoomCode] = useState(initialRoomCode)
+  const [enteredRoomCode, setEnteredRoomCode] = useState(roomCode ?? '')
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isJoining, setIsJoining] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const normalizedRoomCode = roomCode.trim().toLowerCase()
+    const normalizedRoomCode = enteredRoomCode.trim().toLowerCase()
     const normalizedName = name.trim()
 
     if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
@@ -135,8 +122,8 @@ function ConnectedJoinRoomForm({
           id="room-code"
           name="roomCode"
           placeholder="bcdf2"
-          value={roomCode}
-          onChange={(event) => setRoomCode(event.target.value)}
+          value={enteredRoomCode}
+          onChange={(event) => setEnteredRoomCode(event.target.value)}
           maxLength={5}
           autoCapitalize="none"
           autoCorrect="off"
