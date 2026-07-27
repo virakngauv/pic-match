@@ -1,15 +1,25 @@
-import Link from 'next/link'
+'use client'
 
-import { JoinRoomForm } from '@/components/join-room-form'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+
+import {
+  JoinRoomForm,
+  type JoinedRoom,
+} from '@/components/join-room-form'
 import { Button } from '@/components/ui/button'
 
 export function JoinRoomScreen({
   roomCode,
-  navigateAfterJoin = true,
+  onJoined,
 }: {
   roomCode?: string
-  navigateAfterJoin?: boolean
+  onJoined?: (room: JoinedRoom) => void
 }) {
+  const router = useRouter()
+  const handleJoined =
+    onJoined ?? ((room: JoinedRoom) => router.push(`/${room.roomCode}`))
+
   const roomCodeLocked = roomCode !== undefined
 
   return (
@@ -26,10 +36,7 @@ export function JoinRoomScreen({
             ? 'Tell us what to call you to join this room.'
             : 'Enter the room code you were given and tell us what to call you.'}
         </p>
-        <JoinRoomForm
-          roomCode={roomCode}
-          navigateAfterJoin={navigateAfterJoin}
-        />
+        <JoinRoomForm roomCode={roomCode} onJoined={handleJoined} />
         <Button asChild variant="outline" className="mt-3 w-full">
           <Link href="/home">Back to home</Link>
         </Button>

@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
 import { useRoomPresence } from '@/lib/use-room-presence'
 
+const noopJoined = () => {}
+
 export function RoomLobby({ roomCode }: { roomCode: string }) {
   const { clientToken } = usePlayerSession()
 
@@ -46,9 +48,7 @@ function PresentRoomLobby({
   }
 
   if (clientToken === null) {
-    return (
-      <JoinRoomScreen roomCode={lobby.roomCode} navigateAfterJoin={false} />
-    )
+    return <JoinRoomScreen roomCode={lobby.roomCode} onJoined={noopJoined} />
   }
 
   if (queriedCurrentMember === undefined) {
@@ -56,9 +56,7 @@ function PresentRoomLobby({
   }
 
   if (queriedCurrentMember === null) {
-    return (
-      <JoinRoomScreen roomCode={lobby.roomCode} navigateAfterJoin={false} />
-    )
+    return <JoinRoomScreen roomCode={lobby.roomCode} onJoined={noopJoined} />
   }
 
   return (

@@ -7,7 +7,7 @@ import { JoinRoomForm } from './join-room-form'
 const mocks = vi.hoisted(() => ({
   ensureClientToken: vi.fn(() => 'a'.repeat(32)),
   joinRoom: vi.fn(),
-  push: vi.fn(),
+  onJoined: vi.fn(),
 }))
 
 vi.mock('@/convex/_generated/api', () => ({
@@ -22,10 +22,6 @@ vi.mock('convex/react', () => ({
   useMutation: () => mocks.joinRoom,
 }))
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mocks.push }),
-}))
-
 vi.mock('@/components/player-session-provider', () => ({
   usePlayerSession: () => ({
     ensureClientToken: mocks.ensureClientToken,
@@ -38,7 +34,7 @@ describe('JoinRoomForm', () => {
     mocks.ensureClientToken.mockClear()
     mocks.joinRoom.mockReset()
     mocks.joinRoom.mockResolvedValue({ roomCode: 'frvg7' })
-    mocks.push.mockReset()
+    mocks.onJoined.mockReset()
   })
 
   afterEach(() => {
@@ -60,10 +56,10 @@ describe('JoinRoomForm', () => {
     expect(screen.getByLabelText('Room code')).toHaveFocus()
   })
 
-  it('stays on the room route after an inline join', async () => {
+  it('invokes onJoined with the room after a successful join', async () => {
     const user = userEvent.setup()
 
-    render(<JoinRoomForm roomCode="frvg7" navigateAfterJoin={false} />)
+    render(<JoinRoomForm roomCode="frvg7" onJoined={mocks.onJoined} />)
 
     await user.type(screen.getByLabelText('Name'), 'Browser player')
     await user.click(screen.getByRole('button', { name: 'Join' }))
@@ -75,6 +71,20 @@ describe('JoinRoomForm', () => {
         clientToken: 'a'.repeat(32),
       })
     })
-    expect(mocks.push).not.toHaveBeenCalled()
+    expect(mocks.onJoined).toHaveBeenCalledWith({ roomCode: 'frvg7' })
+  })
+
+  it('leaves the parent in charge when onJoined is omitted', async () => {
+    const user = userEvent.setup()
+
+    render(<JoinRoomForm roomCode="frvg7" />)
+
+    await user.type(screen.getByLabelText('Name'), 'Browser player')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+
+    await waitFor(() => {
+      expect(mocks.joinRoom).toHaveBeenCalled()
+    })
+    expect(mocks.onJoined).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,6 @@
 'use client'
 
 import { useMutation } from 'convex/react'
-import { useRouter } from 'next/navigation'
 import { useState, type ComponentProps, type FormEvent } from 'react'
 
 import { usePlayerSession } from '@/components/player-session-provider'
@@ -12,12 +11,14 @@ import { cn } from '@/lib/utils'
 
 const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
 
+export type JoinedRoom = { roomCode: string }
+
 export function JoinRoomForm({
   roomCode,
-  navigateAfterJoin = true,
+  onJoined,
 }: {
   roomCode?: string
-  navigateAfterJoin?: boolean
+  onJoined?: (room: JoinedRoom) => void
 }) {
   const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL)
 
@@ -25,12 +26,7 @@ export function JoinRoomForm({
     return <UnavailableJoinRoomForm roomCode={roomCode} />
   }
 
-  return (
-    <ConnectedJoinRoomForm
-      roomCode={roomCode}
-      navigateAfterJoin={navigateAfterJoin}
-    />
-  )
+  return <ConnectedJoinRoomForm roomCode={roomCode} onJoined={onJoined} />
 }
 
 function UnavailableJoinRoomForm({ roomCode }: { roomCode?: string }) {
@@ -59,14 +55,13 @@ function UnavailableJoinRoomForm({ roomCode }: { roomCode?: string }) {
 
 function ConnectedJoinRoomForm({
   roomCode,
-  navigateAfterJoin,
+  onJoined,
 }: {
   roomCode?: string
-  navigateAfterJoin: boolean
+  onJoined?: (room: JoinedRoom) => void
 }) {
   const roomCodeLocked = roomCode !== undefined
   const joinRoom = useMutation(api.rooms.join)
-  const router = useRouter()
   const { ensureClientToken } = usePlayerSession()
   const [enteredRoomCode, setEnteredRoomCode] = useState(roomCode ?? '')
   const [name, setName] = useState('')
@@ -105,9 +100,7 @@ function ConnectedJoinRoomForm({
         return
       }
 
-      if (navigateAfterJoin) {
-        router.push(`/${room.roomCode}`)
-      }
+      onJoined?.({ roomCode: room.roomCode })
     } catch {
       setError('The room could not be checked. Please try again.')
       setIsJoining(false)
