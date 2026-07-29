@@ -96,13 +96,13 @@ function ConnectedJoinRoomForm({
 
       if (!room) {
         setError('We couldn’t find that room. Check the code and try again.')
-        setIsJoining(false)
         return
       }
 
       onJoined?.({ roomCode: room.roomCode })
     } catch {
       setError('The room could not be checked. Please try again.')
+    } finally {
       setIsJoining(false)
     }
   }

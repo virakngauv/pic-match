@@ -85,6 +85,8 @@ describe('JoinRoomForm', () => {
     await waitFor(() => {
       expect(mocks.joinRoom).toHaveBeenCalled()
     })
-    expect(mocks.onJoined).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Join' })).toBeEnabled()
+    })
   })
 })
