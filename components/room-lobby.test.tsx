@@ -6,7 +6,13 @@ import { RoomLobby } from './room-lobby'
 const mocks = vi.hoisted(() => ({
   clientToken: 'a'.repeat(32) as string | null | undefined,
   currentMember: null as
-    { playerId: string; role: 'host' | 'player' } | null | undefined,
+    | {
+        playerId: string
+        role: 'host' | 'player'
+        position: number | null
+      }
+    | null
+    | undefined,
   heartbeatEnabled: false,
   leaveRoom: vi.fn(),
   startGame: vi.fn(),
@@ -146,7 +152,11 @@ describe('RoomLobby', () => {
   })
 
   it('starts presence only for a confirmed room member', () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.currentMember = {
+      playerId: 'member-1',
+      role: 'host',
+      position: null,
+    }
 
     render(<RoomLobby roomCode="frvg7" />)
 
@@ -156,7 +166,11 @@ describe('RoomLobby', () => {
   })
 
   it('keeps the host start button disabled until another player joins', () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.currentMember = {
+      playerId: 'member-1',
+      role: 'host',
+      position: null,
+    }
 
     render(<RoomLobby roomCode="frvg7" />)
 
@@ -172,7 +186,11 @@ describe('RoomLobby', () => {
   })
 
   it('lets the host start once at least two players are in the lobby', async () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.currentMember = {
+      playerId: 'member-1',
+      role: 'host',
+      position: null,
+    }
     mocks.lobby?.members.push({
       playerId: 'member-2',
       name: 'Chrome player',
@@ -215,7 +233,11 @@ describe('RoomLobby', () => {
   })
 
   it('shows non-host players a waiting status instead of a start button', () => {
-    mocks.currentMember = { playerId: 'member-2', role: 'player' }
+    mocks.currentMember = {
+      playerId: 'member-2',
+      role: 'player',
+      position: null,
+    }
     mocks.lobby?.members.push({
       playerId: 'member-2',
       name: 'Chrome player',
@@ -233,7 +255,11 @@ describe('RoomLobby', () => {
   })
 
   it('shows the game screen only after the host starts the game', () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.currentMember = {
+      playerId: 'member-1',
+      role: 'host',
+      position: 0,
+    }
     if (mocks.lobby) {
       mocks.lobby.phase = 'playing'
     }
@@ -244,8 +270,64 @@ describe('RoomLobby', () => {
     expect(screen.queryByText('Ready to play.')).not.toBeInTheDocument()
   })
 
+  it('blocks a brand-new player after the game starts', () => {
+    if (mocks.lobby) {
+      mocks.lobby.phase = 'playing'
+    }
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'This game has already started.',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Join your friends.')).not.toBeInTheDocument()
+    expect(mocks.heartbeatEnabled).toBe(false)
+  })
+
+  it('does not silently restore a participant who explicitly left', () => {
+    if (mocks.lobby) {
+      mocks.lobby.phase = 'playing'
+    }
+    mocks.currentMember = null
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'This game has already started.',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+  })
+
+  it('shows a participant-specific reconnecting state', () => {
+    mocks.currentMember = {
+      playerId: 'member-2',
+      role: 'player',
+      position: 1,
+    }
+    mocks.presenceStatus = 'connecting'
+    if (mocks.lobby) {
+      mocks.lobby.phase = 'playing'
+    }
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Reconnecting to your game…' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true')
+    expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
   it('keeps the join screen hidden while leaving and navigating home', async () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.currentMember = {
+      playerId: 'member-1',
+      role: 'host',
+      position: null,
+    }
     const { rerender } = render(<RoomLobby roomCode="frvg7" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
@@ -267,7 +349,11 @@ describe('RoomLobby', () => {
   })
 
   it('restores the lobby when leaving fails', async () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.currentMember = {
+      playerId: 'member-1',
+      role: 'host',
+      position: null,
+    }
     mocks.leaveRoom.mockRejectedValue(new Error('Network unavailable'))
     render(<RoomLobby roomCode="frvg7" />)
 
@@ -281,7 +367,11 @@ describe('RoomLobby', () => {
   })
 
   it('shows a full-room recovery screen when a seat cannot be reclaimed', () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.currentMember = {
+      playerId: 'member-1',
+      role: 'host',
+      position: null,
+    }
     mocks.presenceStatus = 'room-full'
 
     render(<RoomLobby roomCode="frvg7" />)

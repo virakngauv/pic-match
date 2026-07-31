@@ -4,8 +4,11 @@ import { v } from 'convex/values'
 import { components } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { mutation, type MutationCtx, type QueryCtx } from './_generated/server'
+import { getGameParticipant } from './gameParticipants'
 import { validateClientInstanceId, validateClientToken } from './playerKeys'
 import { canClaimRoomSeat, MAX_ROOM_MEMBERS } from './roomCapacity'
+import { canRoomMemberConnect } from './roomAccess'
+import { getRoomPhase } from './roomLifecycle'
 import { isActiveRoomMember } from './roomMembers'
 import { normalizeRoomCode, ROOM_CODE_PATTERN } from './roomCode'
 
@@ -122,7 +125,23 @@ export const heartbeat = mutation({
       )
       .unique()
 
-    if (!member || !isActiveRoomMember(member.status)) {
+    if (!member) {
+      return { status: 'not_eligible' }
+    }
+
+    const phase = getRoomPhase(room)
+    const gameParticipant =
+      phase !== 'lobby' && room.gameId
+        ? await getGameParticipant(ctx, room.gameId, member._id)
+        : null
+
+    if (
+      !canRoomMemberConnect({
+        phase,
+        memberStatus: member.status,
+        isGameParticipant: gameParticipant !== null,
+      })
+    ) {
       return { status: 'not_eligible' }
     }
 

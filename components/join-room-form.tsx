@@ -106,6 +106,11 @@ function ConnectedJoinRoomForm({
         return
       }
 
+      if (room.status === 'game_in_progress') {
+        setError('This game has already started.')
+        return
+      }
+
       onJoined?.({ roomCode: room.roomCode })
     } catch {
       setError('The room could not be checked. Please try again.')

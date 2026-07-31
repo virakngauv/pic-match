@@ -2,8 +2,10 @@ import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
 import {
+  getGameParticipant,
   listGameParticipantSnapshot,
   listRoomParticipantsForPhase,
+  presentGameParticipantIdentity,
   startRoomGame,
 } from './gameParticipants'
 import { validateClientToken } from './playerKeys'
@@ -14,6 +16,7 @@ import {
   listOnlineActiveRoomMembers,
   roomPresence,
 } from './presence'
+import { decideRoomJoin } from './roomAccess'
 import { getRoomPhase, newRoomLifecycle, roomPhase } from './roomLifecycle'
 import { isActiveRoomMember, roomMemberRole } from './roomMembers'
 import {
@@ -34,10 +37,14 @@ const joinRoomResult = v.union(
     roomCode: v.string(),
   }),
   v.object({ status: v.literal('room_full') }),
+  v.object({ status: v.literal('game_in_progress') }),
 )
 
 type JoinRoomResult =
-  { status: 'joined'; roomCode: string } | { status: 'room_full' } | null
+  | { status: 'joined'; roomCode: string }
+  | { status: 'room_full' }
+  | { status: 'game_in_progress' }
+  | null
 
 const lobbyMember = v.object({
   playerId: v.id('roomMembers'),
@@ -48,6 +55,7 @@ const lobbyMember = v.object({
 const currentMemberResult = v.object({
   playerId: v.id('roomMembers'),
   role: roomMemberRole,
+  position: v.union(v.null(), v.number()),
 })
 
 function normalizeName(name: string) {
@@ -127,7 +135,6 @@ export const join = mutation({
     { roomCode, name, clientToken, clientInstanceId },
   ): Promise<JoinRoomResult> => {
     const normalizedRoomCode = normalizeRoomCode(roomCode)
-    const playerName = normalizeName(name)
     const validatedClientToken = validateClientToken(clientToken)
 
     if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
@@ -152,6 +159,21 @@ export const join = mutation({
       )
       .unique()
 
+    const phase = getRoomPhase(room)
+    const gameParticipant =
+      existingMember && phase !== 'lobby' && room.gameId
+        ? await getGameParticipant(ctx, room.gameId, existingMember._id)
+        : null
+    const joinDecision = decideRoomJoin({
+      phase,
+      memberStatus: existingMember?.status ?? null,
+      isGameParticipant: gameParticipant !== null,
+    })
+
+    if (joinDecision === 'game_in_progress') {
+      return { status: 'game_in_progress' }
+    }
+
     const sessionId = createRoomPresenceSessionId(
       clientInstanceId,
       normalizedRoomCode,
@@ -171,7 +193,7 @@ export const join = mutation({
 
       if (!isActiveRoomMember(existingMember.status)) {
         await ctx.db.patch(existingMember._id, {
-          name: playerName,
+          name: normalizeName(name),
           status: 'active',
         })
       }
@@ -185,7 +207,7 @@ export const join = mutation({
 
     const memberId = await ctx.db.insert('roomMembers', {
       roomId: room._id,
-      name: playerName,
+      name: normalizeName(name),
       privatePlayerKey: validatedClientToken,
       role: 'player',
       status: 'active',
@@ -394,9 +416,26 @@ export const getCurrentMember = query({
       return null
     }
 
+    const phase = getRoomPhase(room)
+
+    if (phase !== 'lobby') {
+      if (!room.gameId) {
+        return null
+      }
+
+      const participant = await getGameParticipant(ctx, room.gameId, member._id)
+
+      if (!participant) {
+        return null
+      }
+
+      return presentGameParticipantIdentity(participant)
+    }
+
     return {
       playerId: member._id,
       role: member.role,
+      position: null,
     }
   },
 })
