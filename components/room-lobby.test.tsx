@@ -154,13 +154,15 @@ describe('RoomLobby', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
 
     expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true')
-    expect(
-      screen.getByRole('heading', { name: 'Heading home…' }),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
+    expect(screen.getByText('Firefox host')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Leaving…' })).toBeDisabled()
 
     mocks.currentMember = null
     rerender(<RoomLobby roomCode="frvg7" />)
 
+    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
+    expect(screen.getByText('Firefox host')).toBeInTheDocument()
     expect(screen.queryByText('Join your friends.')).not.toBeInTheDocument()
     await waitFor(() => {
       expect(mocks.routerPush).toHaveBeenCalledWith('/home')

@@ -13,6 +13,16 @@ import { api } from '@/convex/_generated/api'
 import { useRoomPresence } from '@/lib/use-room-presence'
 
 const noopJoined = () => {}
+const noopLeave = () => {}
+
+type Lobby = NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
+type CurrentMember = NonNullable<
+  FunctionReturnType<typeof api.rooms.getCurrentMember>
+>
+type LeavingSnapshot = {
+  lobby: Lobby
+  currentMember: CurrentMember
+}
 
 export function RoomLobby({ roomCode }: { roomCode: string }) {
   const { clientToken } = usePlayerSession()
@@ -29,7 +39,8 @@ function PresentRoomLobby({
 }) {
   const router = useRouter()
   const leaveRoom = useMutation(api.rooms.leave)
-  const [isLeaving, setIsLeaving] = useState(false)
+  const [leavingSnapshot, setLeavingSnapshot] =
+    useState<LeavingSnapshot | null>(null)
   const [leaveError, setLeaveError] = useState<string | null>(null)
   const lobby = useQuery(api.rooms.getLobby, { roomCode })
   const queriedCurrentMember = useQuery(
@@ -43,12 +54,15 @@ function PresentRoomLobby({
     Boolean(clientToken && queriedCurrentMember),
   )
 
-  const handleLeaveRoom = async () => {
+  const handleLeaveRoom = async (
+    currentLobby: Lobby,
+    currentMember: CurrentMember,
+  ) => {
     if (!clientToken) {
       return
     }
 
-    setIsLeaving(true)
+    setLeavingSnapshot({ lobby: currentLobby, currentMember })
     setLeaveError(null)
 
     try {
@@ -56,12 +70,20 @@ function PresentRoomLobby({
       router.push('/home')
     } catch {
       setLeaveError('Unable to leave the room. Please try again.')
-      setIsLeaving(false)
+      setLeavingSnapshot(null)
     }
   }
 
-  if (isLeaving) {
-    return <LeavingRoom />
+  if (leavingSnapshot) {
+    return (
+      <ConnectedRoomLobby
+        lobby={leavingSnapshot.lobby}
+        currentMember={leavingSnapshot.currentMember}
+        isLeaving
+        leaveError={null}
+        onLeave={noopLeave}
+      />
+    )
   }
 
   if (lobby === null) {
@@ -96,8 +118,9 @@ function PresentRoomLobby({
     <ConnectedRoomLobby
       lobby={lobby}
       currentMember={queriedCurrentMember}
+      isLeaving={false}
       leaveError={leaveError}
-      onLeave={handleLeaveRoom}
+      onLeave={() => handleLeaveRoom(lobby, queriedCurrentMember)}
     />
   )
 }
@@ -128,18 +151,21 @@ function RoomEntrySkeleton() {
 function ConnectedRoomLobby({
   lobby,
   currentMember,
+  isLeaving,
   leaveError,
   onLeave,
 }: {
-  lobby: NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
-  currentMember: NonNullable<
-    FunctionReturnType<typeof api.rooms.getCurrentMember>
-  >
+  lobby: Lobby
+  currentMember: CurrentMember
+  isLeaving: boolean
   leaveError: string | null
-  onLeave: () => Promise<void>
+  onLeave: () => void
 }) {
   return (
-    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+    <main
+      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
+      aria-busy={isLeaving}
+    >
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 shadow-sm sm:p-10">
         <div className="text-center">
           <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
@@ -197,29 +223,12 @@ function ConnectedRoomLobby({
           <Button
             type="button"
             variant="outline"
+            disabled={isLeaving}
             onClick={onLeave}
           >
-            Leave room
+            {isLeaving ? 'Leaving…' : 'Leave room'}
           </Button>
         </div>
-      </section>
-    </main>
-  )
-}
-
-function LeavingRoom() {
-  return (
-    <main
-      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
-      aria-busy="true"
-    >
-      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
-        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
-          Leaving room
-        </p>
-        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          Heading home…
-        </h1>
       </section>
     </main>
   )
