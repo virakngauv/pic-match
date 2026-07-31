@@ -4,31 +4,28 @@ import { useMutation, useQuery } from 'convex/react'
 import type { FunctionReturnType } from 'convex/server'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useState, useSyncExternalStore } from 'react'
+import { useState } from 'react'
 
+import { JoinRoomScreen } from '@/components/join-room-screen'
+import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
-import { getClientToken, subscribeToClientToken } from '@/lib/player-session'
 import { useRoomPresence } from '@/lib/use-room-presence'
 
+const noopJoined = () => {}
+const noopLeave = () => {}
+
+type Lobby = NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
+type CurrentMember = NonNullable<
+  FunctionReturnType<typeof api.rooms.getCurrentMember>
+>
+type LeavingSnapshot = {
+  lobby: Lobby
+  currentMember: CurrentMember
+}
+
 export function RoomLobby({ roomCode }: { roomCode: string }) {
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => subscribeToClientToken(onStoreChange),
-    [],
-  )
-  const clientToken = useSyncExternalStore(
-    subscribe,
-    getClientToken,
-    getServerClientToken,
-  )
-
-  if (clientToken === undefined) {
-    return <LobbyLoading />
-  }
-
-  if (!clientToken) {
-    return <LobbyMembershipRequired roomCode={roomCode} />
-  }
+  const { clientToken } = usePlayerSession()
 
   return <PresentRoomLobby roomCode={roomCode} clientToken={clientToken} />
 }
@@ -38,52 +35,34 @@ function PresentRoomLobby({
   clientToken,
 }: {
   roomCode: string
-  clientToken: string
-}) {
-  const heartbeatStarted = useRoomPresence(roomCode, clientToken)
-  const lobby = useQuery(
-    api.rooms.getLobby,
-    heartbeatStarted
-      ? {
-          roomCode,
-          clientToken,
-        }
-      : 'skip',
-  )
-
-  if (lobby === undefined) {
-    return <LobbyLoading />
-  }
-
-  if (lobby === null) {
-    return <LobbyMembershipRequired roomCode={roomCode} />
-  }
-
-  return (
-    <ConnectedRoomLobby
-      lobby={lobby}
-      clientToken={clientToken}
-      roomCode={roomCode}
-    />
-  )
-}
-
-function ConnectedRoomLobby({
-  lobby,
-  clientToken,
-  roomCode,
-}: {
-  lobby: NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
-  clientToken: string
-  roomCode: string
+  clientToken: string | null | undefined
 }) {
   const router = useRouter()
   const leaveRoom = useMutation(api.rooms.leave)
-  const [isLeaving, setIsLeaving] = useState(false)
+  const [leavingSnapshot, setLeavingSnapshot] =
+    useState<LeavingSnapshot | null>(null)
   const [leaveError, setLeaveError] = useState<string | null>(null)
+  const lobby = useQuery(api.rooms.getLobby, { roomCode })
+  const queriedCurrentMember = useQuery(
+    api.rooms.getCurrentMember,
+    clientToken ? { roomCode, clientToken } : 'skip',
+  )
 
-  const handleLeaveRoom = async () => {
-    setIsLeaving(true)
+  const presenceStatus = useRoomPresence(
+    roomCode,
+    clientToken,
+    Boolean(clientToken && queriedCurrentMember),
+  )
+
+  const handleLeaveRoom = async (
+    currentLobby: Lobby,
+    currentMember: CurrentMember,
+  ) => {
+    if (!clientToken) {
+      return
+    }
+
+    setLeavingSnapshot({ lobby: currentLobby, currentMember })
     setLeaveError(null)
 
     try {
@@ -91,22 +70,113 @@ function ConnectedRoomLobby({
       router.push('/home')
     } catch {
       setLeaveError('Unable to leave the room. Please try again.')
-      setIsLeaving(false)
+      setLeavingSnapshot(null)
     }
   }
 
+  if (leavingSnapshot) {
+    return (
+      <ConnectedRoomLobby
+        lobby={leavingSnapshot.lobby}
+        currentMember={leavingSnapshot.currentMember}
+        isLeaving
+        leaveError={null}
+        onLeave={noopLeave}
+      />
+    )
+  }
+
+  if (lobby === null) {
+    return <RoomNotFound roomCode={roomCode} />
+  }
+
+  if (lobby === undefined || clientToken === undefined) {
+    return <RoomEntrySkeleton />
+  }
+
+  if (clientToken === null) {
+    return <JoinRoomScreen roomCode={lobby.roomCode} onJoined={noopJoined} />
+  }
+
+  if (queriedCurrentMember === undefined) {
+    return <RoomEntrySkeleton />
+  }
+
+  if (queriedCurrentMember === null) {
+    return <JoinRoomScreen roomCode={lobby.roomCode} onJoined={noopJoined} />
+  }
+
+  if (presenceStatus === 'room-full') {
+    return <RoomFull roomCode={lobby.roomCode} />
+  }
+
+  if (presenceStatus !== 'connected') {
+    return <RoomEntrySkeleton />
+  }
+
   return (
-    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+    <ConnectedRoomLobby
+      lobby={lobby}
+      currentMember={queriedCurrentMember}
+      isLeaving={false}
+      leaveError={leaveError}
+      onLeave={() => handleLeaveRoom(lobby, queriedCurrentMember)}
+    />
+  )
+}
+
+function RoomEntrySkeleton() {
+  return (
+    <main
+      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
+      aria-busy="true"
+      aria-label="Checking room access"
+    >
+      <section
+        className="bg-card mx-auto w-full max-w-lg rounded-[2rem] border p-7 shadow-sm sm:p-10"
+        aria-hidden="true"
+      >
+        <div className="bg-muted h-3 w-24 animate-pulse rounded-full" />
+        <div className="bg-muted mt-5 h-12 w-4/5 animate-pulse rounded-2xl" />
+        <div className="bg-muted mt-4 h-5 w-full animate-pulse rounded-full" />
+        <div className="bg-muted mt-2 h-5 w-2/3 animate-pulse rounded-full" />
+        <div className="bg-muted mt-8 h-11 w-full animate-pulse rounded-xl" />
+        <div className="bg-muted mt-5 h-11 w-full animate-pulse rounded-xl" />
+        <div className="bg-muted mt-8 h-12 w-full animate-pulse rounded-full" />
+      </section>
+    </main>
+  )
+}
+
+function ConnectedRoomLobby({
+  lobby,
+  currentMember,
+  isLeaving,
+  leaveError,
+  onLeave,
+}: {
+  lobby: Lobby
+  currentMember: CurrentMember
+  isLeaving: boolean
+  leaveError: string | null
+  onLeave: () => void
+}) {
+  return (
+    <main
+      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
+      aria-busy={isLeaving}
+    >
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 shadow-sm sm:p-10">
         <div className="text-center">
           <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
             Room lobby
           </p>
           <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-            You’re in.
+            Ready to play.
           </h1>
           <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-            Share this room code with the people you want to play with.
+            Share this room code with the people you want to play with, or join
+            when you’re ready.
           </p>
           <output className="bg-foreground text-background mt-8 block rounded-2xl px-5 py-6 font-mono text-3xl font-bold tracking-[0.22em] uppercase sm:text-4xl">
             {lobby.roomCode}
@@ -131,7 +201,7 @@ function ConnectedRoomLobby({
               >
                 <span className="font-semibold">{member.name}</span>
                 <span className="text-muted-foreground text-xs font-bold tracking-[0.12em] uppercase">
-                  {member.isSelf
+                  {member.playerId === currentMember.playerId
                     ? member.role === 'host'
                       ? 'You · Host'
                       : 'You'
@@ -144,7 +214,7 @@ function ConnectedRoomLobby({
           </ul>
         </div>
 
-        <div className="mt-8 grid justify-items-center gap-3">
+        <div className="mt-8 grid min-h-10 justify-items-center gap-3">
           {leaveError ? (
             <p className="text-destructive text-sm" role="alert">
               {leaveError}
@@ -154,7 +224,7 @@ function ConnectedRoomLobby({
             type="button"
             variant="outline"
             disabled={isLeaving}
-            onClick={handleLeaveRoom}
+            onClick={onLeave}
           >
             {isLeaving ? 'Leaving…' : 'Leave room'}
           </Button>
@@ -164,21 +234,7 @@ function ConnectedRoomLobby({
   )
 }
 
-function getServerClientToken() {
-  return undefined
-}
-
-function LobbyLoading() {
-  return (
-    <main className="flex min-h-screen items-center justify-center px-5 py-10">
-      <p className="text-muted-foreground text-sm" role="status">
-        Loading room…
-      </p>
-    </main>
-  )
-}
-
-function LobbyMembershipRequired({ roomCode }: { roomCode: string }) {
+function RoomFull({ roomCode }: { roomCode: string }) {
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
@@ -186,19 +242,38 @@ function LobbyMembershipRequired({ roomCode }: { roomCode: string }) {
           Room {roomCode}
         </p>
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          Join this room.
+          Sorry, this room is full.
         </h1>
         <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-          Enter your name to get your player identity for this room.
+          All available player spots are currently taken.
         </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
+        <Button asChild className="mt-8">
+          <Link href="/home">Go home</Link>
+        </Button>
+      </section>
+    </main>
+  )
+}
+
+function RoomNotFound({ roomCode }: { roomCode: string }) {
+  return (
+    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Room {roomCode}
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          Sorry, room {roomCode} doesn’t exist.
+        </h1>
+        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+          You can return home or create a new room to start playing.
+        </p>
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Button asChild>
-            <Link href={`/join?roomCode=${encodeURIComponent(roomCode)}`}>
-              Continue to join
-            </Link>
+            <Link href="/create">Create a new room</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/home">Back to home</Link>
+            <Link href="/home">Go home</Link>
           </Button>
         </div>
       </section>

@@ -4,10 +4,11 @@ import { useMutation } from 'convex/react'
 import { useRouter } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 
+import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/convex/_generated/api'
-import { getOrCreateClientToken } from '@/lib/player-session'
+import { getOrCreateClientInstanceId } from '@/lib/player-session'
 
 export function CreateRoomForm() {
   const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL)
@@ -35,6 +36,7 @@ export function CreateRoomForm() {
 function ConnectedCreateRoomForm() {
   const createRoom = useMutation(api.rooms.create)
   const router = useRouter()
+  const { ensureClientToken } = usePlayerSession()
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -52,10 +54,11 @@ function ConnectedCreateRoomForm() {
     setIsCreating(true)
 
     try {
-      const clientToken = getOrCreateClientToken()
+      const clientToken = ensureClientToken()
       const { roomCode } = await createRoom({
         name: normalizedName,
         clientToken,
+        clientInstanceId: getOrCreateClientInstanceId(),
       })
       router.push(`/${roomCode}`)
     } catch (caughtError) {

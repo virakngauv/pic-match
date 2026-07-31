@@ -1,35 +1,48 @@
 'use client'
 
 import { useMutation } from 'convex/react'
-import { useRouter } from 'next/navigation'
 import { useState, type ComponentProps, type FormEvent } from 'react'
 
+import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/convex/_generated/api'
-import { getOrCreateClientToken } from '@/lib/player-session'
+import { getOrCreateClientInstanceId } from '@/lib/player-session'
 import { cn } from '@/lib/utils'
 
 const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
 
+export type JoinedRoom = { roomCode: string }
+
 export function JoinRoomForm({
-  initialRoomCode = '',
+  roomCode,
+  onJoined,
 }: {
-  initialRoomCode?: string
+  roomCode?: string
+  onJoined?: (room: JoinedRoom) => void
 }) {
   const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL)
 
   if (!convexConfigured) {
-    return <UnavailableJoinRoomForm />
+    return <UnavailableJoinRoomForm roomCode={roomCode} />
   }
 
-  return <ConnectedJoinRoomForm initialRoomCode={initialRoomCode} />
+  return <ConnectedJoinRoomForm roomCode={roomCode} onJoined={onJoined} />
 }
 
-function UnavailableJoinRoomForm() {
+function UnavailableJoinRoomForm({ roomCode }: { roomCode?: string }) {
+  const roomCodeLocked = roomCode !== undefined
+
   return (
     <div className="mt-7 grid gap-5">
-      <Field label="Room code" id="room-code" placeholder="bcdf2" disabled />
+      <Field
+        label="Room code"
+        id="room-code"
+        placeholder="bcdf2"
+        value={roomCode ?? ''}
+        readOnly={roomCodeLocked}
+        disabled
+      />
       <Field label="Name" id="name" placeholder="Your name" disabled />
       <p className="text-muted-foreground text-sm" role="status">
         Room joining is unavailable until Convex is configured.
@@ -42,20 +55,23 @@ function UnavailableJoinRoomForm() {
 }
 
 function ConnectedJoinRoomForm({
-  initialRoomCode,
+  roomCode,
+  onJoined,
 }: {
-  initialRoomCode: string
+  roomCode?: string
+  onJoined?: (room: JoinedRoom) => void
 }) {
+  const roomCodeLocked = roomCode !== undefined
   const joinRoom = useMutation(api.rooms.join)
-  const router = useRouter()
-  const [roomCode, setRoomCode] = useState(initialRoomCode)
+  const { ensureClientToken } = usePlayerSession()
+  const [enteredRoomCode, setEnteredRoomCode] = useState(roomCode ?? '')
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isJoining, setIsJoining] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const normalizedRoomCode = roomCode.trim().toLowerCase()
+    const normalizedRoomCode = enteredRoomCode.trim().toLowerCase()
     const normalizedName = name.trim()
 
     if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
@@ -72,22 +88,28 @@ function ConnectedJoinRoomForm({
     setIsJoining(true)
 
     try {
-      const clientToken = getOrCreateClientToken()
+      const clientToken = ensureClientToken()
       const room = await joinRoom({
         roomCode: normalizedRoomCode,
         name: normalizedName,
         clientToken,
+        clientInstanceId: getOrCreateClientInstanceId(),
       })
 
       if (!room) {
         setError('We couldn’t find that room. Check the code and try again.')
-        setIsJoining(false)
         return
       }
 
-      router.push(`/${room.roomCode}`)
+      if (room.status === 'room_full') {
+        setError('This room is full.')
+        return
+      }
+
+      onJoined?.({ roomCode: room.roomCode })
     } catch {
       setError('The room could not be checked. Please try again.')
+    } finally {
       setIsJoining(false)
     }
   }
@@ -100,14 +122,15 @@ function ConnectedJoinRoomForm({
           id="room-code"
           name="roomCode"
           placeholder="bcdf2"
-          value={roomCode}
-          onChange={(event) => setRoomCode(event.target.value)}
+          value={enteredRoomCode}
+          onChange={(event) => setEnteredRoomCode(event.target.value)}
           maxLength={5}
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
           className="font-mono tracking-[0.15em] lowercase"
-          autoFocus
+          autoFocus={!roomCodeLocked}
+          readOnly={roomCodeLocked}
           required
           disabled={isJoining}
         />
@@ -120,6 +143,7 @@ function ConnectedJoinRoomForm({
           onChange={(event) => setName(event.target.value)}
           autoComplete="name"
           maxLength={50}
+          autoFocus={roomCodeLocked}
           required
           disabled={isJoining}
         />

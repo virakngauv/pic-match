@@ -4,32 +4,36 @@ import { useMutation } from 'convex/react'
 import { useEffect, useState } from 'react'
 
 import { api } from '@/convex/_generated/api'
+import { getOrCreateClientInstanceId } from '@/lib/player-session'
 
 export const ROOM_HEARTBEAT_INTERVAL_MS = 4_000
 export const MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 
-export function useRoomPresence(roomCode: string, clientToken: string) {
+export type RoomPresenceConnectionStatus =
+  'inactive' | 'connecting' | 'connected' | 'room-full'
+
+export function useRoomPresence(
+  roomCode: string,
+  clientToken: string | null | undefined,
+  enabled: boolean,
+) {
   const heartbeat = useMutation(api.presence.heartbeat)
-  const [instanceId] = useState(() => crypto.randomUUID())
-  const sessionId = JSON.stringify([instanceId, roomCode])
-  const heartbeatKey = JSON.stringify([clientToken, roomCode])
-  const [startedHeartbeatKey, setStartedHeartbeatKey] = useState<string | null>(
-    null,
-  )
+  const [connection, setConnection] = useState<{
+    roomCode: string
+    status: RoomPresenceConnectionStatus
+  }>({ roomCode, status: 'connecting' })
 
   useEffect(() => {
+    if (!enabled || !clientToken) {
+      return
+    }
+
+    const clientInstanceId = getOrCreateClientInstanceId()
     let canceled = false
     let heartbeatInFlight = false
+    let heartbeatStoppedTerminally = false
     let consecutiveHeartbeatFailures = 0
     let intervalId: ReturnType<typeof setInterval> | null = null
-
-    const clearStartedHeartbeat = () => {
-      if (!canceled) {
-        setStartedHeartbeatKey((current) =>
-          current === heartbeatKey ? null : current,
-        )
-      }
-    }
 
     const sendHeartbeat = async () => {
       if (heartbeatInFlight) {
@@ -42,15 +46,28 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
         const heartbeatAccepted = await heartbeat({
           roomCode,
           clientToken,
-          sessionId,
+          clientInstanceId,
         })
 
-        if (!heartbeatAccepted) {
-          clearStartedHeartbeat()
+        if (canceled) {
+          return
+        }
+
+        if (heartbeatAccepted.status === 'room_full') {
+          heartbeatStoppedTerminally = true
+          setConnection({ roomCode, status: 'room-full' })
           stopHeartbeat()
           return
         }
 
+        if (heartbeatAccepted.status === 'not_eligible') {
+          heartbeatStoppedTerminally = true
+          setConnection({ roomCode, status: 'inactive' })
+          stopHeartbeat()
+          return
+        }
+
+        setConnection({ roomCode, status: 'connected' })
         consecutiveHeartbeatFailures = 0
       } catch (error) {
         if (!canceled) {
@@ -61,7 +78,7 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
           if (
             consecutiveHeartbeatFailures >= MAX_CONSECUTIVE_HEARTBEAT_FAILURES
           ) {
-            clearStartedHeartbeat()
+            setConnection({ roomCode, status: 'connecting' })
             stopHeartbeat()
           }
         }
@@ -71,13 +88,16 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
     }
 
     function startHeartbeat() {
+      if (heartbeatStoppedTerminally) {
+        return
+      }
+
       if (intervalId) {
         clearInterval(intervalId)
       }
 
       consecutiveHeartbeatFailures = 0
       void sendHeartbeat()
-      setStartedHeartbeatKey(heartbeatKey)
       intervalId = setInterval(sendHeartbeat, ROOM_HEARTBEAT_INTERVAL_MS)
     }
 
@@ -89,9 +109,7 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
     }
 
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        stopHeartbeat()
-      } else {
+      if (!document.hidden) {
         startHeartbeat()
       }
     }
@@ -120,7 +138,11 @@ export function useRoomPresence(roomCode: string, clientToken: string) {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [clientToken, heartbeat, heartbeatKey, roomCode, sessionId])
+  }, [clientToken, enabled, heartbeat, roomCode])
 
-  return startedHeartbeatKey === heartbeatKey
+  if (!enabled || !clientToken) {
+    return 'inactive'
+  }
+
+  return connection.roomCode === roomCode ? connection.status : 'connecting'
 }

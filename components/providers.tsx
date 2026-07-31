@@ -7,6 +7,8 @@ import posthog from 'posthog-js'
 import { PostHogProvider } from 'posthog-js/react'
 import { useEffect, useMemo, type ReactNode } from 'react'
 
+import { PlayerSessionProvider } from '@/components/player-session-provider'
+
 export function Providers({ children }: { children: ReactNode }) {
   const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL
   const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
@@ -29,7 +31,7 @@ export function Providers({ children }: { children: ReactNode }) {
     }
   }, [posthogHost, posthogKey])
 
-  let content = children
+  let content = <PlayerSessionProvider>{children}</PlayerSessionProvider>
 
   if (convex) {
     content = clerkKey ? (
