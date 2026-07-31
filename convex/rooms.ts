@@ -9,6 +9,12 @@ import {
   listOnlineActiveRoomMembers,
   roomPresence,
 } from './presence'
+import {
+  createRoomStartPatch,
+  getRoomPhase,
+  newRoomLifecycle,
+  roomPhase,
+} from './roomLifecycle'
 import { isActiveRoomMember } from './roomMembers'
 import {
   findAvailableRoomCode,
@@ -81,6 +87,7 @@ export const create = mutation({
       code: roomCode,
       creatorName,
       createdAt: Date.now(),
+      ...newRoomLifecycle(),
     })
 
     const memberId = await ctx.db.insert('roomMembers', {
@@ -273,25 +280,20 @@ export const start = mutation({
       )
       .unique()
 
-    if (
-      !member ||
-      !isActiveRoomMember(member.status) ||
-      member.role !== 'host'
-    ) {
-      throw new Error('Only the host can start the game.')
-    }
+    const roomStartPatch = await createRoomStartPatch({
+      room,
+      actor: member
+        ? {
+            role: member.role,
+            isActive: isActiveRoomMember(member.status),
+          }
+        : null,
+      getOnlinePlayerCount: async () =>
+        (await listOnlineActiveRoomMembers(ctx, room._id)).length,
+      startedAt: Date.now(),
+    })
 
-    if (room.startedAt !== undefined) {
-      return null
-    }
-
-    const members = await listOnlineActiveRoomMembers(ctx, room._id)
-
-    if (members.length < 2) {
-      throw new Error('At least 2 players are required to start the game.')
-    }
-
-    await ctx.db.patch(room._id, { startedAt: Date.now() })
+    await ctx.db.patch(room._id, roomStartPatch)
 
     return null
   },
@@ -305,7 +307,7 @@ export const getLobby = query({
     v.null(),
     v.object({
       roomCode: v.string(),
-      gameStarted: v.boolean(),
+      phase: roomPhase,
       members: v.array(lobbyMember),
     }),
   ),
@@ -330,7 +332,7 @@ export const getLobby = query({
 
     return {
       roomCode: room.code,
-      gameStarted: room.startedAt !== undefined,
+      phase: getRoomPhase(room),
       members: members.map((member) => ({
         playerId: member._id,
         name: member.name,

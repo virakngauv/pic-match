@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   routerPush: vi.fn(),
   lobby: {
     roomCode: 'frvg7',
-    gameStarted: false,
+    phase: 'lobby' as 'lobby' | 'playing' | 'finished',
     members: [
       {
         playerId: 'member-1',
@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
   } as
     | {
         roomCode: string
-        gameStarted: boolean
+        phase: 'lobby' | 'playing' | 'finished'
         members: Array<{
           playerId: string
           name: string
@@ -93,7 +93,7 @@ describe('RoomLobby', () => {
     mocks.routerPush.mockReset()
     mocks.lobby = {
       roomCode: 'frvg7',
-      gameStarted: false,
+      phase: 'lobby',
       members: [
         {
           playerId: 'member-1',
@@ -235,7 +235,7 @@ describe('RoomLobby', () => {
   it('shows the game screen only after the host starts the game', () => {
     mocks.currentMember = { playerId: 'member-1', role: 'host' }
     if (mocks.lobby) {
-      mocks.lobby.gameStarted = true
+      mocks.lobby.phase = 'playing'
     }
 
     render(<RoomLobby roomCode="frvg7" />)
