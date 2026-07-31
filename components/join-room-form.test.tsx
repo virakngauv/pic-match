@@ -33,7 +33,7 @@ describe('JoinRoomForm', () => {
     vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', 'https://example.convex.cloud')
     mocks.ensureClientToken.mockClear()
     mocks.joinRoom.mockReset()
-    mocks.joinRoom.mockResolvedValue({ roomCode: 'frvg7' })
+    mocks.joinRoom.mockResolvedValue({ status: 'joined', roomCode: 'frvg7' })
     mocks.onJoined.mockReset()
   })
 
@@ -69,6 +69,7 @@ describe('JoinRoomForm', () => {
         roomCode: 'frvg7',
         name: 'Browser player',
         clientToken: 'a'.repeat(32),
+        clientInstanceId: expect.any(String),
       })
     })
     expect(mocks.onJoined).toHaveBeenCalledWith({ roomCode: 'frvg7' })
@@ -88,5 +89,21 @@ describe('JoinRoomForm', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Join' })).toBeEnabled()
     })
+  })
+
+  it('shows when the room has no available seats', async () => {
+    const user = userEvent.setup()
+    mocks.joinRoom.mockResolvedValue({ status: 'room_full' })
+
+    render(<JoinRoomForm roomCode="frvg7" onJoined={mocks.onJoined} />)
+
+    await user.type(screen.getByLabelText('Name'), 'Late player')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This room is full.',
+    )
+    expect(mocks.onJoined).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Join' })).toBeEnabled()
   })
 })

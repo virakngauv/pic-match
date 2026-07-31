@@ -33,7 +33,7 @@ function PresentRoomLobby({
     clientToken ? { roomCode, clientToken } : 'skip',
   )
 
-  useRoomPresence(
+  const presenceStatus = useRoomPresence(
     roomCode,
     clientToken,
     Boolean(clientToken && queriedCurrentMember),
@@ -57,6 +57,14 @@ function PresentRoomLobby({
 
   if (queriedCurrentMember === null) {
     return <JoinRoomScreen roomCode={lobby.roomCode} onJoined={noopJoined} />
+  }
+
+  if (presenceStatus === 'room-full') {
+    return <RoomFull roomCode={lobby.roomCode} />
+  }
+
+  if (presenceStatus !== 'connected') {
+    return <RoomEntrySkeleton />
   }
 
   return (
@@ -185,6 +193,27 @@ function ConnectedRoomLobby({
             {isLeaving ? 'Leaving…' : 'Leave room'}
           </Button>
         </div>
+      </section>
+    </main>
+  )
+}
+
+function RoomFull({ roomCode }: { roomCode: string }) {
+  return (
+    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Room {roomCode}
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          Sorry, this room is full.
+        </h1>
+        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+          All available player spots are currently taken.
+        </p>
+        <Button asChild className="mt-8">
+          <Link href="/home">Go home</Link>
+        </Button>
       </section>
     </main>
   )

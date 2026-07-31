@@ -12,6 +12,14 @@ export function validateClientToken(clientToken: string) {
   return clientToken
 }
 
+export function validateClientInstanceId(clientInstanceId: string) {
+  if (!CLIENT_TOKEN_PATTERN.test(clientInstanceId)) {
+    throw new Error('Invalid client instance ID.')
+  }
+
+  return clientInstanceId
+}
+
 function pickCharacter(characters: string, random: () => number) {
   return characters.charAt(Math.floor(random() * characters.length))
 }

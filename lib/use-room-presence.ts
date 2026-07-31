@@ -4,9 +4,13 @@ import { useMutation } from 'convex/react'
 import { useEffect, useState } from 'react'
 
 import { api } from '@/convex/_generated/api'
+import { getOrCreateClientInstanceId } from '@/lib/player-session'
 
 export const ROOM_HEARTBEAT_INTERVAL_MS = 4_000
 export const MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
+
+export type RoomPresenceConnectionStatus =
+  'inactive' | 'connecting' | 'connected' | 'room-full'
 
 export function useRoomPresence(
   roomCode: string,
@@ -14,16 +18,20 @@ export function useRoomPresence(
   enabled: boolean,
 ) {
   const heartbeat = useMutation(api.presence.heartbeat)
-  const [instanceId] = useState(() => crypto.randomUUID())
-  const sessionId = JSON.stringify([instanceId, roomCode])
+  const [connection, setConnection] = useState<{
+    roomCode: string
+    status: RoomPresenceConnectionStatus
+  }>({ roomCode, status: 'connecting' })
 
   useEffect(() => {
     if (!enabled || !clientToken) {
       return
     }
 
+    const clientInstanceId = getOrCreateClientInstanceId()
     let canceled = false
     let heartbeatInFlight = false
+    let heartbeatStoppedTerminally = false
     let consecutiveHeartbeatFailures = 0
     let intervalId: ReturnType<typeof setInterval> | null = null
 
@@ -38,14 +46,28 @@ export function useRoomPresence(
         const heartbeatAccepted = await heartbeat({
           roomCode,
           clientToken,
-          sessionId,
+          clientInstanceId,
         })
 
-        if (!heartbeatAccepted) {
+        if (canceled) {
+          return
+        }
+
+        if (heartbeatAccepted.status === 'room_full') {
+          heartbeatStoppedTerminally = true
+          setConnection({ roomCode, status: 'room-full' })
           stopHeartbeat()
           return
         }
 
+        if (heartbeatAccepted.status === 'not_eligible') {
+          heartbeatStoppedTerminally = true
+          setConnection({ roomCode, status: 'inactive' })
+          stopHeartbeat()
+          return
+        }
+
+        setConnection({ roomCode, status: 'connected' })
         consecutiveHeartbeatFailures = 0
       } catch (error) {
         if (!canceled) {
@@ -56,6 +78,7 @@ export function useRoomPresence(
           if (
             consecutiveHeartbeatFailures >= MAX_CONSECUTIVE_HEARTBEAT_FAILURES
           ) {
+            setConnection({ roomCode, status: 'connecting' })
             stopHeartbeat()
           }
         }
@@ -65,6 +88,10 @@ export function useRoomPresence(
     }
 
     function startHeartbeat() {
+      if (heartbeatStoppedTerminally) {
+        return
+      }
+
       if (intervalId) {
         clearInterval(intervalId)
       }
@@ -82,9 +109,7 @@ export function useRoomPresence(
     }
 
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        stopHeartbeat()
-      } else {
+      if (!document.hidden) {
         startHeartbeat()
       }
     }
@@ -113,5 +138,11 @@ export function useRoomPresence(
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [clientToken, enabled, heartbeat, roomCode, sessionId])
+  }, [clientToken, enabled, heartbeat, roomCode])
+
+  if (!enabled || !clientToken) {
+    return 'inactive'
+  }
+
+  return connection.roomCode === roomCode ? connection.status : 'connecting'
 }

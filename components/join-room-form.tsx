@@ -7,6 +7,7 @@ import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/convex/_generated/api'
+import { getOrCreateClientInstanceId } from '@/lib/player-session'
 import { cn } from '@/lib/utils'
 
 const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
@@ -92,10 +93,16 @@ function ConnectedJoinRoomForm({
         roomCode: normalizedRoomCode,
         name: normalizedName,
         clientToken,
+        clientInstanceId: getOrCreateClientInstanceId(),
       })
 
       if (!room) {
         setError('We couldn’t find that room. Check the code and try again.')
+        return
+      }
+
+      if (room.status === 'room_full') {
+        setError('This room is full.')
         return
       }
 

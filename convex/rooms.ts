@@ -2,6 +2,13 @@ import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
 import { validateClientToken } from './playerKeys'
+import {
+  claimRoomSeat,
+  createRoomPresenceSessionId,
+  hasAvailableRoomSeat,
+  listOnlineActiveRoomMembers,
+  roomPresence,
+} from './presence'
 import { isActiveRoomMember } from './roomMembers'
 import {
   findAvailableRoomCode,
@@ -10,11 +17,21 @@ import {
 } from './roomCode'
 
 const MAX_NAME_LENGTH = 50
-const MAX_ROOM_MEMBERS = 64
 
 const roomEntryResult = v.object({
   roomCode: v.string(),
 })
+
+const joinRoomResult = v.union(
+  v.object({
+    status: v.literal('joined'),
+    roomCode: v.string(),
+  }),
+  v.object({ status: v.literal('room_full') }),
+)
+
+type JoinRoomResult =
+  { status: 'joined'; roomCode: string } | { status: 'room_full' } | null
 
 const lobbyMember = v.object({
   playerId: v.id('roomMembers'),
@@ -45,9 +62,10 @@ export const create = mutation({
   args: {
     name: v.string(),
     clientToken: v.string(),
+    clientInstanceId: v.string(),
   },
   returns: roomEntryResult,
-  handler: async (ctx, { name, clientToken }) => {
+  handler: async (ctx, { name, clientToken, clientInstanceId }) => {
     const creatorName = normalizeName(name)
     const validatedClientToken = validateClientToken(clientToken)
     const roomCode = await findAvailableRoomCode(async (code) => {
@@ -65,7 +83,7 @@ export const create = mutation({
       createdAt: Date.now(),
     })
 
-    await ctx.db.insert('roomMembers', {
+    const memberId = await ctx.db.insert('roomMembers', {
       roomId,
       name: creatorName,
       privatePlayerKey: validatedClientToken,
@@ -73,6 +91,17 @@ export const create = mutation({
       status: 'active',
       joinedAt: Date.now(),
     })
+
+    const presenceResult = await claimRoomSeat(
+      ctx,
+      roomId,
+      memberId,
+      createRoomPresenceSessionId(clientInstanceId, roomCode),
+    )
+
+    if (presenceResult.status !== 'accepted') {
+      throw new Error('Unable to reserve the host’s room seat.')
+    }
 
     return { roomCode }
   },
@@ -83,9 +112,13 @@ export const join = mutation({
     roomCode: v.string(),
     name: v.string(),
     clientToken: v.string(),
+    clientInstanceId: v.string(),
   },
-  returns: v.union(v.null(), roomEntryResult),
-  handler: async (ctx, { roomCode, name, clientToken }) => {
+  returns: v.union(v.null(), joinRoomResult),
+  handler: async (
+    ctx,
+    { roomCode, name, clientToken, clientInstanceId },
+  ): Promise<JoinRoomResult> => {
     const normalizedRoomCode = normalizeRoomCode(roomCode)
     const playerName = normalizeName(name)
     const validatedClientToken = validateClientToken(clientToken)
@@ -112,7 +145,23 @@ export const join = mutation({
       )
       .unique()
 
+    const sessionId = createRoomPresenceSessionId(
+      clientInstanceId,
+      normalizedRoomCode,
+    )
+
     if (existingMember) {
+      const presenceResult = await claimRoomSeat(
+        ctx,
+        room._id,
+        existingMember._id,
+        sessionId,
+      )
+
+      if (presenceResult.status === 'room_full') {
+        return { status: 'room_full' }
+      }
+
       if (!isActiveRoomMember(existingMember.status)) {
         await ctx.db.patch(existingMember._id, {
           name: playerName,
@@ -120,21 +169,14 @@ export const join = mutation({
         })
       }
 
-      return { roomCode: room.code }
+      return { status: 'joined', roomCode: room.code }
     }
 
-    const existingMembers = await ctx.db
-      .query('roomMembers')
-      .withIndex('by_room_id_and_status_and_joined_at', (index) =>
-        index.eq('roomId', room._id).eq('status', 'active'),
-      )
-      .take(MAX_ROOM_MEMBERS)
-
-    if (existingMembers.length >= MAX_ROOM_MEMBERS) {
-      throw new Error('This room is full.')
+    if (!(await hasAvailableRoomSeat(ctx, room._id))) {
+      return { status: 'room_full' }
     }
 
-    await ctx.db.insert('roomMembers', {
+    const memberId = await ctx.db.insert('roomMembers', {
       roomId: room._id,
       name: playerName,
       privatePlayerKey: validatedClientToken,
@@ -143,7 +185,18 @@ export const join = mutation({
       joinedAt: Date.now(),
     })
 
-    return { roomCode: room.code }
+    const presenceResult = await claimRoomSeat(
+      ctx,
+      room._id,
+      memberId,
+      sessionId,
+    )
+
+    if (presenceResult.status !== 'accepted') {
+      throw new Error('Unable to reserve the room seat.')
+    }
+
+    return { status: 'joined', roomCode: room.code }
   },
 })
 
@@ -181,6 +234,7 @@ export const leave = mutation({
 
     if (member && isActiveRoomMember(member.status)) {
       await ctx.db.patch(member._id, { status: 'left' })
+      await roomPresence.removeRoomUser(ctx, room._id, member._id)
     }
 
     return null
@@ -214,12 +268,8 @@ export const getLobby = query({
       return null
     }
 
-    const members = await ctx.db
-      .query('roomMembers')
-      .withIndex('by_room_id_and_status_and_joined_at', (index) =>
-        index.eq('roomId', room._id).eq('status', 'active'),
-      )
-      .take(MAX_ROOM_MEMBERS)
+    const members = await listOnlineActiveRoomMembers(ctx, room._id)
+    members.sort((left, right) => left.joinedAt - right.joinedAt)
 
     return {
       roomCode: room.code,

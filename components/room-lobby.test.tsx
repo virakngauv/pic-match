@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   currentMember: null as
     { playerId: string; role: 'host' | 'player' } | null | undefined,
   heartbeatEnabled: false,
+  presenceStatus: 'connected' as
+    'inactive' | 'connecting' | 'connected' | 'room-full',
   lobby: {
     roomCode: 'frvg7',
     members: [
@@ -66,6 +68,7 @@ vi.mock('@/lib/use-room-presence', () => ({
     enabled: boolean,
   ) => {
     mocks.heartbeatEnabled = enabled
+    return enabled ? mocks.presenceStatus : 'inactive'
   },
 }))
 
@@ -75,6 +78,7 @@ describe('RoomLobby', () => {
     mocks.clientToken = 'a'.repeat(32)
     mocks.currentMember = null
     mocks.heartbeatEnabled = false
+    mocks.presenceStatus = 'connected'
     mocks.lobby = {
       roomCode: 'frvg7',
       members: [
@@ -136,6 +140,21 @@ describe('RoomLobby', () => {
     expect(screen.getByText('You · Host')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Leave room' })).toBeEnabled()
     expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
+  it('shows a full-room recovery screen when a seat cannot be reclaimed', () => {
+    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.presenceStatus = 'room-full'
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Sorry, this room is full.' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(
+      'href',
+      '/home',
+    )
   })
 
   it('shows recovery actions when the room does not exist', () => {

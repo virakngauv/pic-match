@@ -1,4 +1,5 @@
 const CLIENT_TOKEN_KEY = 'spot-it:client-token'
+const CLIENT_INSTANCE_ID_KEY = 'spot-it:client-instance-id'
 const CLIENT_TOKEN_PATTERN = /^[0-9a-f]{32}$/
 const CLIENT_TOKEN_CHANGED_EVENT = 'spot-it:client-token-changed'
 
@@ -36,6 +37,18 @@ export function getOrCreateClientToken() {
   const clientToken = generateClientToken()
   saveClientToken(clientToken)
   return clientToken
+}
+
+export function getOrCreateClientInstanceId() {
+  const storedInstanceId = window.sessionStorage.getItem(CLIENT_INSTANCE_ID_KEY)
+
+  if (storedInstanceId && CLIENT_TOKEN_PATTERN.test(storedInstanceId)) {
+    return storedInstanceId
+  }
+
+  const instanceId = generateClientToken()
+  window.sessionStorage.setItem(CLIENT_INSTANCE_ID_KEY, instanceId)
+  return instanceId
 }
 
 export function subscribeToClientToken(onStoreChange: () => void) {

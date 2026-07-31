@@ -8,6 +8,7 @@ import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { api } from '@/convex/_generated/api'
+import { getOrCreateClientInstanceId } from '@/lib/player-session'
 
 export function CreateRoomForm() {
   const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL)
@@ -57,6 +58,7 @@ function ConnectedCreateRoomForm() {
       const { roomCode } = await createRoom({
         name: normalizedName,
         clientToken,
+        clientInstanceId: getOrCreateClientInstanceId(),
       })
       router.push(`/${roomCode}`)
     } catch (caughtError) {

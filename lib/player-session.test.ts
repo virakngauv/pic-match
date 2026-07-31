@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   generateClientToken,
   getClientToken,
+  getOrCreateClientInstanceId,
   getOrCreateClientToken,
   saveClientToken,
 } from './player-session'
@@ -28,6 +29,18 @@ describe('player session storage', () => {
 
     expect(firstToken).toMatch(/^[0-9a-f]{32}$/)
     expect(secondToken).toBe(firstToken)
+  })
+
+  it('keeps one presence instance ID for the lifetime of a tab', () => {
+    const firstInstanceId = getOrCreateClientInstanceId()
+    const secondInstanceId = getOrCreateClientInstanceId()
+
+    expect(firstInstanceId).toMatch(/^[0-9a-f]{32}$/)
+    expect(secondInstanceId).toBe(firstInstanceId)
+    expect(window.sessionStorage.getItem('spot-it:client-instance-id')).toBe(
+      firstInstanceId,
+    )
+    expect(window.sessionStorage).toHaveLength(1)
   })
 
   it('rejects malformed tokens before persisting them', () => {
