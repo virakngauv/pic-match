@@ -261,11 +261,17 @@ function ConnectedRoomLobby({
                 type="button"
                 disabled={isLeaving || isStarting || !canStart}
                 onClick={onStart}
+                aria-describedby={
+                  !canStart ? 'start-game-requirement' : undefined
+                }
               >
                 {isStarting ? 'Starting…' : 'Start game'}
               </Button>
               {!canStart ? (
-                <p className="text-muted-foreground text-center text-sm">
+                <p
+                  id="start-game-requirement"
+                  className="text-muted-foreground text-center text-sm"
+                >
                   At least 2 players are needed to start.
                 </p>
               ) : null}

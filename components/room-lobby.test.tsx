@@ -160,10 +160,15 @@ describe('RoomLobby', () => {
 
     render(<RoomLobby roomCode="frvg7" />)
 
-    expect(screen.getByRole('button', { name: 'Start game' })).toBeDisabled()
+    const startButton = screen.getByRole('button', { name: 'Start game' })
+    expect(startButton).toBeDisabled()
+    expect(startButton).toHaveAttribute(
+      'aria-describedby',
+      'start-game-requirement',
+    )
     expect(
       screen.getByText('At least 2 players are needed to start.'),
-    ).toBeInTheDocument()
+    ).toHaveAttribute('id', 'start-game-requirement')
   })
 
   it('lets the host start once at least two players are in the lobby', async () => {
@@ -188,6 +193,25 @@ describe('RoomLobby', () => {
         clientToken: 'a'.repeat(32),
       })
     })
+  })
+
+  it('restores the start control when starting fails', async () => {
+    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.lobby?.members.push({
+      playerId: 'member-2',
+      name: 'Chrome player',
+      role: 'player',
+    })
+    mocks.startGame.mockRejectedValue(new Error('Network unavailable'))
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+
+    expect(
+      await screen.findByText('Unable to start the game. Please try again.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start game' })).toBeEnabled()
   })
 
   it('shows non-host players a waiting status instead of a start button', () => {
