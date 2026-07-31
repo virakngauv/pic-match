@@ -14,7 +14,7 @@ import { api } from '@/convex/_generated/api'
 import { useRoomPresence } from '@/lib/use-room-presence'
 
 const noopJoined = () => {}
-const noopLeave = () => {}
+const noopAction = () => {}
 
 type Lobby = NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
 type CurrentMember = NonNullable<
@@ -40,9 +40,12 @@ function PresentRoomLobby({
 }) {
   const router = useRouter()
   const leaveRoom = useMutation(api.rooms.leave)
+  const startGame = useMutation(api.rooms.start)
   const [leavingSnapshot, setLeavingSnapshot] =
     useState<LeavingSnapshot | null>(null)
   const [leaveError, setLeaveError] = useState<string | null>(null)
+  const [isStarting, setIsStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
   const lobby = useQuery(api.rooms.getLobby, { roomCode })
   const queriedCurrentMember = useQuery(
     api.rooms.getCurrentMember,
@@ -75,14 +78,34 @@ function PresentRoomLobby({
     }
   }
 
+  const handleStartGame = async () => {
+    if (!clientToken || isStarting) {
+      return
+    }
+
+    setIsStarting(true)
+    setStartError(null)
+
+    try {
+      await startGame({ roomCode, clientToken })
+    } catch {
+      setStartError('Unable to start the game. Please try again.')
+    } finally {
+      setIsStarting(false)
+    }
+  }
+
   if (leavingSnapshot) {
     return (
       <ConnectedRoomLobby
         lobby={leavingSnapshot.lobby}
         currentMember={leavingSnapshot.currentMember}
         isLeaving
+        isStarting={false}
         leaveError={null}
-        onLeave={noopLeave}
+        startError={null}
+        onLeave={noopAction}
+        onStart={noopAction}
       />
     )
   }
@@ -115,7 +138,7 @@ function PresentRoomLobby({
     return <RoomEntrySkeleton />
   }
 
-  if (lobby.members.length >= 2) {
+  if (lobby.gameStarted) {
     return <GameScreen />
   }
 
@@ -124,8 +147,11 @@ function PresentRoomLobby({
       lobby={lobby}
       currentMember={queriedCurrentMember}
       isLeaving={false}
+      isStarting={isStarting}
       leaveError={leaveError}
+      startError={startError}
       onLeave={() => handleLeaveRoom(lobby, queriedCurrentMember)}
+      onStart={handleStartGame}
     />
   )
 }
@@ -157,19 +183,28 @@ function ConnectedRoomLobby({
   lobby,
   currentMember,
   isLeaving,
+  isStarting,
   leaveError,
+  startError,
   onLeave,
+  onStart,
 }: {
   lobby: Lobby
   currentMember: CurrentMember
   isLeaving: boolean
+  isStarting: boolean
   leaveError: string | null
+  startError: string | null
   onLeave: () => void
+  onStart: () => void
 }) {
+  const isHost = currentMember.role === 'host'
+  const canStart = lobby.members.length >= 2
+
   return (
     <main
       className="flex min-h-screen items-center px-5 py-10 sm:px-8"
-      aria-busy={isLeaving}
+      aria-busy={isLeaving || isStarting}
     >
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 shadow-sm sm:p-10">
         <div className="text-center">
@@ -220,6 +255,31 @@ function ConnectedRoomLobby({
         </div>
 
         <div className="mt-8 grid min-h-10 justify-items-center gap-3">
+          {isHost ? (
+            <>
+              <Button
+                type="button"
+                disabled={isLeaving || isStarting || !canStart}
+                onClick={onStart}
+              >
+                {isStarting ? 'Starting…' : 'Start game'}
+              </Button>
+              {!canStart ? (
+                <p className="text-muted-foreground text-center text-sm">
+                  At least 2 players are needed to start.
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-muted-foreground text-center text-sm">
+              Waiting for the host to start the game.
+            </p>
+          )}
+          {startError ? (
+            <p className="text-destructive text-sm" role="alert">
+              {startError}
+            </p>
+          ) : null}
           {leaveError ? (
             <p className="text-destructive text-sm" role="alert">
               {leaveError}
@@ -228,7 +288,7 @@ function ConnectedRoomLobby({
           <Button
             type="button"
             variant="outline"
-            disabled={isLeaving}
+            disabled={isLeaving || isStarting}
             onClick={onLeave}
           >
             {isLeaving ? 'Leaving…' : 'Leave room'}

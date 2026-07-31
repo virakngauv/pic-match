@@ -8,6 +8,7 @@ export default defineSchema({
     code: v.string(),
     creatorName: v.string(),
     createdAt: v.number(),
+    startedAt: v.optional(v.number()),
   }).index('by_code', ['code']),
   roomMembers: defineTable({
     roomId: v.id('rooms'),

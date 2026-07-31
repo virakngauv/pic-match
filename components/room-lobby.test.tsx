@@ -9,11 +9,13 @@ const mocks = vi.hoisted(() => ({
     { playerId: string; role: 'host' | 'player' } | null | undefined,
   heartbeatEnabled: false,
   leaveRoom: vi.fn(),
+  startGame: vi.fn(),
   presenceStatus: 'connected' as
     'inactive' | 'connecting' | 'connected' | 'room-full',
   routerPush: vi.fn(),
   lobby: {
     roomCode: 'frvg7',
+    gameStarted: false,
     members: [
       {
         playerId: 'member-1',
@@ -24,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   } as
     | {
         roomCode: string
+        gameStarted: boolean
         members: Array<{
           playerId: string
           name: string
@@ -42,12 +45,14 @@ vi.mock('@/convex/_generated/api', () => ({
       getLobby: 'getLobby',
       join: 'join',
       leave: 'leave',
+      start: 'start',
     },
   },
 }))
 
 vi.mock('convex/react', () => ({
-  useMutation: () => mocks.leaveRoom,
+  useMutation: (mutation: string) =>
+    mutation === 'start' ? mocks.startGame : mocks.leaveRoom,
   useQuery: (query: string) =>
     query === 'getLobby' ? mocks.lobby : mocks.currentMember,
 }))
@@ -82,10 +87,13 @@ describe('RoomLobby', () => {
     mocks.heartbeatEnabled = false
     mocks.leaveRoom.mockReset()
     mocks.leaveRoom.mockResolvedValue(undefined)
+    mocks.startGame.mockReset()
+    mocks.startGame.mockResolvedValue(null)
     mocks.presenceStatus = 'connected'
     mocks.routerPush.mockReset()
     mocks.lobby = {
       roomCode: 'frvg7',
+      gameStarted: false,
       members: [
         {
           playerId: 'member-1',
@@ -147,7 +155,18 @@ describe('RoomLobby', () => {
     expect(mocks.heartbeatEnabled).toBe(true)
   })
 
-  it('shows the game screen once at least two players are in the lobby', () => {
+  it('keeps the host start button disabled until another player joins', () => {
+    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.getByRole('button', { name: 'Start game' })).toBeDisabled()
+    expect(
+      screen.getByText('At least 2 players are needed to start.'),
+    ).toBeInTheDocument()
+  })
+
+  it('lets the host start once at least two players are in the lobby', async () => {
     mocks.currentMember = { playerId: 'member-1', role: 'host' }
     mocks.lobby?.members.push({
       playerId: 'member-2',
@@ -157,9 +176,48 @@ describe('RoomLobby', () => {
 
     render(<RoomLobby roomCode="frvg7" />)
 
+    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
+    const startButton = screen.getByRole('button', { name: 'Start game' })
+    expect(startButton).toBeEnabled()
+
+    fireEvent.click(startButton)
+
+    await waitFor(() => {
+      expect(mocks.startGame).toHaveBeenCalledWith({
+        roomCode: 'frvg7',
+        clientToken: 'a'.repeat(32),
+      })
+    })
+  })
+
+  it('shows non-host players a waiting status instead of a start button', () => {
+    mocks.currentMember = { playerId: 'member-2', role: 'player' }
+    mocks.lobby?.members.push({
+      playerId: 'member-2',
+      name: 'Chrome player',
+      role: 'player',
+    })
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByText('Waiting for the host to start the game.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Start game' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows the game screen only after the host starts the game', () => {
+    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    if (mocks.lobby) {
+      mocks.lobby.gameStarted = true
+    }
+
+    render(<RoomLobby roomCode="frvg7" />)
+
     expect(screen.getByRole('main', { name: 'Game' })).toBeInTheDocument()
     expect(screen.queryByText('Ready to play.')).not.toBeInTheDocument()
-    expect(mocks.heartbeatEnabled).toBe(true)
   })
 
   it('keeps the join screen hidden while leaving and navigating home', async () => {
