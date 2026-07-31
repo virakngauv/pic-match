@@ -1,6 +1,11 @@
 import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
+import {
+  listGameParticipantSnapshot,
+  listRoomParticipantsForPhase,
+  startRoomGame,
+} from './gameParticipants'
 import { validateClientToken } from './playerKeys'
 import {
   claimRoomSeat,
@@ -9,13 +14,8 @@ import {
   listOnlineActiveRoomMembers,
   roomPresence,
 } from './presence'
-import {
-  createRoomStartPatch,
-  getRoomPhase,
-  newRoomLifecycle,
-  roomPhase,
-} from './roomLifecycle'
-import { isActiveRoomMember } from './roomMembers'
+import { getRoomPhase, newRoomLifecycle, roomPhase } from './roomLifecycle'
+import { isActiveRoomMember, roomMemberRole } from './roomMembers'
 import {
   findAvailableRoomCode,
   normalizeRoomCode,
@@ -42,12 +42,12 @@ type JoinRoomResult =
 const lobbyMember = v.object({
   playerId: v.id('roomMembers'),
   name: v.string(),
-  role: v.union(v.literal('host'), v.literal('player')),
+  role: roomMemberRole,
 })
 
 const currentMemberResult = v.object({
   playerId: v.id('roomMembers'),
-  role: v.union(v.literal('host'), v.literal('player')),
+  role: roomMemberRole,
 })
 
 function normalizeName(name: string) {
@@ -280,20 +280,18 @@ export const start = mutation({
       )
       .unique()
 
-    const roomStartPatch = await createRoomStartPatch({
+    await startRoomGame(
+      ctx,
       room,
-      actor: member
+      member
         ? {
             role: member.role,
             isActive: isActiveRoomMember(member.status),
           }
         : null,
-      getOnlinePlayerCount: async () =>
-        (await listOnlineActiveRoomMembers(ctx, room._id)).length,
-      startedAt: Date.now(),
-    })
-
-    await ctx.db.patch(room._id, roomStartPatch)
+      async () => await listOnlineActiveRoomMembers(ctx, room._id),
+      Date.now(),
+    )
 
     return null
   },
@@ -327,17 +325,35 @@ export const getLobby = query({
       return null
     }
 
-    const members = await listOnlineActiveRoomMembers(ctx, room._id)
-    members.sort((left, right) => left.joinedAt - right.joinedAt)
+    const phase = getRoomPhase(room)
+    const members = await listRoomParticipantsForPhase({
+      phase,
+      gameId: room.gameId,
+      listLobbyParticipants: async () =>
+        (await listOnlineActiveRoomMembers(ctx, room._id))
+          .sort(
+            (left, right) =>
+              left.joinedAt - right.joinedAt ||
+              left._creationTime - right._creationTime ||
+              left._id.localeCompare(right._id),
+          )
+          .map((member) => ({
+            playerId: member._id,
+            name: member.name,
+            role: member.role,
+          })),
+      listGameParticipants: async (gameId) =>
+        (await listGameParticipantSnapshot(ctx, gameId)).map((participant) => ({
+          playerId: participant.roomMemberId,
+          name: participant.name,
+          role: participant.role,
+        })),
+    })
 
     return {
       roomCode: room.code,
-      phase: getRoomPhase(room),
-      members: members.map((member) => ({
-        playerId: member._id,
-        name: member.name,
-        role: member.role,
-      })),
+      phase,
+      members,
     }
   },
 })
