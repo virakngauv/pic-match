@@ -27,6 +27,10 @@ function PresentRoomLobby({
   roomCode: string
   clientToken: string | null | undefined
 }) {
+  const router = useRouter()
+  const leaveRoom = useMutation(api.rooms.leave)
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [leaveError, setLeaveError] = useState<string | null>(null)
   const lobby = useQuery(api.rooms.getLobby, { roomCode })
   const queriedCurrentMember = useQuery(
     api.rooms.getCurrentMember,
@@ -38,6 +42,27 @@ function PresentRoomLobby({
     clientToken,
     Boolean(clientToken && queriedCurrentMember),
   )
+
+  const handleLeaveRoom = async () => {
+    if (!clientToken) {
+      return
+    }
+
+    setIsLeaving(true)
+    setLeaveError(null)
+
+    try {
+      await leaveRoom({ roomCode, clientToken })
+      router.push('/home')
+    } catch {
+      setLeaveError('Unable to leave the room. Please try again.')
+      setIsLeaving(false)
+    }
+  }
+
+  if (isLeaving) {
+    return <LeavingRoom />
+  }
 
   if (lobby === null) {
     return <RoomNotFound roomCode={roomCode} />
@@ -70,8 +95,9 @@ function PresentRoomLobby({
   return (
     <ConnectedRoomLobby
       lobby={lobby}
-      clientToken={clientToken}
       currentMember={queriedCurrentMember}
+      leaveError={leaveError}
+      onLeave={handleLeaveRoom}
     />
   )
 }
@@ -101,33 +127,17 @@ function RoomEntrySkeleton() {
 
 function ConnectedRoomLobby({
   lobby,
-  clientToken,
   currentMember,
+  leaveError,
+  onLeave,
 }: {
   lobby: NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
-  clientToken: string
   currentMember: NonNullable<
     FunctionReturnType<typeof api.rooms.getCurrentMember>
   >
+  leaveError: string | null
+  onLeave: () => Promise<void>
 }) {
-  const router = useRouter()
-  const leaveRoom = useMutation(api.rooms.leave)
-  const [isLeaving, setIsLeaving] = useState(false)
-  const [leaveError, setLeaveError] = useState<string | null>(null)
-
-  const handleLeaveRoom = async () => {
-    setIsLeaving(true)
-    setLeaveError(null)
-
-    try {
-      await leaveRoom({ roomCode: lobby.roomCode, clientToken })
-      router.push('/home')
-    } catch {
-      setLeaveError('Unable to leave the room. Please try again.')
-      setIsLeaving(false)
-    }
-  }
-
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 shadow-sm sm:p-10">
@@ -187,12 +197,29 @@ function ConnectedRoomLobby({
           <Button
             type="button"
             variant="outline"
-            disabled={isLeaving}
-            onClick={handleLeaveRoom}
+            onClick={onLeave}
           >
-            {isLeaving ? 'Leaving…' : 'Leave room'}
+            Leave room
           </Button>
         </div>
+      </section>
+    </main>
+  )
+}
+
+function LeavingRoom() {
+  return (
+    <main
+      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
+      aria-busy="true"
+    >
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Leaving room
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          Heading home…
+        </h1>
       </section>
     </main>
   )

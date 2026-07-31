@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RoomLobby } from './room-lobby'
@@ -8,8 +8,10 @@ const mocks = vi.hoisted(() => ({
   currentMember: null as
     { playerId: string; role: 'host' | 'player' } | null | undefined,
   heartbeatEnabled: false,
+  leaveRoom: vi.fn(),
   presenceStatus: 'connected' as
     'inactive' | 'connecting' | 'connected' | 'room-full',
+  routerPush: vi.fn(),
   lobby: {
     roomCode: 'frvg7',
     members: [
@@ -45,13 +47,13 @@ vi.mock('@/convex/_generated/api', () => ({
 }))
 
 vi.mock('convex/react', () => ({
-  useMutation: () => vi.fn(),
+  useMutation: () => mocks.leaveRoom,
   useQuery: (query: string) =>
     query === 'getLobby' ? mocks.lobby : mocks.currentMember,
 }))
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mocks.routerPush }),
 }))
 
 vi.mock('@/components/player-session-provider', () => ({
@@ -78,7 +80,10 @@ describe('RoomLobby', () => {
     mocks.clientToken = 'a'.repeat(32)
     mocks.currentMember = null
     mocks.heartbeatEnabled = false
+    mocks.leaveRoom.mockReset()
+    mocks.leaveRoom.mockResolvedValue(undefined)
     mocks.presenceStatus = 'connected'
+    mocks.routerPush.mockReset()
     mocks.lobby = {
       roomCode: 'frvg7',
       members: [
@@ -140,6 +145,40 @@ describe('RoomLobby', () => {
     expect(screen.getByText('You · Host')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Leave room' })).toBeEnabled()
     expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
+  it('keeps the join screen hidden while leaving and navigating home', async () => {
+    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    const { rerender } = render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
+
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true')
+    expect(
+      screen.getByRole('heading', { name: 'Heading home…' }),
+    ).toBeInTheDocument()
+
+    mocks.currentMember = null
+    rerender(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.queryByText('Join your friends.')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(mocks.routerPush).toHaveBeenCalledWith('/home')
+    })
+  })
+
+  it('restores the lobby when leaving fails', async () => {
+    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.leaveRoom.mockRejectedValue(new Error('Network unavailable'))
+    render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
+
+    expect(
+      await screen.findByText('Unable to leave the room. Please try again.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Leave room' })).toBeEnabled()
+    expect(mocks.routerPush).not.toHaveBeenCalled()
   })
 
   it('shows a full-room recovery screen when a seat cannot be reclaimed', () => {
