@@ -147,6 +147,21 @@ describe('RoomLobby', () => {
     expect(mocks.heartbeatEnabled).toBe(true)
   })
 
+  it('shows the game screen once at least two players are in the lobby', () => {
+    mocks.currentMember = { playerId: 'member-1', role: 'host' }
+    mocks.lobby?.members.push({
+      playerId: 'member-2',
+      name: 'Chrome player',
+      role: 'player',
+    })
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.getByRole('main', { name: 'Game' })).toBeInTheDocument()
+    expect(screen.queryByText('Ready to play.')).not.toBeInTheDocument()
+    expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
   it('keeps the join screen hidden while leaving and navigating home', async () => {
     mocks.currentMember = { playerId: 'member-1', role: 'host' }
     const { rerender } = render(<RoomLobby roomCode="frvg7" />)

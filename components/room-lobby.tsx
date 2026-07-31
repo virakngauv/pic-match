@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
+import { GameScreen } from '@/components/game-screen'
 import { JoinRoomScreen } from '@/components/join-room-screen'
 import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
@@ -112,6 +113,10 @@ function PresentRoomLobby({
 
   if (presenceStatus !== 'connected') {
     return <RoomEntrySkeleton />
+  }
+
+  if (lobby.members.length >= 2) {
+    return <GameScreen />
   }
 
   return (
