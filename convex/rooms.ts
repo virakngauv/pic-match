@@ -2,7 +2,7 @@ import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
 import { getGameParticipant, startRoomGame } from './gameParticipants'
-import { validateClientToken } from './playerKeys'
+import { parseClientToken, validateClientToken } from './playerKeys'
 import {
   claimRoomSeat,
   createRoomPresenceSessionId,
@@ -10,7 +10,7 @@ import {
   listOnlineActiveRoomMembers,
   roomPresence,
 } from './presence'
-import { decideRoomJoin } from './roomAccess'
+import { canRoomMemberConnect, decideRoomJoin } from './roomAccess'
 import { explicitlyLeaveRoom } from './roomDeparture'
 import { getRoomPhase, newRoomLifecycle } from './roomLifecycle'
 import { isActiveRoomMember } from './roomMembers'
@@ -134,6 +134,8 @@ export const join = mutation({
       return null
     }
 
+    const normalizedName = normalizeName(name)
+
     const existingMember = await ctx.db
       .query('roomMembers')
       .withIndex('by_room_id_and_private_player_key', (index) =>
@@ -177,7 +179,7 @@ export const join = mutation({
 
       if (!isActiveRoomMember(existingMember.status)) {
         await ctx.db.patch(existingMember._id, {
-          name: normalizeName(name),
+          name: normalizedName,
           status: 'active',
         })
       }
@@ -191,7 +193,7 @@ export const join = mutation({
 
     const memberId = await ctx.db.insert('roomMembers', {
       roomId: room._id,
-      name: normalizeName(name),
+      name: normalizedName,
       privatePlayerKey: validatedClientToken,
       role: 'player',
       status: 'active',
@@ -331,9 +333,7 @@ export const getRoomView = query({
     }
 
     const phase = getRoomPhase(room)
-    const validatedClientToken = clientToken
-      ? validateClientToken(clientToken)
-      : null
+    const validatedClientToken = parseClientToken(clientToken)
     const member = validatedClientToken
       ? await ctx.db
           .query('roomMembers')
@@ -350,8 +350,11 @@ export const getRoomView = query({
         : null
     const isEligible =
       member !== null &&
-      isActiveRoomMember(member.status) &&
-      (phase === 'lobby' || participant !== null)
+      canRoomMemberConnect({
+        phase,
+        memberStatus: member.status,
+        isGameParticipant: participant !== null,
+      })
     const onlineMembers = isEligible
       ? await listOnlineActiveRoomMembers(ctx, room._id)
       : []

@@ -11,9 +11,9 @@ describe('room lifecycle', () => {
     expect(newRoomLifecycle()).toEqual({ phase: 'lobby' })
   })
 
-  it('provides migration-safe phases for existing rooms', () => {
-    expect(getRoomPhase({})).toBe('lobby')
-    expect(getRoomPhase({ startedAt: 123 })).toBe('playing')
+  it('reads the explicit room phase', () => {
+    expect(getRoomPhase({ phase: 'lobby' })).toBe('lobby')
+    expect(getRoomPhase({ phase: 'playing', startedAt: 123 })).toBe('playing')
     expect(getRoomPhase({ phase: 'finished', startedAt: 123 })).toBe('finished')
   })
 

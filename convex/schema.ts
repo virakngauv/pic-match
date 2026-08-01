@@ -9,7 +9,7 @@ export default defineSchema({
     code: v.string(),
     creatorName: v.string(),
     createdAt: v.number(),
-    phase: v.optional(roomPhase),
+    phase: roomPhase,
     startedAt: v.optional(v.number()),
     gameId: v.optional(v.id('games')),
   }).index('by_code', ['code']),

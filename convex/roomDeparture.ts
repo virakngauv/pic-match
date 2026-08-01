@@ -1,5 +1,10 @@
+import { v } from 'convex/values'
+
+import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
-import type { MutationCtx } from './_generated/server'
+import { internalMutation, type MutationCtx } from './_generated/server'
+import { roomPresence } from './presence'
+import { MAX_ROOM_MEMBERS } from './roomCapacity'
 import { getRoomPhase } from './roomLifecycle'
 import { isActiveRoomMember } from './roomMembers'
 
@@ -9,6 +14,49 @@ type RemoveRoomPresence = (
   roomId: Id<'rooms'>,
   memberId: Id<'roomMembers'>,
 ) => Promise<unknown>
+
+async function deleteRoomMemberBatch(
+  ctx: MutationCtx,
+  roomId: Id<'rooms'>,
+  removeRoomPresence: RemoveRoomPresence,
+) {
+  const members = await ctx.db
+    .query('roomMembers')
+    .withIndex('by_room_id_and_joined_at', (index) =>
+      index.eq('roomId', roomId),
+    )
+    .take(MAX_ROOM_MEMBERS)
+
+  for (const roomMember of members) {
+    await removeRoomPresence(roomId, roomMember._id)
+    await ctx.db.delete(roomMember._id)
+  }
+
+  return members.length
+}
+
+export const cleanupDeletedRoomMembers = internalMutation({
+  args: { roomId: v.id('rooms') },
+  returns: v.null(),
+  handler: async (ctx, { roomId }) => {
+    const deletedCount = await deleteRoomMemberBatch(
+      ctx,
+      roomId,
+      async (cleanupRoomId, memberId) =>
+        await roomPresence.removeRoomUser(ctx, cleanupRoomId, memberId),
+    )
+
+    if (deletedCount === MAX_ROOM_MEMBERS) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.roomDeparture.cleanupDeletedRoomMembers,
+        { roomId },
+      )
+    }
+
+    return null
+  },
+})
 
 export function shouldTransferLobbyHost({
   room,
@@ -74,7 +122,22 @@ export async function explicitlyLeaveRoom(
     if (successor) {
       await ctx.db.patch(successor._id, { role: 'host' })
     } else {
+      const deletedCount = await deleteRoomMemberBatch(
+        ctx,
+        room._id,
+        removeRoomPresence,
+      )
       await ctx.db.delete(room._id)
+
+      if (deletedCount === MAX_ROOM_MEMBERS) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.roomDeparture.cleanupDeletedRoomMembers,
+          { roomId: room._id },
+        )
+      }
+
+      return
     }
   } else {
     await ctx.db.patch(member._id, { status: 'left' })

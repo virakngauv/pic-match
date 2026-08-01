@@ -111,7 +111,7 @@ function PresentRoomLobby({
     return <RoomEntrySkeleton />
   }
 
-  if (presenceStatus === 'room-full' && hasRoomMembership) {
+  if (presenceStatus === 'room-full') {
     return <RoomFull roomCode={roomView.roomCode} />
   }
 

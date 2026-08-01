@@ -1,7 +1,11 @@
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
 import { MAX_ROOM_MEMBERS } from './roomCapacity'
-import { createRoomStartPatch, type RoomPhase } from './roomLifecycle'
+import {
+  assertRoomCanStart,
+  createRoomStartPatch,
+  type RoomPhase,
+} from './roomLifecycle'
 
 type ParticipantCandidate = Pick<
   Doc<'roomMembers'>,
@@ -64,20 +68,14 @@ export async function startRoomGame(
   getOnlineParticipants: () => Promise<Doc<'roomMembers'>[]>,
   startedAt: number,
 ) {
-  let participants: Doc<'roomMembers'>[] | null = null
+  assertRoomCanStart({ room, actor })
+  const participants = await getOnlineParticipants()
   const roomStartPatch = await createRoomStartPatch({
     room,
     actor,
-    getOnlinePlayerCount: async () => {
-      participants = await getOnlineParticipants()
-      return participants.length
-    },
+    getOnlinePlayerCount: async () => participants.length,
     startedAt,
   })
-
-  if (!participants) {
-    throw new Error('Unable to create the game participant snapshot.')
-  }
 
   const gameId = await createGameParticipantSnapshot(
     ctx,

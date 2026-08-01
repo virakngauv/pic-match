@@ -56,53 +56,71 @@ function testContext(initialMembers: Doc<'roomMembers'>[]) {
       members.set(id, { ...current, ...value })
     },
   )
-  const deleteDocument = vi.fn(async (id: Id<'rooms'>) => {
-    expect(id).toBe('room-1')
-    roomExists = false
+  const deleteDocument = vi.fn(async (id: Id<'rooms'> | Id<'roomMembers'>) => {
+    if (id === ('room-1' as Id<'rooms'>)) {
+      roomExists = false
+      return
+    }
+
+    members.delete(id as Id<'roomMembers'>)
   })
-  const take = vi.fn(async (limit: number) =>
-    [...members.values()]
-      .filter(
-        (roomMember) =>
-          roomMember.roomId === ('room-1' as Id<'rooms'>) &&
-          roomMember.status === 'active',
-      )
-      .sort(
-        (left, right) =>
-          left.joinedAt - right.joinedAt ||
-          left._creationTime - right._creationTime ||
-          left._id.localeCompare(right._id),
-      )
-      .slice(0, limit),
-  )
-  const order = vi.fn(() => ({ take }))
+  const indexCalls: Array<{
+    name: string
+    filters: Array<[string, unknown]>
+  }> = []
   const withIndex = vi.fn(
     (
-      _indexName: string,
+      indexName: string,
       configure: (index: {
         eq: (field: string, value: unknown) => unknown
       }) => unknown,
     ) => {
+      const filters = new Map<string, unknown>()
       const index = {
-        eq: vi.fn(function (this: unknown) {
+        eq: vi.fn(function (this: unknown, field: string, value: unknown) {
+          filters.set(field, value)
           return this
         }),
       }
       configure(index)
-      return { order }
+      indexCalls.push({ name: indexName, filters: [...filters] })
+      const take = vi.fn(async (limit: number) =>
+        [...members.values()]
+          .filter((roomMember) =>
+            [...filters].every(
+              ([field, value]) =>
+                roomMember[field as keyof Doc<'roomMembers'>] === value,
+            ),
+          )
+          .sort(
+            (left, right) =>
+              left.joinedAt - right.joinedAt ||
+              left._creationTime - right._creationTime ||
+              left._id.localeCompare(right._id),
+          )
+          .slice(0, limit),
+      )
+      const order = vi.fn(() => ({ take }))
+      return { order, take }
     },
   )
   const query = vi.fn(() => ({ withIndex }))
+  const runAfter = vi.fn(async () => undefined)
   const ctx = {
     db: { query, patch, delete: deleteDocument },
+    scheduler: { runAfter },
   } as unknown as MutationCtx
 
   return {
     ctx,
     deleteDocument,
+    indexCalls,
     members,
     patch,
+    query,
     roomExists: () => roomExists,
+    runAfter,
+    withIndex,
   }
 }
 
@@ -125,7 +143,7 @@ describe('lobby room departure', () => {
     const oldest = member({ id: 'oldest', joinedAt: 2 })
     const newer = member({ id: 'newer', joinedAt: 3 })
     const alreadyLeft = member({ id: 'left', status: 'left', joinedAt: 0 })
-    const { ctx, members, patch, roomExists } = testContext([
+    const { ctx, indexCalls, members, patch, roomExists } = testContext([
       newer,
       alreadyLeft,
       host,
@@ -144,6 +162,13 @@ describe('lobby room departure', () => {
       status: 'active',
     })
     expect(members.get(newer._id)).toMatchObject({ role: 'player' })
+    expect(indexCalls[0]).toEqual({
+      name: 'by_room_id_and_status_and_joined_at',
+      filters: [
+        ['roomId', 'room-1'],
+        ['status', 'active'],
+      ],
+    })
     expect(roomExists()).toBe(true)
     expect(removePresence).toHaveBeenCalledWith('room-1', 'host')
   })
@@ -170,14 +195,17 @@ describe('lobby room departure', () => {
 
   it('deletes a lobby that has no eligible successor', async () => {
     const host = member({ id: 'host', role: 'host', joinedAt: 1 })
-    const { ctx, deleteDocument, members, roomExists } = testContext([host])
+    const { ctx, deleteDocument, members, roomExists, withIndex } = testContext(
+      [host],
+    )
 
     await explicitlyLeaveRoom(ctx, room(), host, async () => undefined)
 
-    expect(members.get(host._id)).toMatchObject({
-      role: 'player',
-      status: 'left',
-    })
+    expect(members.size).toBe(0)
+    expect(withIndex).toHaveBeenCalledWith(
+      'by_room_id_and_joined_at',
+      expect.any(Function),
+    )
     expect(deleteDocument).toHaveBeenCalledWith('room-1')
     expect(roomExists()).toBe(false)
   })
@@ -256,12 +284,7 @@ describe('lobby room departure', () => {
       }
 
       expect(state.roomExists()).toBe(false)
-      expect([...state.members.values()]).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ _id: 'host', status: 'left' }),
-          expect.objectContaining({ _id: 'player', status: 'left' }),
-        ]),
-      )
+      expect([...state.members.values()]).toEqual([])
     },
   )
 })

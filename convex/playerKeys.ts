@@ -12,6 +12,12 @@ export function validateClientToken(clientToken: string) {
   return clientToken
 }
 
+export function parseClientToken(clientToken: string | null) {
+  return clientToken && CLIENT_TOKEN_PATTERN.test(clientToken)
+    ? clientToken
+    : null
+}
+
 export function validateClientInstanceId(clientInstanceId: string) {
   if (!CLIENT_TOKEN_PATTERN.test(clientInstanceId)) {
     throw new Error('Invalid client instance ID.')

@@ -14,8 +14,10 @@ import type * as presence from "../presence.js";
 import type * as roomAccess from "../roomAccess.js";
 import type * as roomCapacity from "../roomCapacity.js";
 import type * as roomCode from "../roomCode.js";
+import type * as roomDeparture from "../roomDeparture.js";
 import type * as roomLifecycle from "../roomLifecycle.js";
 import type * as roomMembers from "../roomMembers.js";
+import type * as roomView from "../roomView.js";
 import type * as rooms from "../rooms.js";
 
 import type {
@@ -31,8 +33,10 @@ declare const fullApi: ApiFromModules<{
   roomAccess: typeof roomAccess;
   roomCapacity: typeof roomCapacity;
   roomCode: typeof roomCode;
+  roomDeparture: typeof roomDeparture;
   roomLifecycle: typeof roomLifecycle;
   roomMembers: typeof roomMembers;
+  roomView: typeof roomView;
   rooms: typeof rooms;
 }>;
 

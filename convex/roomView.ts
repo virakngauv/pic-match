@@ -1,12 +1,13 @@
 import { v } from 'convex/values'
 
-import type { RoomPhase } from './roomLifecycle'
-import type { RoomMemberStatus } from './roomMembers'
+import { canRoomMemberConnect } from './roomAccess'
+import { roomPhase, type RoomPhase } from './roomLifecycle'
+import { roomMemberRole, type RoomMemberStatus } from './roomMembers'
 
 const roomViewPlayerIdentity = {
   playerId: v.id('roomMembers'),
   name: v.string(),
-  role: v.union(v.literal('host'), v.literal('player')),
+  role: roomMemberRole,
 }
 
 export const lobbyRoomViewPlayer = v.object({
@@ -19,11 +20,7 @@ export const gameRoomViewPlayer = v.object({
   position: v.number(),
 })
 
-export const roomViewMember = v.object({
-  playerId: v.id('roomMembers'),
-  name: v.string(),
-  role: v.union(v.literal('host'), v.literal('player')),
-})
+export const roomViewMember = v.object(roomViewPlayerIdentity)
 
 export const roomView = v.union(
   v.object({
@@ -41,11 +38,7 @@ export const roomView = v.union(
   v.object({
     status: v.literal('reconnecting'),
     roomCode: v.string(),
-    phase: v.union(
-      v.literal('lobby'),
-      v.literal('playing'),
-      v.literal('finished'),
-    ),
+    phase: roomPhase,
   }),
   v.object({
     status: v.literal('lobby'),
@@ -83,9 +76,9 @@ export function classifyRoomView({
     return 'not_found'
   }
 
-  const isActiveMember = memberStatus === 'active'
   const canEnterRoom =
-    isActiveMember && (phase === 'lobby' || isGameParticipant)
+    memberStatus !== null &&
+    canRoomMemberConnect({ phase, memberStatus, isGameParticipant })
 
   if (!canEnterRoom) {
     return phase === 'lobby' ? 'joinable' : 'game_in_progress'

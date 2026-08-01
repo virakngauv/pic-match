@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   findAvailablePrivatePlayerKey,
   generatePrivatePlayerKey,
+  parseClientToken,
   validateClientToken,
 } from './playerKeys'
 
@@ -40,5 +41,13 @@ describe('private player keys', () => {
     expect(() => validateClientToken('g'.repeat(32))).toThrow(
       'Invalid client token.',
     )
+  })
+
+  it('parses stored client tokens without throwing for stale values', () => {
+    const token = 'a1'.repeat(16)
+
+    expect(parseClientToken(token)).toBe(token)
+    expect(parseClientToken('stale-token')).toBeNull()
+    expect(parseClientToken(null)).toBeNull()
   })
 })

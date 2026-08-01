@@ -68,6 +68,23 @@ describe('room access after game start', () => {
     ).toBe(false)
   })
 
+  it.each([
+    [null, 'join_lobby'],
+    ['active', 'reconnect'],
+    ['left', 'reconnect'],
+  ] as const)(
+    'classifies a lobby member with status %s as %s',
+    (memberStatus, expected) => {
+      expect(
+        decideRoomJoin({
+          phase: 'lobby',
+          memberStatus,
+          isGameParticipant: false,
+        }),
+      ).toBe(expected)
+    },
+  )
+
   it('rejects malformed player identity tokens', () => {
     expect(() => validateClientToken('not-a-player-token')).toThrow(
       'Invalid client token.',

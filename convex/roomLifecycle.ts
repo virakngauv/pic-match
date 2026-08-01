@@ -9,7 +9,7 @@ export const roomPhase = v.union(
 export type RoomPhase = 'lobby' | 'playing' | 'finished'
 
 type StoredRoomLifecycle = {
-  phase?: RoomPhase
+  phase: RoomPhase
   startedAt?: number
 }
 
@@ -23,11 +23,23 @@ export function newRoomLifecycle() {
 }
 
 export function getRoomPhase(room: StoredRoomLifecycle): RoomPhase {
-  if (room.phase !== undefined) {
-    return room.phase
+  return room.phase
+}
+
+export function assertRoomCanStart({
+  room,
+  actor,
+}: {
+  room: StoredRoomLifecycle
+  actor: RoomStartActor | null
+}) {
+  if (!actor || !actor.isActive || actor.role !== 'host') {
+    throw new Error('Only the host can start the game.')
   }
 
-  return room.startedAt === undefined ? 'lobby' : 'playing'
+  if (getRoomPhase(room) !== 'lobby') {
+    throw new Error('The game can only be started from the lobby.')
+  }
 }
 
 export async function createRoomStartPatch({
@@ -41,13 +53,7 @@ export async function createRoomStartPatch({
   getOnlinePlayerCount: () => Promise<number>
   startedAt: number
 }) {
-  if (!actor || !actor.isActive || actor.role !== 'host') {
-    throw new Error('Only the host can start the game.')
-  }
-
-  if (getRoomPhase(room) !== 'lobby') {
-    throw new Error('The game can only be started from the lobby.')
-  }
+  assertRoomCanStart({ room, actor })
 
   const onlinePlayerCount = await getOnlinePlayerCount()
 
