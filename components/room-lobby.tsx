@@ -119,6 +119,10 @@ function PresentRoomLobby({
   }
 
   if (clientToken === null) {
+    if (lobby.phase !== 'lobby') {
+      return <GameInProgress roomCode={lobby.roomCode} />
+    }
+
     return <JoinRoomScreen roomCode={lobby.roomCode} onJoined={noopJoined} />
   }
 
@@ -127,6 +131,10 @@ function PresentRoomLobby({
   }
 
   if (queriedCurrentMember === null) {
+    if (lobby.phase !== 'lobby') {
+      return <GameInProgress roomCode={lobby.roomCode} />
+    }
+
     return <JoinRoomScreen roomCode={lobby.roomCode} onJoined={noopJoined} />
   }
 
@@ -135,7 +143,12 @@ function PresentRoomLobby({
   }
 
   if (presenceStatus !== 'connected') {
-    return <RoomEntrySkeleton />
+    return (
+      <RoomReconnecting
+        roomCode={lobby.roomCode}
+        isGame={lobby.phase !== 'lobby'}
+      />
+    )
   }
 
   if (lobby.phase === 'playing') {
@@ -321,6 +334,54 @@ function RoomFull({ roomCode }: { roomCode: string }) {
         <Button asChild className="mt-8">
           <Link href="/home">Go home</Link>
         </Button>
+      </section>
+    </main>
+  )
+}
+
+function GameInProgress({ roomCode }: { roomCode: string }) {
+  return (
+    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Room {roomCode}
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          This game has already started.
+        </h1>
+        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+          New players can’t join after the participant list is locked.
+        </p>
+        <Button asChild className="mt-8">
+          <Link href="/home">Go home</Link>
+        </Button>
+      </section>
+    </main>
+  )
+}
+
+function RoomReconnecting({
+  roomCode,
+  isGame,
+}: {
+  roomCode: string
+  isGame: boolean
+}) {
+  return (
+    <main
+      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
+      aria-busy="true"
+    >
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Room {roomCode}
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          Reconnecting to {isGame ? 'your game' : 'the room'}…
+        </h1>
+        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+          Your player identity is safe. We’re restoring this connection.
+        </p>
       </section>
     </main>
   )

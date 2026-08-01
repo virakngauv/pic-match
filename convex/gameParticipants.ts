@@ -8,6 +8,11 @@ type ParticipantCandidate = Pick<
   '_id' | '_creationTime' | 'name' | 'role' | 'joinedAt'
 >
 
+type GameParticipantIdentity = Pick<
+  Doc<'gameParticipants'>,
+  'roomMemberId' | 'role' | 'position'
+>
+
 export function buildGameParticipantSnapshot(
   candidates: readonly ParticipantCandidate[],
 ) {
@@ -24,6 +29,16 @@ export function buildGameParticipantSnapshot(
       role: member.role,
       position,
     }))
+}
+
+export function presentGameParticipantIdentity(
+  participant: GameParticipantIdentity,
+) {
+  return {
+    playerId: participant.roomMemberId,
+    role: participant.role,
+    position: participant.position,
+  }
 }
 
 export async function createGameParticipantSnapshot(
@@ -85,6 +100,19 @@ export async function listGameParticipantSnapshot(
     .withIndex('by_game_id_and_position', (index) => index.eq('gameId', gameId))
     .order('asc')
     .take(MAX_ROOM_MEMBERS)
+}
+
+export async function getGameParticipant(
+  ctx: QueryCtx | MutationCtx,
+  gameId: Id<'games'>,
+  roomMemberId: Id<'roomMembers'>,
+) {
+  return await ctx.db
+    .query('gameParticipants')
+    .withIndex('by_game_id_and_room_member_id', (index) =>
+      index.eq('gameId', gameId).eq('roomMemberId', roomMemberId),
+    )
+    .unique()
 }
 
 export async function listRoomParticipantsForPhase<T>({

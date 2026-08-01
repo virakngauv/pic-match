@@ -3,10 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
-import {
-  JoinRoomForm,
-  type JoinedRoom,
-} from '@/components/join-room-form'
+import { JoinRoomForm, type JoinedRoom } from '@/components/join-room-form'
 import { Button } from '@/components/ui/button'
 
 export function JoinRoomScreen({

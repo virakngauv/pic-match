@@ -5,6 +5,7 @@ import type { MutationCtx } from './_generated/server'
 import {
   buildGameParticipantSnapshot,
   listRoomParticipantsForPhase,
+  presentGameParticipantIdentity,
   startRoomGame,
 } from './gameParticipants'
 
@@ -207,6 +208,20 @@ describe('game participant snapshots', () => {
       { roomMemberId: 'member-1', name: 'First', position: 0 },
       { roomMemberId: 'member-2', name: 'Second', position: 1 },
     ])
+  })
+
+  it('restores the frozen participant identity, role, and game position', () => {
+    expect(
+      presentGameParticipantIdentity({
+        roomMemberId: 'member-2' as Id<'roomMembers'>,
+        role: 'player',
+        position: 1,
+      }),
+    ).toEqual({
+      playerId: 'member-2',
+      role: 'player',
+      position: 1,
+    })
   })
 
   it('reads playing participants from the snapshot instead of live presence', async () => {
