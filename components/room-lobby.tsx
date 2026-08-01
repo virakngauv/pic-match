@@ -138,7 +138,7 @@ function PresentRoomLobby({
     return <RoomEntrySkeleton />
   }
 
-  if (lobby.gameStarted) {
+  if (lobby.phase === 'playing') {
     return <GameScreen />
   }
 

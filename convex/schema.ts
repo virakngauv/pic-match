@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 
+import { roomPhase } from './roomLifecycle'
 import { roomMemberStatus } from './roomMembers'
 
 export default defineSchema({
@@ -8,6 +9,7 @@ export default defineSchema({
     code: v.string(),
     creatorName: v.string(),
     createdAt: v.number(),
+    phase: v.optional(roomPhase),
     startedAt: v.optional(v.number()),
   }).index('by_code', ['code']),
   roomMembers: defineTable({
