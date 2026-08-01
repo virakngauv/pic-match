@@ -17,6 +17,7 @@ import {
   roomPresence,
 } from './presence'
 import { decideRoomJoin } from './roomAccess'
+import { explicitlyLeaveRoom } from './roomDeparture'
 import { getRoomPhase, newRoomLifecycle, roomPhase } from './roomLifecycle'
 import { isActiveRoomMember, roomMemberRole } from './roomMembers'
 import {
@@ -261,9 +262,14 @@ export const leave = mutation({
       )
       .unique()
 
-    if (member && isActiveRoomMember(member.status)) {
-      await ctx.db.patch(member._id, { status: 'left' })
-      await roomPresence.removeRoomUser(ctx, room._id, member._id)
+    if (member) {
+      await explicitlyLeaveRoom(
+        ctx,
+        room,
+        member,
+        async (roomId, memberId) =>
+          await roomPresence.removeRoomUser(ctx, roomId, memberId),
+      )
     }
 
     return null
