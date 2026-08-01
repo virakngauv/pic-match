@@ -1,60 +1,214 @@
 # Spot It Web
 
-A production-minded Next.js starter based on the requested stack:
+A real-time multiplayer browser implementation of Spot It, built with Next.js
+and Convex.
 
-- React 19, Next.js App Router, Tailwind CSS, and shadcn/ui
-- Convex for backend functions and data
-- Clerk for authentication
-- PostHog for product analytics
-- Arcjet for application security
-- ESLint, Prettier, Vitest, React Testing Library, and Playwright
+The project is currently pre-production. The multiplayer room lifecycle is
+implemented; the next milestone is the first playable round with cards, symbol
+matching, scoring, and game completion.
+
+## Current functionality
+
+- Create and join rooms using short room codes
+- Persistent anonymous player identities
+- Real-time lobby presence
+- Host-authorized game start
+- Immutable participant roster when a game starts
+- Participant reconnection during an active game
+- Late-join blocking after the game starts
+- Lobby host reassignment when the host leaves
+- Server-derived lobby, playing, reconnecting, finished, and unavailable views
+- Unit, integration, and multi-browser end-to-end coverage for the room-to-game
+  transition
+
+The current game screen establishes the room and participant boundary but does
+not yet implement cards or matching gameplay.
+
+## Technology
+
+- Next.js App Router, React, and TypeScript
+- Tailwind CSS and shadcn/ui
+- Convex for real-time rooms, presence, and game state
+- Vitest and React Testing Library
+- Playwright for end-to-end tests
+
+Clerk, PostHog, and Arcjet are available as optional integrations. They remain
+disabled in local development until their environment variables are configured.
 
 ## Local development
 
-1. Copy `.env.example` to `.env.local`.
-2. Install packages with `pnpm install`.
-3. Start Next.js with `pnpm dev`.
+Requirements:
 
-The app works without third-party credentials. Providers activate only when their public environment variables are present.
+- Node.js 22 or later
+- pnpm 11
 
-## Wiring lab
+Install dependencies:
 
-The home page includes an interactive tab for each major layer:
+```bash
+pnpm install
+```
 
-- React proves client hydration and state updates.
-- Next.js calls `GET /api/hello`.
-- Convex shows a live websocket connection state when configured.
-- Clerk exposes sign-in or the current user when configured.
-- PostHog captures `hello_world_clicked` when configured.
-- Arcjet calls `POST /api/arcjet-demo` and runs Shield when configured.
+Create the local environment file from the tracked template:
 
-Unconfigured third-party services use clearly labeled demo responses, so the full lab remains usable before credentials are added.
+```bash
+cp .env.example .env.local
+```
 
-## Configure services
+Keep local keys in `.env.local` at the repository root. Next.js loads this file
+automatically, and it is intentionally excluded from Git. Restart the Next.js
+development server after changing environment variables.
 
-### Convex
+Configure and start Convex:
 
-Run `pnpm convex:dev` and follow the prompts. Convex will create a deployment and write `NEXT_PUBLIC_CONVEX_URL` to `.env.local`.
+```bash
+pnpm convex:dev
+```
+
+The Convex CLI creates or selects a development deployment and writes
+`NEXT_PUBLIC_CONVEX_URL` to `.env.local`. Leave that terminal running during
+development.
+
+In another terminal, start Next.js:
+
+```bash
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+The application shell and wiring lab work without third-party credentials.
+Multiplayer room functionality requires a configured Convex development
+deployment.
+
+## Optional integrations
+
+Start by editing the repository-root `.env.local` created above. The complete
+file can look like this:
+
+```dotenv
+# Written automatically by `pnpm convex:dev`.
+NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+
+# Clerk authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+
+# PostHog analytics
+NEXT_PUBLIC_POSTHOG_KEY=phc_...
+NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+
+# Arcjet security
+ARCJET_KEY=ajkey_...
+ARCJET_ENV=development
+```
+
+Only variables prefixed with `NEXT_PUBLIC_` are exposed to browser code. Never
+put secret values in a `NEXT_PUBLIC_` variable or commit `.env.local`.
 
 ### Clerk
 
-Add `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`. The root provider activates automatically; add Clerk middleware when you introduce protected routes.
+Create or select an application in the Clerk dashboard, then copy its
+publishable key and secret key into these entries in `.env.local`:
+
+```dotenv
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+```
+
+The root provider and Clerk middleware activate automatically when both values
+are present. Clerk is not required for the current anonymous player flow.
+
+If Clerk authentication is later used inside Convex functions, configure the
+Clerk frontend API URL on the Convex development deployment as well:
+
+```bash
+pnpm convex env set CLERK_FRONTEND_API_URL https://your-clerk-domain
+```
+
+This value belongs to the Convex deployment environment, not `.env.local`.
 
 ### PostHog
 
-Add `NEXT_PUBLIC_POSTHOG_KEY` and, if needed, override `NEXT_PUBLIC_POSTHOG_HOST`. Page-view capture activates automatically.
+Copy the project API key and host from the PostHog project settings into
+`.env.local`:
+
+```dotenv
+NEXT_PUBLIC_POSTHOG_KEY=phc_...
+NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+```
+
+Use the host shown by PostHog for the selected project region. The application
+defaults to the US host when `NEXT_PUBLIC_POSTHOG_HOST` is omitted.
 
 ### Arcjet
 
-Add `ARCJET_KEY` and apply `@arcjet/next` protection to the first route or server action that accepts untrusted input. Security rules should be chosen for the route instead of applied generically.
+Copy the site key from the Arcjet dashboard into `.env.local`:
 
-## Quality commands
+```dotenv
+ARCJET_KEY=ajkey_...
+ARCJET_ENV=development
+```
+
+`ARCJET_KEY` is server-only. The included demo API route runs Arcjet Shield
+when it is configured and returns a transparent demo response otherwise.
+
+## Architecture
+
+Rooms progress through a server-authoritative lifecycle:
+
+```text
+lobby → playing → finished
+```
+
+Room membership, connectivity, and game participation are modeled separately.
+When the host starts a game, Convex creates an immutable participant snapshot.
+Disconnecting does not remove or reorder a participant.
+
+See [Room-to-game boundary](docs/architecture/room-game-boundary.md) for the
+detailed lifecycle and authorization rules.
+
+## Project structure
+
+```text
+app/                 Next.js routes and layouts
+components/          Application components
+components/ui/       Reusable UI primitives
+convex/              Schema, queries, mutations, and backend tests
+e2e/                 Playwright end-to-end tests
+docs/architecture/   Architecture decisions and boundaries
+lib/                 Shared client utilities and session handling
+```
+
+## Quality checks
+
+Run the complete local verification suite:
 
 ```bash
-pnpm lint
 pnpm format:check
+pnpm lint
 pnpm typecheck
 pnpm test
 pnpm test:e2e
 pnpm build
 ```
+
+## Development data
+
+This project is pre-production, and existing Convex development data is
+disposable. Breaking schema changes may require clearing or recreating the
+development deployment.
+
+A production migration and retention policy must be established before the
+first public deployment.
+
+## Next milestone
+
+The next major milestone is a first playable game round:
+
+- Generate valid Spot It cards
+- Store server-authoritative round state
+- Render each participant's card
+- Validate symbol-match claims
+- Track scores and determine a winner
+- Transition completed games to `finished`
+- Cover the complete round with a multi-player end-to-end test
