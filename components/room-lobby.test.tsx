@@ -3,46 +3,73 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RoomLobby } from './room-lobby'
 
+type Player = {
+  playerId: string
+  name: string
+  role: 'host' | 'player'
+  position: number | null
+}
+
+type RoomView =
+  | { status: 'not_found'; roomCode: string }
+  | { status: 'joinable'; roomCode: string }
+  | { status: 'game_in_progress'; roomCode: string }
+  | {
+      status: 'reconnecting'
+      roomCode: string
+      phase: 'lobby' | 'playing' | 'finished'
+    }
+  | {
+      status: 'lobby'
+      roomCode: string
+      members: Array<Omit<Player, 'position'>>
+      player: Player
+    }
+  | { status: 'playing'; roomCode: string; player: Player }
+  | { status: 'finished'; roomCode: string; player: Player }
+
+const host: Player = {
+  playerId: 'member-1',
+  name: 'Firefox host',
+  role: 'host',
+  position: null,
+}
+
+const player: Player = {
+  playerId: 'member-2',
+  name: 'Chrome player',
+  role: 'player',
+  position: 1,
+}
+
+function lobbyView(members: Array<Omit<Player, 'position'>> = [host]) {
+  return {
+    status: 'lobby' as const,
+    roomCode: 'frvg7',
+    members,
+    player: host,
+  }
+}
+
 const mocks = vi.hoisted(() => ({
   clientToken: 'a'.repeat(32) as string | null | undefined,
-  currentMember: null as
-    { playerId: string; role: 'host' | 'player' } | null | undefined,
   heartbeatEnabled: false,
+  joinRoom: vi.fn(),
   leaveRoom: vi.fn(),
   startGame: vi.fn(),
   presenceStatus: 'connected' as
     'inactive' | 'connecting' | 'connected' | 'room-full',
+  queryArgs: undefined as unknown,
+  queryName: undefined as unknown,
+  roomView: undefined as RoomView | undefined,
   routerPush: vi.fn(),
-  lobby: {
-    roomCode: 'frvg7',
-    phase: 'lobby' as 'lobby' | 'playing' | 'finished',
-    members: [
-      {
-        playerId: 'member-1',
-        name: 'Firefox host',
-        role: 'host' as const,
-      },
-    ],
-  } as
-    | {
-        roomCode: string
-        phase: 'lobby' | 'playing' | 'finished'
-        members: Array<{
-          playerId: string
-          name: string
-          role: 'host' | 'player'
-        }>
-      }
-    | null
-    | undefined,
 }))
 
 vi.mock('@/convex/_generated/api', () => ({
   api: {
     presence: { heartbeat: 'heartbeat' },
     rooms: {
-      getCurrentMember: 'getCurrentMember',
-      getLobby: 'getLobby',
+      getRoomView: 'getRoomView',
       join: 'join',
       leave: 'leave',
       start: 'start',
@@ -51,10 +78,16 @@ vi.mock('@/convex/_generated/api', () => ({
 }))
 
 vi.mock('convex/react', () => ({
-  useMutation: (mutation: string) =>
-    mutation === 'start' ? mocks.startGame : mocks.leaveRoom,
-  useQuery: (query: string) =>
-    query === 'getLobby' ? mocks.lobby : mocks.currentMember,
+  useMutation: (mutation: string) => {
+    if (mutation === 'start') return mocks.startGame
+    if (mutation === 'join') return mocks.joinRoom
+    return mocks.leaveRoom
+  },
+  useQuery: (query: string, args: unknown) => {
+    mocks.queryName = query
+    mocks.queryArgs = args
+    return args === 'skip' ? undefined : mocks.roomView
+  },
 }))
 
 vi.mock('next/navigation', () => ({
@@ -83,220 +116,57 @@ describe('RoomLobby', () => {
   beforeEach(() => {
     vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', 'https://example.convex.cloud')
     mocks.clientToken = 'a'.repeat(32)
-    mocks.currentMember = null
     mocks.heartbeatEnabled = false
+    mocks.joinRoom.mockReset()
     mocks.leaveRoom.mockReset()
     mocks.leaveRoom.mockResolvedValue(undefined)
     mocks.startGame.mockReset()
     mocks.startGame.mockResolvedValue(null)
     mocks.presenceStatus = 'connected'
+    mocks.queryArgs = undefined
+    mocks.queryName = undefined
+    mocks.roomView = lobbyView()
     mocks.routerPush.mockReset()
-    mocks.lobby = {
-      roomCode: 'frvg7',
-      phase: 'lobby',
-      members: [
-        {
-          playerId: 'member-1',
-          name: 'Firefox host',
-          role: 'host',
-        },
-      ],
-    }
   })
 
   afterEach(() => {
     vi.unstubAllEnvs()
   })
 
-  it('shows an inline locked join form for a non-member', () => {
+  it('loads the route from one room-view query', () => {
     render(<RoomLobby roomCode="frvg7" />)
 
-    expect(screen.getByRole('main')).toHaveTextContent('Join your friends.')
-    expect(screen.getByLabelText('Room code')).toHaveValue('frvg7')
-    expect(screen.getByLabelText('Room code')).toHaveAttribute('readonly')
-    expect(screen.getByLabelText('Name')).toHaveFocus()
-    expect(mocks.heartbeatEnabled).toBe(false)
+    expect(mocks.queryName).toBe('getRoomView')
+    expect(mocks.queryArgs).toEqual({
+      roomCode: 'frvg7',
+      clientToken: 'a'.repeat(32),
+    })
   })
 
-  it('shows a neutral state while the player session hydrates', () => {
+  it('renders a neutral skeleton while the player session hydrates', () => {
     mocks.clientToken = undefined
-    mocks.currentMember = undefined
 
     render(<RoomLobby roomCode="frvg7" />)
 
+    expect(mocks.queryArgs).toBe('skip')
     expect(
       screen.getByRole('main', { name: 'Checking room access' }),
     ).toHaveAttribute('aria-busy', 'true')
-    expect(
-      screen.queryByText('Checking your player session…'),
-    ).not.toBeInTheDocument()
     expect(mocks.heartbeatEnabled).toBe(false)
   })
 
-  it('renders a neutral skeleton while room access is unresolved', () => {
-    mocks.lobby = undefined
-    mocks.currentMember = undefined
+  it('renders a neutral skeleton while the room view is unresolved', () => {
+    mocks.roomView = undefined
 
     render(<RoomLobby roomCode="frvg7" />)
 
-    expect(screen.queryByText('Loading room…')).not.toBeInTheDocument()
     expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true')
     expect(screen.queryByText('Ready to play.')).not.toBeInTheDocument()
     expect(screen.queryByText('Join your friends.')).not.toBeInTheDocument()
   })
 
-  it('starts presence only for a confirmed room member', () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
-
-    render(<RoomLobby roomCode="frvg7" />)
-
-    expect(screen.getByText('You · Host')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Leave room' })).toBeEnabled()
-    expect(mocks.heartbeatEnabled).toBe(true)
-  })
-
-  it('keeps the host start button disabled until another player joins', () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
-
-    render(<RoomLobby roomCode="frvg7" />)
-
-    const startButton = screen.getByRole('button', { name: 'Start game' })
-    expect(startButton).toBeDisabled()
-    expect(startButton).toHaveAttribute(
-      'aria-describedby',
-      'start-game-requirement',
-    )
-    expect(
-      screen.getByText('At least 2 players are needed to start.'),
-    ).toHaveAttribute('id', 'start-game-requirement')
-  })
-
-  it('lets the host start once at least two players are in the lobby', async () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
-    mocks.lobby?.members.push({
-      playerId: 'member-2',
-      name: 'Chrome player',
-      role: 'player',
-    })
-
-    render(<RoomLobby roomCode="frvg7" />)
-
-    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
-    const startButton = screen.getByRole('button', { name: 'Start game' })
-    expect(startButton).toBeEnabled()
-
-    fireEvent.click(startButton)
-
-    await waitFor(() => {
-      expect(mocks.startGame).toHaveBeenCalledWith({
-        roomCode: 'frvg7',
-        clientToken: 'a'.repeat(32),
-      })
-    })
-  })
-
-  it('restores the start control when starting fails', async () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
-    mocks.lobby?.members.push({
-      playerId: 'member-2',
-      name: 'Chrome player',
-      role: 'player',
-    })
-    mocks.startGame.mockRejectedValue(new Error('Network unavailable'))
-
-    render(<RoomLobby roomCode="frvg7" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
-
-    expect(
-      await screen.findByText('Unable to start the game. Please try again.'),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Start game' })).toBeEnabled()
-  })
-
-  it('shows non-host players a waiting status instead of a start button', () => {
-    mocks.currentMember = { playerId: 'member-2', role: 'player' }
-    mocks.lobby?.members.push({
-      playerId: 'member-2',
-      name: 'Chrome player',
-      role: 'player',
-    })
-
-    render(<RoomLobby roomCode="frvg7" />)
-
-    expect(
-      screen.getByText('Waiting for the host to start the game.'),
-    ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Start game' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('shows the game screen only after the host starts the game', () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
-    if (mocks.lobby) {
-      mocks.lobby.phase = 'playing'
-    }
-
-    render(<RoomLobby roomCode="frvg7" />)
-
-    expect(screen.getByRole('main', { name: 'Game' })).toBeInTheDocument()
-    expect(screen.queryByText('Ready to play.')).not.toBeInTheDocument()
-  })
-
-  it('keeps the join screen hidden while leaving and navigating home', async () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
-    const { rerender } = render(<RoomLobby roomCode="frvg7" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
-
-    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
-    expect(screen.getByText('Firefox host')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Leaving…' })).toBeDisabled()
-
-    mocks.currentMember = null
-    rerender(<RoomLobby roomCode="frvg7" />)
-
-    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
-    expect(screen.getByText('Firefox host')).toBeInTheDocument()
-    expect(screen.queryByText('Join your friends.')).not.toBeInTheDocument()
-    await waitFor(() => {
-      expect(mocks.routerPush).toHaveBeenCalledWith('/home')
-    })
-  })
-
-  it('restores the lobby when leaving fails', async () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
-    mocks.leaveRoom.mockRejectedValue(new Error('Network unavailable'))
-    render(<RoomLobby roomCode="frvg7" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
-
-    expect(
-      await screen.findByText('Unable to leave the room. Please try again.'),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Leave room' })).toBeEnabled()
-    expect(mocks.routerPush).not.toHaveBeenCalled()
-  })
-
-  it('shows a full-room recovery screen when a seat cannot be reclaimed', () => {
-    mocks.currentMember = { playerId: 'member-1', role: 'host' }
-    mocks.presenceStatus = 'room-full'
-
-    render(<RoomLobby roomCode="frvg7" />)
-
-    expect(
-      screen.getByRole('heading', { name: 'Sorry, this room is full.' }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(
-      'href',
-      '/home',
-    )
-  })
-
-  it('shows recovery actions when the room does not exist', () => {
-    mocks.lobby = null
+  it('renders the not_found view with recovery actions', () => {
+    mocks.roomView = { status: 'not_found', roomCode: 'zzzzz' }
 
     render(<RoomLobby roomCode="zzzzz" />)
 
@@ -312,5 +182,225 @@ describe('RoomLobby', () => {
     expect(
       screen.getByRole('link', { name: 'Create a new room' }),
     ).toHaveAttribute('href', '/create')
+    expect(mocks.heartbeatEnabled).toBe(false)
+  })
+
+  it('renders the joinable view as a locked join form', () => {
+    mocks.clientToken = null
+    mocks.roomView = { status: 'joinable', roomCode: 'frvg7' }
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.getByRole('main')).toHaveTextContent('Join your friends.')
+    expect(screen.getByLabelText('Room code')).toHaveValue('frvg7')
+    expect(screen.getByLabelText('Room code')).toHaveAttribute('readonly')
+    expect(screen.getByLabelText('Name')).toHaveFocus()
+    expect(mocks.heartbeatEnabled).toBe(false)
+  })
+
+  it('renders game_in_progress without offering a join form', () => {
+    mocks.roomView = { status: 'game_in_progress', roomCode: 'frvg7' }
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'This game has already started.',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(
+      'href',
+      '/home',
+    )
+    expect(mocks.heartbeatEnabled).toBe(false)
+  })
+
+  it.each([
+    ['lobby', 'Reconnecting to the room…'],
+    ['playing', 'Reconnecting to your game…'],
+    ['finished', 'Reconnecting to your game…'],
+  ] as const)(
+    'renders the reconnecting view for the %s destination',
+    (phase, heading) => {
+      mocks.roomView = { status: 'reconnecting', roomCode: 'frvg7', phase }
+
+      render(<RoomLobby roomCode="frvg7" />)
+
+      expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
+      expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true')
+      expect(mocks.heartbeatEnabled).toBe(true)
+    },
+  )
+
+  it('renders the lobby view and identifies the requesting player', () => {
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
+    expect(screen.getByText('You · Host')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Leave room' })).toBeEnabled()
+    expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
+  it('renders the participant-specific playing view on refresh', () => {
+    mocks.roomView = {
+      status: 'playing',
+      roomCode: 'frvg7',
+      player: { ...player, position: 1 },
+    }
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('main', { name: 'Game for Chrome player' }),
+    ).toHaveAttribute('data-player-position', '1')
+    expect(screen.queryByText('Firefox host')).not.toBeInTheDocument()
+    expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
+  it('renders the participant-specific finished view', () => {
+    mocks.roomView = {
+      status: 'finished',
+      roomCode: 'frvg7',
+      player: { ...player, position: 1 },
+    }
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Game finished.' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Thanks for playing, Chrome player/)).toBeVisible()
+    expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
+  it('follows lobby, playing, and finished server transitions', () => {
+    const { rerender } = render(<RoomLobby roomCode="frvg7" />)
+    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
+
+    mocks.roomView = {
+      status: 'playing',
+      roomCode: 'frvg7',
+      player: { ...host, position: 0 },
+    }
+    rerender(<RoomLobby roomCode="frvg7" />)
+    expect(
+      screen.getByRole('main', { name: 'Game for Firefox host' }),
+    ).toBeInTheDocument()
+
+    mocks.roomView = {
+      status: 'finished',
+      roomCode: 'frvg7',
+      player: { ...host, position: 0 },
+    }
+    rerender(<RoomLobby roomCode="frvg7" />)
+    expect(
+      screen.getByRole('heading', { name: 'Game finished.' }),
+    ).toBeInTheDocument()
+  })
+
+  it('keeps the host start button disabled until another player joins', () => {
+    render(<RoomLobby roomCode="frvg7" />)
+
+    const startButton = screen.getByRole('button', { name: 'Start game' })
+    expect(startButton).toBeDisabled()
+    expect(startButton).toHaveAttribute(
+      'aria-describedby',
+      'start-game-requirement',
+    )
+    expect(
+      screen.getByText('At least 2 players are needed to start.'),
+    ).toHaveAttribute('id', 'start-game-requirement')
+  })
+
+  it('lets the host start once at least two players are in the lobby', async () => {
+    mocks.roomView = lobbyView([host, player])
+
+    render(<RoomLobby roomCode="frvg7" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+
+    await waitFor(() => {
+      expect(mocks.startGame).toHaveBeenCalledWith({
+        roomCode: 'frvg7',
+        clientToken: 'a'.repeat(32),
+      })
+    })
+  })
+
+  it('restores the start control when starting fails', async () => {
+    mocks.roomView = lobbyView([host, player])
+    mocks.startGame.mockRejectedValue(new Error('Network unavailable'))
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start game' }))
+
+    expect(
+      await screen.findByText('Unable to start the game. Please try again.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start game' })).toBeEnabled()
+  })
+
+  it('shows non-host players a waiting status instead of a start button', () => {
+    mocks.roomView = {
+      ...lobbyView([host, player]),
+      player: { ...player, position: null },
+    }
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByText('Waiting for the host to start the game.'),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Start game' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the lobby visible while leaving and navigating home', async () => {
+    const { rerender } = render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
+
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByText('Firefox host')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Leaving…' })).toBeDisabled()
+
+    mocks.roomView = { status: 'joinable', roomCode: 'frvg7' }
+    rerender(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.getByText('Ready to play.')).toBeInTheDocument()
+    expect(screen.queryByText('Join your friends.')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(mocks.routerPush).toHaveBeenCalledWith('/home')
+    })
+  })
+
+  it('restores the lobby when leaving fails', async () => {
+    mocks.leaveRoom.mockRejectedValue(new Error('Network unavailable'))
+    render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
+
+    expect(
+      await screen.findByText('Unable to leave the room. Please try again.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Leave room' })).toBeEnabled()
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+  })
+
+  it('shows a full-room recovery screen when a seat cannot be reclaimed', () => {
+    mocks.roomView = {
+      status: 'reconnecting',
+      roomCode: 'frvg7',
+      phase: 'lobby',
+    }
+    mocks.presenceStatus = 'room-full'
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Sorry, this room is full.' }),
+    ).toBeInTheDocument()
   })
 })

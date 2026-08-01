@@ -106,4 +106,20 @@ describe('JoinRoomForm', () => {
     expect(mocks.onJoined).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Join' })).toBeEnabled()
   })
+
+  it('shows when a game has already started', async () => {
+    const user = userEvent.setup()
+    mocks.joinRoom.mockResolvedValue({ status: 'game_in_progress' })
+
+    render(<JoinRoomForm roomCode="frvg7" onJoined={mocks.onJoined} />)
+
+    await user.type(screen.getByLabelText('Name'), 'Late player')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This game has already started.',
+    )
+    expect(mocks.onJoined).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Join' })).toBeEnabled()
+  })
 })

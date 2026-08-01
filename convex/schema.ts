@@ -2,21 +2,22 @@ import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 
 import { roomPhase } from './roomLifecycle'
-import { roomMemberStatus } from './roomMembers'
+import { roomMemberRole, roomMemberStatus } from './roomMembers'
 
 export default defineSchema({
   rooms: defineTable({
     code: v.string(),
     creatorName: v.string(),
     createdAt: v.number(),
-    phase: v.optional(roomPhase),
+    phase: roomPhase,
     startedAt: v.optional(v.number()),
+    gameId: v.optional(v.id('games')),
   }).index('by_code', ['code']),
   roomMembers: defineTable({
     roomId: v.id('rooms'),
     name: v.string(),
     privatePlayerKey: v.string(),
-    role: v.union(v.literal('host'), v.literal('player')),
+    role: roomMemberRole,
     status: roomMemberStatus,
     joinedAt: v.number(),
   })
@@ -27,6 +28,19 @@ export default defineSchema({
       'joinedAt',
     ])
     .index('by_room_id_and_private_player_key', ['roomId', 'privatePlayerKey']),
+  games: defineTable({
+    roomId: v.id('rooms'),
+    createdAt: v.number(),
+  }).index('by_room_id', ['roomId']),
+  gameParticipants: defineTable({
+    gameId: v.id('games'),
+    roomMemberId: v.id('roomMembers'),
+    name: v.string(),
+    role: roomMemberRole,
+    position: v.number(),
+  })
+    .index('by_game_id_and_position', ['gameId', 'position'])
+    .index('by_game_id_and_room_member_id', ['gameId', 'roomMemberId']),
   users: defineTable({
     clerkId: v.string(),
     email: v.string(),

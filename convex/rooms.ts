@@ -1,7 +1,8 @@
 import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
-import { validateClientToken } from './playerKeys'
+import { getGameParticipant, startRoomGame } from './gameParticipants'
+import { parseClientToken, validateClientToken } from './playerKeys'
 import {
   claimRoomSeat,
   createRoomPresenceSessionId,
@@ -9,18 +10,16 @@ import {
   listOnlineActiveRoomMembers,
   roomPresence,
 } from './presence'
-import {
-  createRoomStartPatch,
-  getRoomPhase,
-  newRoomLifecycle,
-  roomPhase,
-} from './roomLifecycle'
+import { canRoomMemberConnect, decideRoomJoin } from './roomAccess'
+import { explicitlyLeaveRoom } from './roomDeparture'
+import { getRoomPhase, newRoomLifecycle } from './roomLifecycle'
 import { isActiveRoomMember } from './roomMembers'
 import {
   findAvailableRoomCode,
   normalizeRoomCode,
   ROOM_CODE_PATTERN,
 } from './roomCode'
+import { classifyRoomView, roomView } from './roomView'
 
 const MAX_NAME_LENGTH = 50
 
@@ -34,21 +33,14 @@ const joinRoomResult = v.union(
     roomCode: v.string(),
   }),
   v.object({ status: v.literal('room_full') }),
+  v.object({ status: v.literal('game_in_progress') }),
 )
 
 type JoinRoomResult =
-  { status: 'joined'; roomCode: string } | { status: 'room_full' } | null
-
-const lobbyMember = v.object({
-  playerId: v.id('roomMembers'),
-  name: v.string(),
-  role: v.union(v.literal('host'), v.literal('player')),
-})
-
-const currentMemberResult = v.object({
-  playerId: v.id('roomMembers'),
-  role: v.union(v.literal('host'), v.literal('player')),
-})
+  | { status: 'joined'; roomCode: string }
+  | { status: 'room_full' }
+  | { status: 'game_in_progress' }
+  | null
 
 function normalizeName(name: string) {
   const normalizedName = name.trim()
@@ -127,7 +119,6 @@ export const join = mutation({
     { roomCode, name, clientToken, clientInstanceId },
   ): Promise<JoinRoomResult> => {
     const normalizedRoomCode = normalizeRoomCode(roomCode)
-    const playerName = normalizeName(name)
     const validatedClientToken = validateClientToken(clientToken)
 
     if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
@@ -143,6 +134,8 @@ export const join = mutation({
       return null
     }
 
+    const normalizedName = normalizeName(name)
+
     const existingMember = await ctx.db
       .query('roomMembers')
       .withIndex('by_room_id_and_private_player_key', (index) =>
@@ -151,6 +144,21 @@ export const join = mutation({
           .eq('privatePlayerKey', validatedClientToken),
       )
       .unique()
+
+    const phase = getRoomPhase(room)
+    const gameParticipant =
+      existingMember && phase !== 'lobby' && room.gameId
+        ? await getGameParticipant(ctx, room.gameId, existingMember._id)
+        : null
+    const joinDecision = decideRoomJoin({
+      phase,
+      memberStatus: existingMember?.status ?? null,
+      isGameParticipant: gameParticipant !== null,
+    })
+
+    if (joinDecision === 'game_in_progress') {
+      return { status: 'game_in_progress' }
+    }
 
     const sessionId = createRoomPresenceSessionId(
       clientInstanceId,
@@ -171,7 +179,7 @@ export const join = mutation({
 
       if (!isActiveRoomMember(existingMember.status)) {
         await ctx.db.patch(existingMember._id, {
-          name: playerName,
+          name: normalizedName,
           status: 'active',
         })
       }
@@ -185,7 +193,7 @@ export const join = mutation({
 
     const memberId = await ctx.db.insert('roomMembers', {
       roomId: room._id,
-      name: playerName,
+      name: normalizedName,
       privatePlayerKey: validatedClientToken,
       role: 'player',
       status: 'active',
@@ -239,9 +247,14 @@ export const leave = mutation({
       )
       .unique()
 
-    if (member && isActiveRoomMember(member.status)) {
-      await ctx.db.patch(member._id, { status: 'left' })
-      await roomPresence.removeRoomUser(ctx, room._id, member._id)
+    if (member) {
+      await explicitlyLeaveRoom(
+        ctx,
+        room,
+        member,
+        async (roomId, memberId) =>
+          await roomPresence.removeRoomUser(ctx, roomId, memberId),
+      )
     }
 
     return null
@@ -280,80 +293,34 @@ export const start = mutation({
       )
       .unique()
 
-    const roomStartPatch = await createRoomStartPatch({
+    await startRoomGame(
+      ctx,
       room,
-      actor: member
+      member
         ? {
             role: member.role,
             isActive: isActiveRoomMember(member.status),
           }
         : null,
-      getOnlinePlayerCount: async () =>
-        (await listOnlineActiveRoomMembers(ctx, room._id)).length,
-      startedAt: Date.now(),
-    })
-
-    await ctx.db.patch(room._id, roomStartPatch)
+      async () => await listOnlineActiveRoomMembers(ctx, room._id),
+      Date.now(),
+    )
 
     return null
   },
 })
 
-export const getLobby = query({
+export const getRoomView = query({
   args: {
     roomCode: v.string(),
+    clientToken: v.union(v.null(), v.string()),
   },
-  returns: v.union(
-    v.null(),
-    v.object({
-      roomCode: v.string(),
-      phase: roomPhase,
-      members: v.array(lobbyMember),
-    }),
-  ),
-  handler: async (ctx, { roomCode }) => {
-    const normalizedRoomCode = normalizeRoomCode(roomCode)
-
-    if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
-      return null
-    }
-
-    const room = await ctx.db
-      .query('rooms')
-      .withIndex('by_code', (index) => index.eq('code', normalizedRoomCode))
-      .unique()
-
-    if (!room) {
-      return null
-    }
-
-    const members = await listOnlineActiveRoomMembers(ctx, room._id)
-    members.sort((left, right) => left.joinedAt - right.joinedAt)
-
-    return {
-      roomCode: room.code,
-      phase: getRoomPhase(room),
-      members: members.map((member) => ({
-        playerId: member._id,
-        name: member.name,
-        role: member.role,
-      })),
-    }
-  },
-})
-
-export const getCurrentMember = query({
-  args: {
-    roomCode: v.string(),
-    clientToken: v.string(),
-  },
-  returns: v.union(v.null(), currentMemberResult),
+  returns: roomView,
   handler: async (ctx, { roomCode, clientToken }) => {
     const normalizedRoomCode = normalizeRoomCode(roomCode)
-    const validatedClientToken = validateClientToken(clientToken)
 
     if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
-      return null
+      return { status: 'not_found' as const, roomCode: normalizedRoomCode }
     }
 
     const room = await ctx.db
@@ -362,25 +329,90 @@ export const getCurrentMember = query({
       .unique()
 
     if (!room) {
-      return null
+      return { status: 'not_found' as const, roomCode: normalizedRoomCode }
     }
 
-    const member = await ctx.db
-      .query('roomMembers')
-      .withIndex('by_room_id_and_private_player_key', (index) =>
-        index
-          .eq('roomId', room._id)
-          .eq('privatePlayerKey', validatedClientToken),
-      )
-      .unique()
+    const phase = getRoomPhase(room)
+    const validatedClientToken = parseClientToken(clientToken)
+    const member = validatedClientToken
+      ? await ctx.db
+          .query('roomMembers')
+          .withIndex('by_room_id_and_private_player_key', (index) =>
+            index
+              .eq('roomId', room._id)
+              .eq('privatePlayerKey', validatedClientToken),
+          )
+          .unique()
+      : null
+    const participant =
+      member && phase !== 'lobby' && room.gameId
+        ? await getGameParticipant(ctx, room.gameId, member._id)
+        : null
+    const isEligible =
+      member !== null &&
+      canRoomMemberConnect({
+        phase,
+        memberStatus: member.status,
+        isGameParticipant: participant !== null,
+      })
+    const onlineMembers = isEligible
+      ? await listOnlineActiveRoomMembers(ctx, room._id)
+      : []
+    const status = classifyRoomView({
+      phase,
+      memberStatus: member?.status ?? null,
+      isGameParticipant: participant !== null,
+      isConnected: member
+        ? onlineMembers.some((onlineMember) => onlineMember._id === member._id)
+        : false,
+    })
 
-    if (!member || !isActiveRoomMember(member.status)) {
-      return null
+    if (status === 'joinable' || status === 'game_in_progress') {
+      return { status, roomCode: room.code }
     }
 
-    return {
-      playerId: member._id,
-      role: member.role,
+    if (status === 'reconnecting') {
+      return { status, roomCode: room.code, phase }
     }
+
+    if (status === 'lobby' && member) {
+      return {
+        status,
+        roomCode: room.code,
+        members: onlineMembers
+          .sort(
+            (left, right) =>
+              left.joinedAt - right.joinedAt ||
+              left._creationTime - right._creationTime ||
+              left._id.localeCompare(right._id),
+          )
+          .map((onlineMember) => ({
+            playerId: onlineMember._id,
+            name: onlineMember.name,
+            role: onlineMember.role,
+          })),
+        player: {
+          playerId: member._id,
+          name: member.name,
+          role: member.role,
+          position: null,
+        },
+      }
+    }
+
+    if ((status === 'playing' || status === 'finished') && participant) {
+      return {
+        status,
+        roomCode: room.code,
+        player: {
+          playerId: participant.roomMemberId,
+          name: participant.name,
+          role: participant.role,
+          position: participant.position,
+        },
+      }
+    }
+
+    throw new Error('Unable to resolve the room view.')
   },
 })

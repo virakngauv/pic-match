@@ -16,13 +16,10 @@ import { useRoomPresence } from '@/lib/use-room-presence'
 const noopJoined = () => {}
 const noopAction = () => {}
 
-type Lobby = NonNullable<FunctionReturnType<typeof api.rooms.getLobby>>
-type CurrentMember = NonNullable<
-  FunctionReturnType<typeof api.rooms.getCurrentMember>
->
+type RoomView = FunctionReturnType<typeof api.rooms.getRoomView>
+type LobbyView = Extract<RoomView, { status: 'lobby' }>
 type LeavingSnapshot = {
-  lobby: Lobby
-  currentMember: CurrentMember
+  view: LobbyView
 }
 
 export function RoomLobby({ roomCode }: { roomCode: string }) {
@@ -46,27 +43,28 @@ function PresentRoomLobby({
   const [leaveError, setLeaveError] = useState<string | null>(null)
   const [isStarting, setIsStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
-  const lobby = useQuery(api.rooms.getLobby, { roomCode })
-  const queriedCurrentMember = useQuery(
-    api.rooms.getCurrentMember,
-    clientToken ? { roomCode, clientToken } : 'skip',
+  const roomView = useQuery(
+    api.rooms.getRoomView,
+    clientToken === undefined ? 'skip' : { roomCode, clientToken },
   )
+  const hasRoomMembership =
+    roomView?.status === 'reconnecting' ||
+    roomView?.status === 'lobby' ||
+    roomView?.status === 'playing' ||
+    roomView?.status === 'finished'
 
   const presenceStatus = useRoomPresence(
     roomCode,
     clientToken,
-    Boolean(clientToken && queriedCurrentMember),
+    Boolean(clientToken && hasRoomMembership),
   )
 
-  const handleLeaveRoom = async (
-    currentLobby: Lobby,
-    currentMember: CurrentMember,
-  ) => {
+  const handleLeaveRoom = async (currentView: LobbyView) => {
     if (!clientToken) {
       return
     }
 
-    setLeavingSnapshot({ lobby: currentLobby, currentMember })
+    setLeavingSnapshot({ view: currentView })
     setLeaveError(null)
 
     try {
@@ -98,8 +96,7 @@ function PresentRoomLobby({
   if (leavingSnapshot) {
     return (
       <ConnectedRoomLobby
-        lobby={leavingSnapshot.lobby}
-        currentMember={leavingSnapshot.currentMember}
+        view={leavingSnapshot.view}
         isLeaving
         isStarting={false}
         leaveError={null}
@@ -110,50 +107,54 @@ function PresentRoomLobby({
     )
   }
 
-  if (lobby === null) {
-    return <RoomNotFound roomCode={roomCode} />
-  }
-
-  if (lobby === undefined || clientToken === undefined) {
+  if (roomView === undefined || clientToken === undefined) {
     return <RoomEntrySkeleton />
-  }
-
-  if (clientToken === null) {
-    return <JoinRoomScreen roomCode={lobby.roomCode} onJoined={noopJoined} />
-  }
-
-  if (queriedCurrentMember === undefined) {
-    return <RoomEntrySkeleton />
-  }
-
-  if (queriedCurrentMember === null) {
-    return <JoinRoomScreen roomCode={lobby.roomCode} onJoined={noopJoined} />
   }
 
   if (presenceStatus === 'room-full') {
-    return <RoomFull roomCode={lobby.roomCode} />
+    return <RoomFull roomCode={roomView.roomCode} />
   }
 
-  if (presenceStatus !== 'connected') {
-    return <RoomEntrySkeleton />
+  switch (roomView.status) {
+    case 'not_found':
+      return <RoomNotFound roomCode={roomView.roomCode} />
+    case 'joinable':
+      return (
+        <JoinRoomScreen roomCode={roomView.roomCode} onJoined={noopJoined} />
+      )
+    case 'game_in_progress':
+      return <GameInProgress roomCode={roomView.roomCode} />
+    case 'reconnecting':
+      return (
+        <RoomReconnecting
+          roomCode={roomView.roomCode}
+          isGame={roomView.phase !== 'lobby'}
+        />
+      )
+    case 'lobby':
+      return (
+        <ConnectedRoomLobby
+          view={roomView}
+          isLeaving={false}
+          isStarting={isStarting}
+          leaveError={leaveError}
+          startError={startError}
+          onLeave={() => handleLeaveRoom(roomView)}
+          onStart={handleStartGame}
+        />
+      )
+    case 'playing':
+      return <GameScreen player={roomView.player} />
+    case 'finished':
+      return (
+        <FinishedRoom
+          roomCode={roomView.roomCode}
+          name={roomView.player.name}
+        />
+      )
+    default:
+      return assertNever(roomView)
   }
-
-  if (lobby.phase === 'playing') {
-    return <GameScreen />
-  }
-
-  return (
-    <ConnectedRoomLobby
-      lobby={lobby}
-      currentMember={queriedCurrentMember}
-      isLeaving={false}
-      isStarting={isStarting}
-      leaveError={leaveError}
-      startError={startError}
-      onLeave={() => handleLeaveRoom(lobby, queriedCurrentMember)}
-      onStart={handleStartGame}
-    />
-  )
 }
 
 function RoomEntrySkeleton() {
@@ -180,8 +181,7 @@ function RoomEntrySkeleton() {
 }
 
 function ConnectedRoomLobby({
-  lobby,
-  currentMember,
+  view,
   isLeaving,
   isStarting,
   leaveError,
@@ -189,8 +189,7 @@ function ConnectedRoomLobby({
   onLeave,
   onStart,
 }: {
-  lobby: Lobby
-  currentMember: CurrentMember
+  view: LobbyView
   isLeaving: boolean
   isStarting: boolean
   leaveError: string | null
@@ -198,8 +197,8 @@ function ConnectedRoomLobby({
   onLeave: () => void
   onStart: () => void
 }) {
-  const isHost = currentMember.role === 'host'
-  const canStart = lobby.members.length >= 2
+  const isHost = view.player.role === 'host'
+  const canStart = view.members.length >= 2
 
   return (
     <main
@@ -219,7 +218,7 @@ function ConnectedRoomLobby({
             when you’re ready.
           </p>
           <output className="bg-foreground text-background mt-8 block rounded-2xl px-5 py-6 font-mono text-3xl font-bold tracking-[0.22em] uppercase sm:text-4xl">
-            {lobby.roomCode}
+            {view.roomCode}
           </output>
         </div>
 
@@ -229,19 +228,19 @@ function ConnectedRoomLobby({
               In this room
             </h2>
             <span className="text-muted-foreground text-sm">
-              {lobby.members.length}{' '}
-              {lobby.members.length === 1 ? 'player' : 'players'}
+              {view.members.length}{' '}
+              {view.members.length === 1 ? 'player' : 'players'}
             </span>
           </div>
           <ul className="mt-4 grid gap-2" aria-label="Players in this room">
-            {lobby.members.map((member) => (
+            {view.members.map((member) => (
               <li
                 key={member.playerId}
                 className="bg-background flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
               >
                 <span className="font-semibold">{member.name}</span>
                 <span className="text-muted-foreground text-xs font-bold tracking-[0.12em] uppercase">
-                  {member.playerId === currentMember.playerId
+                  {member.playerId === view.player.playerId
                     ? member.role === 'host'
                       ? 'You · Host'
                       : 'You'
@@ -326,6 +325,76 @@ function RoomFull({ roomCode }: { roomCode: string }) {
   )
 }
 
+function GameInProgress({ roomCode }: { roomCode: string }) {
+  return (
+    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Room {roomCode}
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          This game has already started.
+        </h1>
+        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+          New players can’t join after the participant list is locked.
+        </p>
+        <Button asChild className="mt-8">
+          <Link href="/home">Go home</Link>
+        </Button>
+      </section>
+    </main>
+  )
+}
+
+function FinishedRoom({ roomCode, name }: { roomCode: string; name: string }) {
+  return (
+    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Room {roomCode}
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          Game finished.
+        </h1>
+        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+          Thanks for playing, {name}. Results will appear here when scoring is
+          added.
+        </p>
+        <Button asChild className="mt-8">
+          <Link href="/home">Go home</Link>
+        </Button>
+      </section>
+    </main>
+  )
+}
+
+function RoomReconnecting({
+  roomCode,
+  isGame,
+}: {
+  roomCode: string
+  isGame: boolean
+}) {
+  return (
+    <main
+      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
+      aria-busy="true"
+    >
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Room {roomCode}
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          Reconnecting to {isGame ? 'your game' : 'the room'}…
+        </h1>
+        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+          Your player identity is safe. We’re restoring this connection.
+        </p>
+      </section>
+    </main>
+  )
+}
+
 function RoomNotFound({ roomCode }: { roomCode: string }) {
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
@@ -350,4 +419,8 @@ function RoomNotFound({ roomCode }: { roomCode: string }) {
       </section>
     </main>
   )
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled room view: ${JSON.stringify(value)}`)
 }
