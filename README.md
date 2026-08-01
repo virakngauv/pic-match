@@ -118,8 +118,10 @@ CLERK_SECRET_KEY=sk_test_...
 The root provider and Clerk middleware activate automatically when both values
 are present. Clerk is not required for the current anonymous player flow.
 
-If Clerk authentication is later used inside Convex functions, configure the
-Clerk frontend API URL on the Convex development deployment as well:
+Convex currently serves the anonymous player flow without an authentication
+provider. If Clerk authentication is later used inside Convex functions, add
+the Clerk provider to `convex/auth.config.ts` and configure its frontend API URL
+on each target Convex deployment:
 
 ```bash
 pnpm convex env set CLERK_FRONTEND_API_URL https://your-clerk-domain
