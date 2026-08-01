@@ -1,61 +1,97 @@
 import { expect, test } from '@playwright/test'
 
-test('creates a room and joins it as a second anonymous player', async ({
+const roomCodePattern = /^[bcdfghkpqrstvz]{4}[2-9y]$/
+
+test('moves a room from creation into a reconnectable game', async ({
   browser,
-  page,
 }) => {
-  await page.goto('/')
-
-  await expect(page).toHaveURL(/\/home$/)
-  await expect(
-    page.getByRole('heading', { name: 'Ready to spot the match?' }),
-  ).toBeVisible()
-
-  await page.getByRole('link', { name: 'Create a room' }).click()
-  await expect(page).toHaveURL(/\/create$/)
-  await page.getByLabel('Name').fill('Ada')
-  await page.getByRole('button', { name: 'Create', exact: true }).click()
-
-  await expect(page).toHaveURL(/\/[bcdfghkpqrstvz]{4}[2-9y]$/)
-  await expect(page.getByRole('heading', { name: 'You’re in.' })).toBeVisible()
-  const roomCode = (await page.locator('output').textContent())?.trim()
-
-  expect(roomCode).toBeTruthy()
-  await expect(page.getByText('Ada')).toBeVisible()
-  await expect(page.getByText('You · Host')).toBeVisible()
-
+  const hostContext = await browser.newContext()
   const guestContext = await browser.newContext()
+  const lateJoinerContext = await browser.newContext()
+  const hostPage = await hostContext.newPage()
   const guestPage = await guestContext.newPage()
+  const lateJoinerPage = await lateJoinerContext.newPage()
 
   try {
-    await guestPage.goto('/join')
-    await guestPage.getByLabel('Room code').fill('bbbb2')
-    await guestPage.getByLabel('Name').fill('Grace')
-    await guestPage.getByRole('button', { name: 'Join', exact: true }).click()
-    await expect(guestPage.locator('form [role="alert"]')).toHaveText(
-      'We couldn’t find that room. Check the code and try again.',
-    )
+    await hostPage.goto('/')
+
+    await expect(hostPage).toHaveURL(/\/home$/)
+    await expect(
+      hostPage.getByRole('heading', { name: 'Ready to spot the match?' }),
+    ).toBeVisible()
+
+    await hostPage.getByRole('link', { name: 'Create a room' }).click()
+    await expect(hostPage).toHaveURL(/\/create$/)
+    await hostPage.getByLabel('Name').fill('Ada')
+    await hostPage.getByRole('button', { name: 'Create', exact: true }).click()
+
+    await expect(hostPage).toHaveURL(/\/[bcdfghkpqrstvz]{4}[2-9y]$/)
+    await expect(
+      hostPage.getByRole('heading', { name: 'Ready to play.' }),
+    ).toBeVisible()
+
+    const roomCode = new URL(hostPage.url()).pathname.slice(1)
+    expect(roomCode).toMatch(roomCodePattern)
+    await expect(hostPage.locator('output')).toHaveText(roomCode, {
+      ignoreCase: true,
+    })
+    await expect(hostPage.getByText('Ada')).toBeVisible()
+    await expect(hostPage.getByText('You · Host')).toBeVisible()
 
     await guestPage.goto(`/${roomCode}`)
     await expect(
-      guestPage.getByRole('heading', { name: 'Join this room.' }),
+      guestPage.getByRole('heading', { name: 'Join your friends.' }),
     ).toBeVisible()
-    await guestPage.getByRole('link', { name: 'Continue to join' }).click()
-    await expect(guestPage.getByLabel('Room code')).toHaveValue(roomCode!)
+    await expect(guestPage.getByLabel('Room code')).toHaveValue(roomCode)
 
     await guestPage.getByLabel('Name').fill('Grace')
     await guestPage.getByRole('button', { name: 'Join', exact: true }).click()
     await expect(guestPage).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
     await expect(
-      guestPage.getByRole('heading', { name: 'You’re in.' }),
+      guestPage.getByRole('heading', { name: 'Ready to play.' }),
     ).toBeVisible()
     await expect(guestPage.getByText('Ada')).toBeVisible()
     await expect(guestPage.getByText('Grace')).toBeVisible()
     await expect(guestPage.getByText('You', { exact: true })).toBeVisible()
+    await expect(
+      guestPage.getByText('Waiting for the host to start the game.'),
+    ).toBeVisible()
+    await expect(
+      guestPage.getByRole('button', { name: 'Start game' }),
+    ).toHaveCount(0)
 
-    await expect(page.getByText('Grace')).toBeVisible()
-    await expect(page.getByText('You · Host')).toBeVisible()
+    await expect(hostPage.getByText('Grace')).toBeVisible()
+    await expect(hostPage.getByText('You · Host')).toBeVisible()
+
+    await hostPage.getByRole('button', { name: 'Start game' }).click()
+
+    await expect(
+      hostPage.getByRole('main', { name: 'Game for Ada' }),
+    ).toHaveAttribute('data-player-position', '0')
+    await expect(
+      guestPage.getByRole('main', { name: 'Game for Grace' }),
+    ).toHaveAttribute('data-player-position', '1')
+
+    await guestPage.reload()
+    await expect(
+      guestPage.getByRole('main', { name: 'Game for Grace' }),
+    ).toHaveAttribute('data-player-position', '1')
+
+    await lateJoinerPage.goto('/join')
+    await lateJoinerPage.getByLabel('Room code').fill(roomCode)
+    await lateJoinerPage.getByLabel('Name').fill('Linus')
+    await lateJoinerPage
+      .getByRole('button', { name: 'Join', exact: true })
+      .click()
+    await expect(lateJoinerPage.locator('form [role="alert"]')).toHaveText(
+      'This game has already started.',
+    )
+    await expect(lateJoinerPage).toHaveURL(/\/join$/)
   } finally {
-    await guestContext.close()
+    await Promise.all([
+      lateJoinerContext.close(),
+      guestContext.close(),
+      hostContext.close(),
+    ])
   }
 })
