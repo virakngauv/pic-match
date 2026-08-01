@@ -241,6 +241,62 @@ export const leave = mutation({
   },
 })
 
+export const start = mutation({
+  args: {
+    roomCode: v.string(),
+    clientToken: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { roomCode, clientToken }) => {
+    const normalizedRoomCode = normalizeRoomCode(roomCode)
+    const validatedClientToken = validateClientToken(clientToken)
+
+    if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
+      throw new Error('Room not found.')
+    }
+
+    const room = await ctx.db
+      .query('rooms')
+      .withIndex('by_code', (index) => index.eq('code', normalizedRoomCode))
+      .unique()
+
+    if (!room) {
+      throw new Error('Room not found.')
+    }
+
+    const member = await ctx.db
+      .query('roomMembers')
+      .withIndex('by_room_id_and_private_player_key', (index) =>
+        index
+          .eq('roomId', room._id)
+          .eq('privatePlayerKey', validatedClientToken),
+      )
+      .unique()
+
+    if (
+      !member ||
+      !isActiveRoomMember(member.status) ||
+      member.role !== 'host'
+    ) {
+      throw new Error('Only the host can start the game.')
+    }
+
+    if (room.startedAt !== undefined) {
+      return null
+    }
+
+    const members = await listOnlineActiveRoomMembers(ctx, room._id)
+
+    if (members.length < 2) {
+      throw new Error('At least 2 players are required to start the game.')
+    }
+
+    await ctx.db.patch(room._id, { startedAt: Date.now() })
+
+    return null
+  },
+})
+
 export const getLobby = query({
   args: {
     roomCode: v.string(),
@@ -249,6 +305,7 @@ export const getLobby = query({
     v.null(),
     v.object({
       roomCode: v.string(),
+      gameStarted: v.boolean(),
       members: v.array(lobbyMember),
     }),
   ),
@@ -273,6 +330,7 @@ export const getLobby = query({
 
     return {
       roomCode: room.code,
+      gameStarted: room.startedAt !== undefined,
       members: members.map((member) => ({
         playerId: member._id,
         name: member.name,
