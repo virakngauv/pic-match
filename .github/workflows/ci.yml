@@ -2,6 +2,12 @@ name: CI
 
 on:
   pull_request:
+    types:
+      - edited
+      - opened
+      - ready_for_review
+      - reopened
+      - synchronize
   push:
     branches:
       - main
@@ -9,12 +15,60 @@ on:
 
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  linked-issue:
+    name: Linked issue
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Require a closing issue reference
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          shopt -s nocasematch
+          closing_pattern='(^|[[:space:]])(close(s|d)?|fix(es|ed)?|resolve(s|d)?):?[[:space:]]+([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+'
+
+          if [[ ! "$PR_BODY" =~ $closing_pattern ]]; then
+            echo "Add a closing issue reference such as 'Closes #29' to the pull request description."
+            exit 1
+          fi
+
+          repository_owner="${GITHUB_REPOSITORY%%/*}"
+          repository_name="${GITHUB_REPOSITORY#*/}"
+          linked_issue_count="$(
+            gh api graphql \
+              -f query='query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    closingIssuesReferences(first: 1) {
+                      totalCount
+                    }
+                  }
+                }
+              }' \
+              -F owner="$repository_owner" \
+              -F name="$repository_name" \
+              -F number="$PR_NUMBER" \
+              --jq '.data.repository.pullRequest.closingIssuesReferences.totalCount'
+          )"
+
+          if [[ "$linked_issue_count" -lt 1 ]]; then
+            echo 'The closing reference does not resolve to an issue that this pull request will close.'
+            exit 1
+          fi
+
   quality:
     name: Quality
     runs-on: ubuntu-latest
