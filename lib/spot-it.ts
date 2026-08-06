@@ -62,6 +62,8 @@ const SUPPORTED_ORDER = 7
 const SUPPORTED_SYMBOLS_PER_CARD = SUPPORTED_ORDER + 1
 const SUPPORTED_CARD_COUNT =
   SUPPORTED_ORDER * SUPPORTED_ORDER + SUPPORTED_ORDER + 1
+const SUPPORTED_PARTICIPANT_CAPACITY = 64
+const SUPPORTED_WINNING_SCORE = 12
 const MIN_PARTICIPANTS = 2
 
 export type SpotItConfiguration = Readonly<{
@@ -75,8 +77,8 @@ export type SpotItConfiguration = Readonly<{
 export const FIRST_PLAYABLE_CONFIGURATION = {
   order: SUPPORTED_ORDER,
   symbolsPerCard: SUPPORTED_SYMBOLS_PER_CARD,
-  participantCapacity: 64,
-  winningScore: 12,
+  participantCapacity: SUPPORTED_PARTICIPANT_CAPACITY,
+  winningScore: SUPPORTED_WINNING_SCORE,
   symbolIds: FIRST_PLAYABLE_SYMBOL_IDS,
 } as const satisfies SpotItConfiguration
 
@@ -195,19 +197,19 @@ function validateConfiguration(configuration: SpotItConfiguration): void {
 
   if (
     !Number.isInteger(configuration.participantCapacity) ||
-    configuration.participantCapacity !== 64
+    configuration.participantCapacity !== SUPPORTED_PARTICIPANT_CAPACITY
   ) {
     throw new Error(
-      `Unsupported participant capacity: expected 64, received ${configuration.participantCapacity}.`,
+      `Unsupported participant capacity: expected ${SUPPORTED_PARTICIPANT_CAPACITY}, received ${configuration.participantCapacity}.`,
     )
   }
 
   if (
     !Number.isInteger(configuration.winningScore) ||
-    configuration.winningScore !== 12
+    configuration.winningScore !== SUPPORTED_WINNING_SCORE
   ) {
     throw new Error(
-      `Unsupported winning score: expected 12, received ${configuration.winningScore}.`,
+      `Unsupported winning score: expected ${SUPPORTED_WINNING_SCORE}, received ${configuration.winningScore}.`,
     )
   }
 

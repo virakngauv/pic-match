@@ -128,7 +128,7 @@ development deployment.
 
 The following should not block the first playable game:
 
-- a three-second, per-player lockout after an incorrect claim;
+- a three-second, per-player cooldown after an incorrect claim;
 - round timers;
 - alternate Spot It game modes;
 - configurable winning scores;
