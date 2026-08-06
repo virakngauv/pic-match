@@ -41,7 +41,7 @@ jobs:
           closing_pattern='(^|[[:space:]])(close(s|d)?|fix(es|ed)?|resolve(s|d)?):?[[:space:]]+([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+'
 
           if [[ ! "$PR_BODY" =~ $closing_pattern ]]; then
-            echo "Add a closing issue reference such as 'Closes #29' to the pull request description."
+            echo "Add a closing issue reference such as 'Closes #123' to the pull request description."
             exit 1
           fi
 
