@@ -167,7 +167,9 @@ When the host starts a game, Convex creates an immutable participant snapshot.
 Disconnecting does not remove or reorder a participant.
 
 See [Room-to-game boundary](docs/architecture/room-game-boundary.md) for the
-detailed lifecycle and authorization rules.
+detailed lifecycle and authorization rules, and
+[First playable round](docs/architecture/first-playable-round.md) for the
+shared two-card race rules and ordered gameplay work.
 
 ## Project structure
 
@@ -205,12 +207,17 @@ first public deployment.
 
 ## Next milestone
 
-The next major milestone is a first playable game round:
+The next major milestone is a shared two-card race. Every participant sees the
+same pair, the first valid match claim earns a point, and the first participant
+to 12 points wins:
 
-- Generate valid Spot It cards
+- Generate valid, deterministic Spot It card pairs
 - Store server-authoritative round state
-- Render each participant's card
-- Validate symbol-match claims
-- Track scores and determine a winner
+- Render two shared cards with clickable symbols
+- Validate first-claim-wins symbol matches atomically
+- Track scores, advance pairs, and determine a winner
 - Transition completed games to `finished`
 - Cover the complete round with a multi-player end-to-end test
+
+See [First playable round](docs/architecture/first-playable-round.md) for the
+gameplay contract and ordered ticket breakdown.
