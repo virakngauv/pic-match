@@ -9,6 +9,7 @@
  */
 
 import type * as gameParticipants from "../gameParticipants.js";
+import type * as gameState from "../gameState.js";
 import type * as playerKeys from "../playerKeys.js";
 import type * as presence from "../presence.js";
 import type * as roomAccess from "../roomAccess.js";
@@ -28,6 +29,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   gameParticipants: typeof gameParticipants;
+  gameState: typeof gameState;
   playerKeys: typeof playerKeys;
   presence: typeof presence;
   roomAccess: typeof roomAccess;

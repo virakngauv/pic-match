@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 
+import { FIRST_PLAYABLE_CONFIGURATION_ID } from '../lib/spot-it'
 import { roomPhase } from './roomLifecycle'
 import { roomMemberRole, roomMemberStatus } from './roomMembers'
 
@@ -31,6 +32,9 @@ export default defineSchema({
   games: defineTable({
     roomId: v.id('rooms'),
     createdAt: v.number(),
+    configurationId: v.literal(FIRST_PLAYABLE_CONFIGURATION_ID),
+    seed: v.string(),
+    pairRevision: v.number(),
   }).index('by_room_id', ['roomId']),
   gameParticipants: defineTable({
     gameId: v.id('games'),
@@ -38,6 +42,7 @@ export default defineSchema({
     name: v.string(),
     role: roomMemberRole,
     position: v.number(),
+    score: v.number(),
   })
     .index('by_game_id_and_position', ['gameId', 'position'])
     .index('by_game_id_and_room_member_id', ['gameId', 'roomMemberId']),

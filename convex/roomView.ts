@@ -1,6 +1,7 @@
 import { v } from 'convex/values'
 
 import { canRoomMemberConnect } from './roomAccess'
+import { playingGameStateView } from './gameState'
 import { roomPhase, type RoomPhase } from './roomLifecycle'
 import { roomMemberRole, type RoomMemberStatus } from './roomMembers'
 
@@ -50,6 +51,7 @@ export const roomView = v.union(
     status: v.literal('playing'),
     roomCode: v.string(),
     player: gameRoomViewPlayer,
+    ...playingGameStateView,
   }),
   v.object({
     status: v.literal('finished'),
