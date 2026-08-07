@@ -119,6 +119,7 @@ const mocks = vi.hoisted(() => ({
   joinRoom: vi.fn(),
   leaveRoom: vi.fn(),
   startGame: vi.fn(),
+  submitMatchClaim: vi.fn(),
   presenceStatus: 'connected' as
     'inactive' | 'connecting' | 'connected' | 'room-full',
   queryArgs: undefined as unknown,
@@ -129,6 +130,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/convex/_generated/api', () => ({
   api: {
+    gameClaims: { submit: 'submitMatchClaim' },
     presence: { heartbeat: 'heartbeat' },
     rooms: {
       getRoomView: 'getRoomView',
@@ -143,6 +145,7 @@ vi.mock('convex/react', () => ({
   useMutation: (mutation: string) => {
     if (mutation === 'start') return mocks.startGame
     if (mutation === 'join') return mocks.joinRoom
+    if (mutation === 'submitMatchClaim') return mocks.submitMatchClaim
     return mocks.leaveRoom
   },
   useQuery: (query: string, args: unknown) => {
@@ -184,6 +187,8 @@ describe('RoomLobby', () => {
     mocks.leaveRoom.mockResolvedValue(undefined)
     mocks.startGame.mockReset()
     mocks.startGame.mockResolvedValue(null)
+    mocks.submitMatchClaim.mockReset()
+    mocks.submitMatchClaim.mockResolvedValue({ status: 'accepted' })
     mocks.presenceStatus = 'connected'
     mocks.queryArgs = undefined
     mocks.queryName = undefined
@@ -318,6 +323,25 @@ describe('RoomLobby', () => {
       '0',
     )
     expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
+  it('submits the selected pair through the participant mutation', async () => {
+    mocks.roomView = playingView()
+    render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cat on card 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cat on card 2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit match' }))
+
+    await waitFor(() => {
+      expect(mocks.submitMatchClaim).toHaveBeenCalledWith({
+        roomCode: 'frvg7',
+        clientToken: 'a'.repeat(32),
+        pairRevision: 0,
+        firstSymbolId: 'cat',
+        secondSymbolId: 'cat',
+      })
+    })
   })
 
   it('renders the participant-specific finished view', () => {
