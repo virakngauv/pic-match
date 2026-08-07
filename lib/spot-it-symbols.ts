@@ -58,6 +58,7 @@ const SPOT_IT_SYMBOL_GLYPHS: Readonly<Record<string, string>> = {
   smile: '🙂',
 }
 
+/** Returns the display glyph and accessible label for a persisted symbol ID. */
 export function getSpotItSymbolPresentation(symbolId: string) {
   return {
     glyph: SPOT_IT_SYMBOL_GLYPHS[symbolId] ?? '❓',

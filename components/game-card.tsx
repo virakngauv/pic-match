@@ -23,6 +23,7 @@ const SYMBOL_COLORS = [
   'oklch(0.55 0.18 320)',
 ] as const
 
+/** Derives stable, slot-based presentation metadata for one card symbol. */
 export function getSymbolLayout(
   cardId: string,
   symbolId: string,
@@ -44,6 +45,7 @@ export function getSymbolLayout(
   }
 }
 
+/** Renders one server-derived card as a circular set of symbol controls. */
 export function GameCard({
   card,
   cardNumber,
@@ -91,6 +93,7 @@ export function GameCard({
   )
 }
 
+/** Produces a stable unsigned hash for deterministic client-side layout. */
 function hashText(value: string): number {
   let hash = 2166136261
 

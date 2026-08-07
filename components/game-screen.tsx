@@ -11,6 +11,7 @@ type ScoreboardEntry = GamePlayer & {
   score: number
 }
 
+/** Presents the shared card pair and ordered scoreboard for an active player. */
 export function GameScreen({
   roomCode,
   player,
