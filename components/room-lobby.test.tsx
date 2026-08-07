@@ -10,6 +10,16 @@ type Player = {
   position: number | null
 }
 
+type GameCard = {
+  id: string
+  symbolIds: string[]
+}
+
+type ScoreboardEntry = Omit<Player, 'position'> & {
+  position: number
+  score: number
+}
+
 type RoomView =
   | { status: 'not_found'; roomCode: string }
   | { status: 'joinable'; roomCode: string }
@@ -25,7 +35,14 @@ type RoomView =
       members: Array<Omit<Player, 'position'>>
       player: Player
     }
-  | { status: 'playing'; roomCode: string; player: Player }
+  | {
+      status: 'playing'
+      roomCode: string
+      player: Player
+      pairRevision: number
+      cards: GameCard[]
+      scoreboard: ScoreboardEntry[]
+    }
   | { status: 'finished'; roomCode: string; player: Player }
 
 const host: Player = {
@@ -42,12 +59,57 @@ const player: Player = {
   position: 1,
 }
 
+const gameCards: GameCard[] = [
+  {
+    id: 'card-13',
+    symbolIds: [
+      'sun',
+      'moon',
+      'star',
+      'heart',
+      'cat',
+      'rocket',
+      'book',
+      'anchor',
+    ],
+  },
+  {
+    id: 'card-52',
+    symbolIds: [
+      'cat',
+      'flower',
+      'apple',
+      'bee',
+      'turtle',
+      'camera',
+      'gift',
+      'dice',
+    ],
+  },
+]
+
+const gameScoreboard: ScoreboardEntry[] = [
+  { ...host, position: 0, score: 0 },
+  { ...player, position: 1, score: 0 },
+]
+
 function lobbyView(members: Array<Omit<Player, 'position'>> = [host]) {
   return {
     status: 'lobby' as const,
     roomCode: 'frvg7',
     members,
     player: host,
+  }
+}
+
+function playingView(requestingPlayer: Player = player) {
+  return {
+    status: 'playing' as const,
+    roomCode: 'frvg7',
+    player: requestingPlayer,
+    pairRevision: 0,
+    cards: gameCards,
+    scoreboard: gameScoreboard,
   }
 }
 
@@ -243,18 +305,18 @@ describe('RoomLobby', () => {
   })
 
   it('renders the participant-specific playing view on refresh', () => {
-    mocks.roomView = {
-      status: 'playing',
-      roomCode: 'frvg7',
-      player: { ...player, position: 1 },
-    }
+    mocks.roomView = playingView()
 
     render(<RoomLobby roomCode="frvg7" />)
 
     expect(
       screen.getByRole('main', { name: 'Game for Chrome player' }),
     ).toHaveAttribute('data-player-position', '1')
-    expect(screen.queryByText('Firefox host')).not.toBeInTheDocument()
+    expect(screen.getByText('Firefox host')).toBeInTheDocument()
+    expect(screen.getByLabelText('Shared game board')).toBeInTheDocument()
+    expect(screen.getByLabelText("Chrome player's score")).toHaveTextContent(
+      '0',
+    )
     expect(mocks.heartbeatEnabled).toBe(true)
   })
 
@@ -278,11 +340,7 @@ describe('RoomLobby', () => {
     const { rerender } = render(<RoomLobby roomCode="frvg7" />)
     expect(screen.getByText('Ready to play.')).toBeInTheDocument()
 
-    mocks.roomView = {
-      status: 'playing',
-      roomCode: 'frvg7',
-      player: { ...host, position: 0 },
-    }
+    mocks.roomView = playingView({ ...host, position: 0 })
     rerender(<RoomLobby roomCode="frvg7" />)
     expect(
       screen.getByRole('main', { name: 'Game for Firefox host' }),

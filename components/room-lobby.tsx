@@ -144,7 +144,15 @@ function PresentRoomLobby({
         />
       )
     case 'playing':
-      return <GameScreen player={roomView.player} />
+      return (
+        <GameScreen
+          roomCode={roomView.roomCode}
+          player={roomView.player}
+          pairRevision={roomView.pairRevision}
+          cards={roomView.cards}
+          scoreboard={roomView.scoreboard}
+        />
+      )
     case 'finished':
       return (
         <FinishedRoom
