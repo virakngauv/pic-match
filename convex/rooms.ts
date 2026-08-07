@@ -1,7 +1,12 @@
 import { v } from 'convex/values'
 
 import { mutation, query } from './_generated/server'
-import { getGameParticipant, startRoomGame } from './gameParticipants'
+import {
+  getGameParticipant,
+  listGameParticipantSnapshot,
+  startRoomGame,
+} from './gameParticipants'
+import { presentPlayingGameState } from './gameState'
 import { parseClientToken, validateClientToken } from './playerKeys'
 import {
   claimRoomSeat,
@@ -400,7 +405,29 @@ export const getRoomView = query({
       }
     }
 
-    if ((status === 'playing' || status === 'finished') && participant) {
+    if (status === 'playing' && participant && room.gameId) {
+      const game = await ctx.db.get(room.gameId)
+
+      if (!game) {
+        throw new Error('Unable to resolve the current game.')
+      }
+
+      const scoreboard = await listGameParticipantSnapshot(ctx, room.gameId)
+
+      return {
+        status,
+        roomCode: room.code,
+        player: {
+          playerId: participant.roomMemberId,
+          name: participant.name,
+          role: participant.role,
+          position: participant.position,
+        },
+        ...presentPlayingGameState(game, scoreboard),
+      }
+    }
+
+    if (status === 'finished' && participant) {
       return {
         status,
         roomCode: room.code,

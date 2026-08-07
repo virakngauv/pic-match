@@ -1,5 +1,7 @@
 import type { Doc, Id } from './_generated/dataModel'
 import type { MutationCtx, QueryCtx } from './_generated/server'
+import { assertSupportedParticipantCount } from '../lib/spot-it'
+import { createInitialGameState } from './gameState'
 import { MAX_ROOM_MEMBERS } from './roomCapacity'
 import {
   assertRoomCanStart,
@@ -32,6 +34,7 @@ export function buildGameParticipantSnapshot(
       name: member.name,
       role: member.role,
       position,
+      score: 0,
     }))
 }
 
@@ -52,7 +55,13 @@ export async function createGameParticipantSnapshot(
   createdAt: number,
 ) {
   const participants = buildGameParticipantSnapshot(candidates)
-  const gameId = await ctx.db.insert('games', { roomId, createdAt })
+  assertSupportedParticipantCount(participants.length)
+
+  const gameId = await ctx.db.insert('games', {
+    roomId,
+    createdAt,
+    ...createInitialGameState(roomId, createdAt),
+  })
 
   for (const participant of participants) {
     await ctx.db.insert('gameParticipants', { gameId, ...participant })

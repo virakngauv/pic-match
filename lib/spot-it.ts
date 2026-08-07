@@ -58,6 +58,8 @@ export const FIRST_PLAYABLE_SYMBOL_IDS = [
   'smile',
 ] as const
 
+export const FIRST_PLAYABLE_CONFIGURATION_ID = 'first-playable-v1' as const
+
 const SUPPORTED_ORDER = 7
 const SUPPORTED_SYMBOLS_PER_CARD = SUPPORTED_ORDER + 1
 const SUPPORTED_CARD_COUNT =

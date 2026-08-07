@@ -66,18 +66,21 @@ describe('game participant snapshots', () => {
         name: 'First',
         role: 'host',
         position: 0,
+        score: 0,
       },
       {
         roomMemberId: 'member-2',
         name: 'Second',
         role: 'player',
         position: 1,
+        score: 0,
       },
       {
         roomMemberId: 'member-3',
         name: 'Third',
         role: 'player',
         position: 2,
+        score: 0,
       },
     ])
   })
@@ -115,7 +118,16 @@ describe('game participant snapshots', () => {
     ).resolves.toBe(gameId)
 
     expect(insert.mock.calls).toEqual([
-      ['games', { roomId: 'room-1', createdAt: 123 }],
+      [
+        'games',
+        {
+          roomId: 'room-1',
+          createdAt: 123,
+          configurationId: 'first-playable-v1',
+          seed: 'first-playable-v1:room-1:123',
+          pairRevision: 0,
+        },
+      ],
       [
         'gameParticipants',
         {
@@ -124,6 +136,7 @@ describe('game participant snapshots', () => {
           name: 'First',
           role: 'host',
           position: 0,
+          score: 0,
         },
       ],
       [
@@ -134,6 +147,7 @@ describe('game participant snapshots', () => {
           name: 'Second',
           role: 'player',
           position: 1,
+          score: 0,
         },
       ],
     ])
@@ -175,6 +189,91 @@ describe('game participant snapshots', () => {
 
     expect(getOnlineParticipants).not.toHaveBeenCalled()
     expect(insert).not.toHaveBeenCalled()
+    expect(patch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['missing participant', null],
+    ['non-host participant', { role: 'player' as const, isActive: true }],
+    ['inactive host', { role: 'host' as const, isActive: false }],
+  ])(
+    'rejects an unauthorized start by a %s before reading or writing',
+    async (_name, actor) => {
+      const insert = vi.fn()
+      const patch = vi.fn()
+      const getOnlineParticipants = vi.fn(async () => [])
+      const ctx = { db: { insert, patch } } as unknown as MutationCtx
+
+      await expect(
+        startRoomGame(ctx, room(), actor, getOnlineParticipants, 123),
+      ).rejects.toThrow('Only the host can start the game.')
+
+      expect(getOnlineParticipants).not.toHaveBeenCalled()
+      expect(insert).not.toHaveBeenCalled()
+      expect(patch).not.toHaveBeenCalled()
+    },
+  )
+
+  it('rejects an unsupported participant count before writing game state', async () => {
+    const insert = vi.fn()
+    const patch = vi.fn()
+    const ctx = { db: { insert, patch } } as unknown as MutationCtx
+    const onlineParticipants = Array.from({ length: 65 }, (_, index) =>
+      member({
+        id: `member-${index}`,
+        name: `Player ${index}`,
+        joinedAt: index,
+        creationTime: index,
+        role: index === 0 ? 'host' : 'player',
+      }),
+    )
+
+    await expect(
+      startRoomGame(
+        ctx,
+        room(),
+        { role: 'host', isActive: true },
+        async () => onlineParticipants,
+        123,
+      ),
+    ).rejects.toThrow('Participant count must be between 2 and 64.')
+
+    expect(insert).not.toHaveBeenCalled()
+    expect(patch).not.toHaveBeenCalled()
+  })
+
+  it('does not transition the room when snapshot persistence fails', async () => {
+    const gameId = 'game-1' as Id<'games'>
+    const insert = vi.fn(async (table: string) => {
+      if (table === 'games') {
+        return gameId
+      }
+
+      throw new Error('Unable to persist participant snapshot.')
+    })
+    const patch = vi.fn()
+    const ctx = { db: { insert, patch } } as unknown as MutationCtx
+    const onlineParticipants = [
+      member({
+        id: 'member-1',
+        name: 'First',
+        joinedAt: 1,
+        creationTime: 1,
+        role: 'host',
+      }),
+      member({ id: 'member-2', name: 'Second', joinedAt: 2, creationTime: 2 }),
+    ]
+
+    await expect(
+      startRoomGame(
+        ctx,
+        room(),
+        { role: 'host', isActive: true },
+        async () => onlineParticipants,
+        123,
+      ),
+    ).rejects.toThrow('Unable to persist participant snapshot.')
+
     expect(patch).not.toHaveBeenCalled()
   })
 
