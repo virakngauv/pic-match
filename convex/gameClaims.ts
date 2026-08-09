@@ -60,7 +60,7 @@ export function evaluateMatchClaim({
   return { status: 'accepted' }
 }
 
-/** Evaluates one participant claim without changing scores or pair state. */
+/** Evaluates one participant claim and atomically accepts its score and pair. */
 export const submit = mutation({
   args: {
     roomCode: v.string(),
@@ -112,12 +112,19 @@ export const submit = mutation({
       throw new Error('Unable to resolve the current game.')
     }
 
-    return evaluateMatchClaim({
+    const result = evaluateMatchClaim({
       currentRevision: game.pairRevision,
       viewedRevision: pairRevision,
       cards: resolvePlayingGameCards(game),
       firstSymbolId,
       secondSymbolId,
     })
+
+    if (result.status === 'accepted') {
+      await ctx.db.patch(participant._id, { score: participant.score + 1 })
+      await ctx.db.patch(game._id, { pairRevision: game.pairRevision + 1 })
+    }
+
+    return result
   },
 })
