@@ -35,6 +35,7 @@ export default defineSchema({
     configurationId: v.literal(FIRST_PLAYABLE_CONFIGURATION_ID),
     seed: v.string(),
     pairRevision: v.number(),
+    winnerRoomMemberId: v.optional(v.id('roomMembers')),
   }).index('by_room_id', ['roomId']),
   gameParticipants: defineTable({
     gameId: v.id('games'),

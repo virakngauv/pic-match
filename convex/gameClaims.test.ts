@@ -4,7 +4,11 @@ import { describe, expect, it } from 'vitest'
 import { api } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { evaluateMatchClaim } from './gameClaims'
-import { createInitialGameState, presentPlayingGameState } from './gameState'
+import {
+  createInitialGameState,
+  presentFinishedGameState,
+  presentPlayingGameState,
+} from './gameState'
 import schema from './schema'
 
 const modules = (
@@ -201,12 +205,79 @@ describe('match claim mutation', () => {
     expect(view.pairRevision).toBe(1)
     expect(view.scoreboard.map(({ score }) => score).sort()).toEqual([0, 1])
   })
+
+  it('records the winner and finishes instead of advancing on point 12', async () => {
+    const t = convexTest(schema, modules)
+    const game = await seedPlayingGame(t, { hostScore: 11 })
+
+    await expect(
+      submitClaim(t, HOST_TOKEN, game.sharedSymbolId),
+    ).resolves.toEqual({ status: 'accepted' })
+
+    const state = await readFinishedGameState(t, game)
+
+    expect(state.phase).toBe('finished')
+    expect(state.pairRevision).toBe(0)
+    expect(state.winner).toEqual(
+      expect.objectContaining({ name: 'Host', score: 12 }),
+    )
+    expect(state.scoreboard.map(({ score }) => score)).toEqual([12, 0])
+  })
+
+  it('rejects claims after the game finishes without changing results', async () => {
+    const t = convexTest(schema, modules)
+    const game = await seedPlayingGame(t, { hostScore: 11 })
+
+    await submitClaim(t, HOST_TOKEN, game.sharedSymbolId)
+    await expect(
+      submitClaim(t, PLAYER_TOKEN, game.sharedSymbolId),
+    ).rejects.toThrow('The game is not accepting match claims.')
+
+    const state = await readFinishedGameState(t, game)
+
+    expect(state.winner.name).toBe('Host')
+    expect(state.scoreboard.map(({ score }) => score)).toEqual([12, 0])
+  })
+
+  it('creates one winner from concurrent terminal claims', async () => {
+    const t = convexTest(schema, modules)
+    const game = await seedPlayingGame(t, { hostScore: 11, playerScore: 11 })
+
+    const results = await Promise.allSettled([
+      submitClaim(t, HOST_TOKEN, game.sharedSymbolId),
+      submitClaim(t, PLAYER_TOKEN, game.sharedSymbolId),
+    ])
+    const state = await readFinishedGameState(t, game)
+    const acceptedResults = results.filter(
+      (result) => result.status === 'fulfilled',
+    )
+    const rejectedResults = results.filter(
+      (result) => result.status === 'rejected',
+    )
+
+    expect(acceptedResults).toEqual([
+      expect.objectContaining({ value: { status: 'accepted' } }),
+    ])
+    expect(rejectedResults).toHaveLength(1)
+    expect(String(rejectedResults[0]?.reason)).toContain(
+      'The game is not accepting match claims.',
+    )
+    expect(state.pairRevision).toBe(0)
+    expect(state.scoreboard.map(({ score }) => score).sort()).toEqual([11, 12])
+    expect(state.winner.score).toBe(12)
+  })
 })
 
 type ConvexTest = ReturnType<typeof convexTest>
 
 /** Creates a playing room with two frozen participants and one outsider. */
-async function seedPlayingGame(t: ConvexTest) {
+async function seedPlayingGame(
+  t: ConvexTest,
+  {
+    hostScore = 0,
+    playerScore = 0,
+  }: { hostScore?: number; playerScore?: number } = {},
+) {
   return await t.run(async (ctx) => {
     const roomId = await ctx.db.insert('rooms', {
       code: ROOM_CODE,
@@ -251,7 +322,7 @@ async function seedPlayingGame(t: ConvexTest) {
       name: 'Host',
       role: 'host',
       position: 0,
-      score: 0,
+      score: hostScore,
     })
     const playerParticipantId = await ctx.db.insert('gameParticipants', {
       gameId,
@@ -259,7 +330,7 @@ async function seedPlayingGame(t: ConvexTest) {
       name: 'Player',
       role: 'player',
       position: 1,
-      score: 0,
+      score: playerScore,
     })
     await ctx.db.patch(roomId, {
       phase: 'playing',
@@ -294,6 +365,7 @@ async function seedPlayingGame(t: ConvexTest) {
     }
 
     return {
+      roomId,
       gameId,
       participantIds: [hostParticipantId, playerParticipantId] as const,
       cards: view.cards,
@@ -343,5 +415,42 @@ async function readPlayingGameState(
       storedGame,
       participants.filter((participant) => participant !== null),
     )
+  })
+}
+
+/** Reads the persisted terminal state and its server-derived result view. */
+async function readFinishedGameState(
+  t: ConvexTest,
+  game: {
+    roomId: Id<'rooms'>
+    gameId: Id<'games'>
+    participantIds: readonly [Id<'gameParticipants'>, Id<'gameParticipants'>]
+  },
+) {
+  return await t.run(async (ctx) => {
+    const room = await ctx.db.get(game.roomId)
+    const storedGame = await ctx.db.get(game.gameId)
+    const participants = await Promise.all(
+      game.participantIds.map(
+        async (participantId) => await ctx.db.get(participantId),
+      ),
+    )
+
+    if (
+      !room ||
+      !storedGame ||
+      participants.some((participant) => !participant)
+    ) {
+      throw new Error('Unable to read the seeded finished game state.')
+    }
+
+    return {
+      phase: room.phase,
+      pairRevision: storedGame.pairRevision,
+      ...presentFinishedGameState(
+        storedGame,
+        participants.filter((participant) => participant !== null),
+      ),
+    }
   })
 }

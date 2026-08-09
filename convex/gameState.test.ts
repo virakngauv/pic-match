@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import type { Doc, Id } from './_generated/dataModel'
-import { createInitialGameState, presentPlayingGameState } from './gameState'
+import {
+  createInitialGameState,
+  presentFinishedGameState,
+  presentPlayingGameState,
+} from './gameState'
 
 function participant({
   id,
@@ -97,5 +101,54 @@ describe('persisted game state', () => {
     expect(afterReconnect).toEqual(beforeReconnect)
     expect(afterReconnect.pairRevision).toBe(42)
     expect(afterReconnect.scoreboard.map(({ score }) => score)).toEqual([3, 7])
+  })
+
+  it('reconstructs the persisted winner and final scores after reconnecting', () => {
+    const winner = {
+      ...participant({ id: 'member-2', name: 'Second', position: 1 }),
+      score: 12,
+    }
+    const participants = [
+      {
+        ...participant({ id: 'member-1', name: 'First', position: 0 }),
+        score: 9,
+      },
+      winner,
+    ]
+    const game = { winnerRoomMemberId: winner.roomMemberId }
+
+    const beforeReconnect = presentFinishedGameState(game, participants)
+    const afterReconnect = presentFinishedGameState(
+      { ...game },
+      participants.map((entry) => ({ ...entry })),
+    )
+
+    expect(afterReconnect).toEqual(beforeReconnect)
+    expect(afterReconnect.winner).toEqual({
+      playerId: 'member-2',
+      name: 'Second',
+      role: 'player',
+      position: 1,
+      score: 12,
+    })
+    expect(afterReconnect.scoreboard.map(({ score }) => score)).toEqual([9, 12])
+  })
+
+  it('rejects finished state without a winner in the frozen roster', () => {
+    const participants = [
+      participant({ id: 'member-1', name: 'First', position: 0 }),
+    ]
+
+    expect(() => presentFinishedGameState({}, participants)).toThrow(
+      'The finished game is missing its winner.',
+    )
+    expect(() =>
+      presentFinishedGameState(
+        {
+          winnerRoomMemberId: 'missing' as Id<'roomMembers'>,
+        },
+        participants,
+      ),
+    ).toThrow('The finished game winner is not in its participant roster.')
   })
 })

@@ -1,5 +1,6 @@
 import { v } from 'convex/values'
 
+import { FIRST_PLAYABLE_CONFIGURATION } from '../lib/spot-it'
 import { MATCH_CLAIM_STATUSES, type MatchClaimResult } from '../lib/match-claim'
 import { mutation } from './_generated/server'
 import { getGameParticipant } from './gameParticipants'
@@ -121,8 +122,18 @@ export const submit = mutation({
     })
 
     if (result.status === 'accepted') {
-      await ctx.db.patch(participant._id, { score: participant.score + 1 })
-      await ctx.db.patch(game._id, { pairRevision: game.pairRevision + 1 })
+      const nextScore = participant.score + 1
+
+      await ctx.db.patch(participant._id, { score: nextScore })
+
+      if (nextScore >= FIRST_PLAYABLE_CONFIGURATION.winningScore) {
+        await ctx.db.patch(game._id, {
+          winnerRoomMemberId: participant.roomMemberId,
+        })
+        await ctx.db.patch(room._id, { phase: 'finished' })
+      } else {
+        await ctx.db.patch(game._id, { pairRevision: game.pairRevision + 1 })
+      }
     }
 
     return result

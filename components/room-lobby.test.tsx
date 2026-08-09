@@ -43,7 +43,13 @@ type RoomView =
       cards: GameCard[]
       scoreboard: ScoreboardEntry[]
     }
-  | { status: 'finished'; roomCode: string; player: Player }
+  | {
+      status: 'finished'
+      roomCode: string
+      player: Player
+      winner: ScoreboardEntry
+      scoreboard: ScoreboardEntry[]
+    }
 
 const host: Player = {
   playerId: 'member-1',
@@ -110,6 +116,21 @@ function playingView(requestingPlayer: Player = player) {
     pairRevision: 0,
     cards: gameCards,
     scoreboard: gameScoreboard,
+  }
+}
+
+function finishedView(requestingPlayer: Player = player) {
+  const scoreboard = [
+    { ...host, position: 0, score: 12 },
+    { ...player, position: 1, score: 8 },
+  ]
+
+  return {
+    status: 'finished' as const,
+    roomCode: 'frvg7',
+    player: requestingPlayer,
+    winner: scoreboard[0],
+    scoreboard,
   }
 }
 
@@ -345,19 +366,37 @@ describe('RoomLobby', () => {
   })
 
   it('renders the participant-specific finished view', () => {
-    mocks.roomView = {
-      status: 'finished',
-      roomCode: 'frvg7',
-      player: { ...player, position: 1 },
-    }
+    mocks.roomView = finishedView()
 
     render(<RoomLobby roomCode="frvg7" />)
 
     expect(
       screen.getByRole('heading', { name: 'Game finished.' }),
     ).toBeInTheDocument()
+    expect(screen.getByText('Firefox host wins!')).toBeVisible()
     expect(screen.getByText(/Thanks for playing, Chrome player/)).toBeVisible()
+    expect(
+      screen.getByLabelText("Firefox host's final score"),
+    ).toHaveTextContent('12')
+    expect(
+      screen.getByLabelText("Chrome player's final score"),
+    ).toHaveTextContent('8')
+    expect(
+      screen.getAllByRole('listitem').map((entry) => entry.textContent),
+    ).toEqual([
+      expect.stringContaining('Firefox host'),
+      expect.stringContaining('Chrome player'),
+    ])
     expect(mocks.heartbeatEnabled).toBe(true)
+  })
+
+  it('identifies the requesting player when they won', () => {
+    mocks.roomView = finishedView({ ...host, position: 0 })
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.getByText('You won!')).toBeVisible()
+    expect(screen.getByText('Winner · You')).toBeVisible()
   })
 
   it('follows lobby, playing, and finished server transitions', () => {
@@ -370,11 +409,7 @@ describe('RoomLobby', () => {
       screen.getByRole('main', { name: 'Game for Firefox host' }),
     ).toBeInTheDocument()
 
-    mocks.roomView = {
-      status: 'finished',
-      roomCode: 'frvg7',
-      player: { ...host, position: 0 },
-    }
+    mocks.roomView = finishedView({ ...host, position: 0 })
     rerender(<RoomLobby roomCode="frvg7" />)
     expect(
       screen.getByRole('heading', { name: 'Game finished.' }),
