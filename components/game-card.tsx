@@ -1,4 +1,5 @@
 import { getSpotItSymbolPresentation } from '@/lib/spot-it-symbols'
+import { cn } from '@/lib/utils'
 
 export type GameCardModel = {
   id: string
@@ -49,9 +50,15 @@ export function getSymbolLayout(
 export function GameCard({
   card,
   cardNumber,
+  selectedSymbolId,
+  disabled,
+  onSelectSymbol,
 }: {
   card: GameCardModel
   cardNumber: number
+  selectedSymbolId: string | null
+  disabled: boolean
+  onSelectSymbol: (symbolId: string) => void
 }) {
   return (
     <article
@@ -65,14 +72,24 @@ export function GameCard({
       {card.symbolIds.map((symbolId, symbolIndex) => {
         const symbol = getSpotItSymbolPresentation(symbolId)
         const layout = getSymbolLayout(card.id, symbolId, symbolIndex)
+        const isSelected = selectedSymbolId === symbolId
 
         return (
           <button
             key={symbolId}
             type="button"
             aria-label={`${symbol.label} on card ${cardNumber}`}
-            className="focus-visible:ring-ring/70 absolute inline-flex min-h-12 min-w-12 items-center justify-center rounded-full bg-white/75 p-1 leading-none shadow-sm transition-[filter,box-shadow] hover:brightness-105 focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none"
+            aria-pressed={isSelected}
+            disabled={disabled}
+            onClick={() => onSelectSymbol(symbolId)}
+            className={cn(
+              'focus-visible:ring-ring/70 absolute inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border-2 p-1 leading-none transition-[filter,box-shadow,background-color,border-color] focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70',
+              isSelected
+                ? 'border-accent bg-accent/15 ring-accent/40 z-[1] shadow-md ring-4'
+                : 'border-transparent bg-white/75 shadow-sm hover:brightness-105',
+            )}
             data-symbol-id={symbolId}
+            data-selected={isSelected}
             data-symbol-size={layout.size.toFixed(1)}
             data-symbol-rotation={layout.rotation}
             data-symbol-x={layout.x}

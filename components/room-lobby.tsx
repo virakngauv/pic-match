@@ -11,6 +11,7 @@ import { JoinRoomScreen } from '@/components/join-room-screen'
 import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
 import { api } from '@/convex/_generated/api'
+import type { MatchClaimPayload } from '@/lib/match-claim'
 import { useRoomPresence } from '@/lib/use-room-presence'
 
 const noopJoined = () => {}
@@ -38,6 +39,7 @@ function PresentRoomLobby({
   const router = useRouter()
   const leaveRoom = useMutation(api.rooms.leave)
   const startGame = useMutation(api.rooms.start)
+  const submitMatchClaim = useMutation(api.gameClaims.submit)
   const [leavingSnapshot, setLeavingSnapshot] =
     useState<LeavingSnapshot | null>(null)
   const [leaveError, setLeaveError] = useState<string | null>(null)
@@ -91,6 +93,15 @@ function PresentRoomLobby({
     } finally {
       setIsStarting(false)
     }
+  }
+
+  /** Adds the current room credentials to a local match claim. */
+  const handleSubmitMatchClaim = async (claim: MatchClaimPayload) => {
+    if (!clientToken) {
+      throw new Error('A player session is required to submit a match.')
+    }
+
+    return await submitMatchClaim({ roomCode, clientToken, ...claim })
   }
 
   if (leavingSnapshot) {
@@ -151,6 +162,7 @@ function PresentRoomLobby({
           pairRevision={roomView.pairRevision}
           cards={roomView.cards}
           scoreboard={roomView.scoreboard}
+          onSubmitClaim={handleSubmitMatchClaim}
         />
       )
     case 'finished':

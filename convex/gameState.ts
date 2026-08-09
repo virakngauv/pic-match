@@ -49,6 +49,25 @@ export function presentPlayingGameState(
   game: StoredGameState,
   participants: readonly StoredGameScore[],
 ) {
+  const cards = resolvePlayingGameCards(game)
+
+  return {
+    pairRevision: game.pairRevision,
+    cards,
+    scoreboard: [...participants]
+      .sort((left, right) => left.position - right.position)
+      .map((participant) => ({
+        playerId: participant.roomMemberId,
+        name: participant.name,
+        role: participant.role,
+        position: participant.position,
+        score: participant.score,
+      })),
+  }
+}
+
+/** Resolves the public card pair for a persisted game revision. */
+export function resolvePlayingGameCards(game: StoredGameState) {
   if (game.configurationId !== FIRST_PLAYABLE_CONFIGURATION_ID) {
     throw new Error('The game uses an unsupported gameplay configuration.')
   }
@@ -63,20 +82,8 @@ export function presentPlayingGameState(
     game.pairRevision,
   )
 
-  return {
-    pairRevision: matchup.revision,
-    cards: matchup.cards.map((card) => ({
-      id: card.id,
-      symbolIds: [...card.symbolIds],
-    })),
-    scoreboard: [...participants]
-      .sort((left, right) => left.position - right.position)
-      .map((participant) => ({
-        playerId: participant.roomMemberId,
-        name: participant.name,
-        role: participant.role,
-        position: participant.position,
-        score: participant.score,
-      })),
-  }
+  return matchup.cards.map((card) => ({
+    id: card.id,
+    symbolIds: [...card.symbolIds],
+  }))
 }

@@ -1,4 +1,11 @@
+'use client'
+
+import { useState } from 'react'
+
 import { GameCard, type GameCardModel } from '@/components/game-card'
+import { Button } from '@/components/ui/button'
+import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
+import { cn } from '@/lib/utils'
 
 type GamePlayer = {
   playerId: string
@@ -18,16 +25,103 @@ export function GameScreen({
   pairRevision,
   cards,
   scoreboard,
+  onSubmitClaim,
 }: {
   roomCode: string
   player: GamePlayer
   pairRevision: number
   cards: readonly GameCardModel[]
   scoreboard: readonly ScoreboardEntry[]
+  onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
 }) {
+  return (
+    <GameRound
+      key={pairRevision}
+      roomCode={roomCode}
+      player={player}
+      pairRevision={pairRevision}
+      cards={cards}
+      scoreboard={scoreboard}
+      onSubmitClaim={onSubmitClaim}
+    />
+  )
+}
+
+type ClaimFeedback =
+  'incomplete' | 'incorrect' | 'stale' | 'accepted' | 'error' | null
+
+/** Owns local selection state for one immutable server pair revision. */
+function GameRound({
+  roomCode,
+  player,
+  pairRevision,
+  cards,
+  scoreboard,
+  onSubmitClaim,
+}: {
+  roomCode: string
+  player: GamePlayer
+  pairRevision: number
+  cards: readonly GameCardModel[]
+  scoreboard: readonly ScoreboardEntry[]
+  onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
+}) {
+  const [selectedSymbols, setSelectedSymbols] = useState<
+    readonly [string | null, string | null]
+  >([null, null])
+  const [feedback, setFeedback] = useState<ClaimFeedback>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const orderedScoreboard = [...scoreboard].sort(
     (left, right) => left.position - right.position,
   )
+
+  /** Replaces the local selection for one card in the current round. */
+  const selectSymbol = (cardIndex: number, symbolId: string) => {
+    if (isSubmitting) {
+      return
+    }
+
+    setSelectedSymbols((current) =>
+      cardIndex === 0 ? [symbolId, current[1]] : [current[0], symbolId],
+    )
+    setFeedback(null)
+  }
+
+  /** Submits a complete selection once and presents its outcome. */
+  const submitClaim = async () => {
+    const [firstSymbolId, secondSymbolId] = selectedSymbols
+
+    if (!firstSymbolId || !secondSymbolId) {
+      setFeedback('incomplete')
+      return
+    }
+
+    if (isSubmitting) {
+      return
+    }
+
+    setIsSubmitting(true)
+    setFeedback(null)
+
+    try {
+      const result = await onSubmitClaim({
+        pairRevision,
+        firstSymbolId,
+        secondSymbolId,
+      })
+
+      setFeedback(result.status)
+
+      if (result.status === 'stale') {
+        setSelectedSymbols([null, null])
+      }
+    } catch (error) {
+      console.error('Match claim submission failed.', error)
+      setFeedback('error')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <main
@@ -60,7 +154,14 @@ export function GameScreen({
               aria-label="Shared game board"
             >
               {cards.map((card, index) => (
-                <GameCard key={card.id} card={card} cardNumber={index + 1} />
+                <GameCard
+                  key={card.id}
+                  card={card}
+                  cardNumber={index + 1}
+                  selectedSymbolId={selectedSymbols[index] ?? null}
+                  disabled={isSubmitting}
+                  onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
+                />
               ))}
             </div>
           ) : (
@@ -77,6 +178,32 @@ export function GameScreen({
               </p>
             </div>
           )}
+
+          {cards.length === 2 ? (
+            <div className="mt-6 flex min-h-24 flex-col items-center gap-3">
+              <Button
+                type="button"
+                onClick={submitClaim}
+                disabled={isSubmitting}
+                aria-describedby="match-claim-feedback"
+              >
+                {isSubmitting ? 'Submitting…' : 'Submit match'}
+              </Button>
+              <p
+                id="match-claim-feedback"
+                className={cn(
+                  'text-muted-foreground text-center text-sm',
+                  feedback && 'font-semibold',
+                )}
+                role={feedback === 'error' ? 'alert' : 'status'}
+                aria-label="Match claim feedback"
+              >
+                {feedback
+                  ? getClaimFeedbackMessage(feedback)
+                  : 'Select one symbol on each card, then submit your match.'}
+              </p>
+            </div>
+          ) : null}
         </section>
 
         <aside
@@ -134,4 +261,20 @@ export function GameScreen({
       </div>
     </main>
   )
+}
+
+/** Maps claim outcomes to distinct, user-facing status messages. */
+function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
+  switch (feedback) {
+    case 'incomplete':
+      return 'Select one symbol on each card before submitting.'
+    case 'incorrect':
+      return 'Those symbols do not match. Try again.'
+    case 'stale':
+      return 'That round already moved on. Select from the current cards.'
+    case 'accepted':
+      return 'Match accepted.'
+    case 'error':
+      return 'Unable to submit your match. Please try again.'
+  }
 }
