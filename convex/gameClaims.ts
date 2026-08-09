@@ -1,6 +1,6 @@
 import { v } from 'convex/values'
 
-import type { MatchClaimResult } from '../lib/match-claim'
+import { MATCH_CLAIM_STATUSES, type MatchClaimResult } from '../lib/match-claim'
 import { mutation } from './_generated/server'
 import { getGameParticipant } from './gameParticipants'
 import { resolvePlayingGameCards } from './gameState'
@@ -9,11 +9,13 @@ import { getRoomPhase } from './roomLifecycle'
 import { isActiveRoomMember } from './roomMembers'
 import { normalizeRoomCode, ROOM_CODE_PATTERN } from './roomCode'
 
-export const matchClaimResult = v.union(
-  v.object({ status: v.literal('accepted') }),
-  v.object({ status: v.literal('incorrect') }),
-  v.object({ status: v.literal('stale') }),
-)
+export const matchClaimResult = v.object({
+  status: v.union(
+    v.literal(MATCH_CLAIM_STATUSES[0]),
+    v.literal(MATCH_CLAIM_STATUSES[1]),
+    v.literal(MATCH_CLAIM_STATUSES[2]),
+  ),
+})
 
 type ClaimCard = {
   symbolIds: readonly string[]

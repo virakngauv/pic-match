@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { GameCard, type GameCardModel } from '@/components/game-card'
 import { Button } from '@/components/ui/button'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
+import { cn } from '@/lib/utils'
 
 type GamePlayer = {
   playerId: string
@@ -74,6 +75,7 @@ function GameRound({
     (left, right) => left.position - right.position,
   )
 
+  /** Replaces the local selection for one card in the current round. */
   const selectSymbol = (cardIndex: number, symbolId: string) => {
     if (isSubmitting) {
       return
@@ -85,6 +87,7 @@ function GameRound({
     setFeedback(null)
   }
 
+  /** Submits a complete selection once and presents its outcome. */
   const submitClaim = async () => {
     const [firstSymbolId, secondSymbolId] = selectedSymbols
 
@@ -112,7 +115,8 @@ function GameRound({
       if (result.status === 'stale') {
         setSelectedSymbols([null, null])
       }
-    } catch {
+    } catch (error) {
+      console.error('Match claim submission failed.', error)
       setFeedback('error')
     } finally {
       setIsSubmitting(false)
@@ -181,24 +185,23 @@ function GameRound({
                 type="button"
                 onClick={submitClaim}
                 disabled={isSubmitting}
-                aria-describedby={feedback ? 'match-claim-feedback' : undefined}
+                aria-describedby="match-claim-feedback"
               >
                 {isSubmitting ? 'Submitting…' : 'Submit match'}
               </Button>
-              {feedback ? (
-                <p
-                  id="match-claim-feedback"
-                  className="text-muted-foreground text-center text-sm font-semibold"
-                  role={feedback === 'error' ? 'alert' : 'status'}
-                  aria-label="Match claim feedback"
-                >
-                  {getClaimFeedbackMessage(feedback)}
-                </p>
-              ) : (
-                <p className="text-muted-foreground text-center text-sm">
-                  Select one symbol on each card, then submit your match.
-                </p>
-              )}
+              <p
+                id="match-claim-feedback"
+                className={cn(
+                  'text-muted-foreground text-center text-sm',
+                  feedback && 'font-semibold',
+                )}
+                role={feedback === 'error' ? 'alert' : 'status'}
+                aria-label="Match claim feedback"
+              >
+                {feedback
+                  ? getClaimFeedbackMessage(feedback)
+                  : 'Select one symbol on each card, then submit your match.'}
+              </p>
             </div>
           ) : null}
         </section>

@@ -95,6 +95,7 @@ function PresentRoomLobby({
     }
   }
 
+  /** Adds the current room credentials to a local match claim. */
   const handleSubmitMatchClaim = async (claim: MatchClaimPayload) => {
     if (!clientToken) {
       throw new Error('A player session is required to submit a match.')

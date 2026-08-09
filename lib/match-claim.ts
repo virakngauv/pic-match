@@ -1,3 +1,7 @@
+export const MATCH_CLAIM_STATUSES = ['accepted', 'incorrect', 'stale'] as const
+
+export type MatchClaimStatus = (typeof MATCH_CLAIM_STATUSES)[number]
+
 export type MatchClaimPayload = {
   pairRevision: number
   firstSymbolId: string
@@ -5,5 +9,5 @@ export type MatchClaimPayload = {
 }
 
 export type MatchClaimResult = {
-  status: 'accepted' | 'incorrect' | 'stale'
+  status: MatchClaimStatus
 }

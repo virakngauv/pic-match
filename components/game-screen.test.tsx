@@ -216,6 +216,28 @@ describe('GameScreen', () => {
     }
   })
 
+  it('reports a rejected submission as an error', async () => {
+    const user = userEvent.setup()
+    const error = new Error('offline')
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderGame({ onSubmitClaim: vi.fn().mockRejectedValue(error) })
+
+    await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
+    await user.click(screen.getByRole('button', { name: 'Cat on card 2' }))
+    await user.click(screen.getByRole('button', { name: 'Submit match' }))
+
+    expect(
+      await screen.findByRole('alert', { name: 'Match claim feedback' }),
+    ).toHaveTextContent('Unable to submit your match. Please try again.')
+    expect(screen.getByRole('button', { name: 'Submit match' })).toBeEnabled()
+    expect(consoleError).toHaveBeenCalledWith(
+      'Match claim submission failed.',
+      error,
+    )
+
+    consoleError.mockRestore()
+  })
+
   it('prevents duplicate input while the same claim is pending', async () => {
     const user = userEvent.setup()
     let resolveClaim: ((value: { status: 'incorrect' }) => void) | undefined
