@@ -10,11 +10,7 @@ import { isActiveRoomMember } from './roomMembers'
 import { normalizeRoomCode, ROOM_CODE_PATTERN } from './roomCode'
 
 export const matchClaimResult = v.object({
-  status: v.union(
-    v.literal(MATCH_CLAIM_STATUSES[0]),
-    v.literal(MATCH_CLAIM_STATUSES[1]),
-    v.literal(MATCH_CLAIM_STATUSES[2]),
-  ),
+  status: v.union(...MATCH_CLAIM_STATUSES.map((status) => v.literal(status))),
 })
 
 type ClaimCard = {
