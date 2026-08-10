@@ -9,6 +9,9 @@ node_modules/
 .next/
 out/
 
+# hosting provider state
+.vercel/
+
 # testing
 coverage/
 playwright-report/

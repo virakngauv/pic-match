@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "deploy:build": "pnpm deploy:check-env && convex deploy --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL --cmd 'pnpm build'",
+    "deploy:check-env": "node scripts/check-deployment-env.mjs",
+    "deploy:smoke": "node scripts/check-deployment.mjs",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",
