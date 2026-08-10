@@ -3,9 +3,9 @@
 A real-time multiplayer browser implementation of Spot It, built with Next.js
 and Convex.
 
-The project is currently pre-production. The multiplayer room lifecycle is
-implemented; the next milestone is the first playable round with cards, symbol
-matching, scoring, and game completion.
+The project is currently pre-production. Its complete anonymous multiplayer
+loop is implemented: players can create a room, race on a shared board, finish
+a game, return to the lobby, and play again with the same room.
 
 ## Current functionality
 
@@ -14,15 +14,20 @@ matching, scoring, and game completion.
 - Real-time lobby presence
 - Host-authorized game start
 - Immutable participant roster when a game starts
-- Participant reconnection during an active game
+- Participant reconnection during lobby, active-game, and rematch transitions
 - Late-join blocking after the game starts
 - Lobby host reassignment when the host leaves
 - Server-derived lobby, playing, reconnecting, finished, and unavailable views
-- Unit, integration, and multi-browser end-to-end coverage for the room-to-game
-  transition
-
-The current game screen establishes the room and participant boundary but does
-not yet implement cards or matching gameplay.
+- Deterministic Spot It card generation with one shared symbol per pair
+- A real-time two-card board shared by every participant
+- Server-authoritative, first-claim-wins match validation
+- Incorrect-match feedback with a one-second cooldown and symbol shake
+- Live scoring, pair advancement, and a first-to-12 winner
+- Persisted final results and participant-specific winner messaging
+- Host-controlled rematches that reopen the existing lobby
+- Player departure, replacement joining, and fresh state between games
+- Unit, integration, and multi-browser end-to-end coverage through two complete
+  games, reconnection, rematching, and a mobile results layout
 
 ## Technology
 
@@ -166,10 +171,11 @@ Room membership, connectivity, and game participation are modeled separately.
 When the host starts a game, Convex creates an immutable participant snapshot.
 Disconnecting does not remove or reorder a participant.
 
-See [Room-to-game boundary](docs/architecture/room-game-boundary.md) for the
-detailed lifecycle and authorization rules, and
-[First playable round](docs/architecture/first-playable-round.md) for the
-shared two-card race rules and ordered gameplay work.
+The implemented lifecycle and authorization rules are documented in
+[Room-to-game boundary](docs/architecture/room-game-boundary.md). The card
+model, shared-pair contract, atomic claim rules, scoring, and completion behavior
+are documented in
+[First playable round](docs/architecture/first-playable-round.md).
 
 ## Project structure
 
@@ -196,6 +202,10 @@ pnpm test:e2e
 pnpm build
 ```
 
+Pull-request CI runs formatting, lint, typechecking, unit tests, and the
+production build. After a push to `main`, CI also deploys the Convex functions
+to a clean preview deployment and runs the Playwright suite against it.
+
 ## Development data
 
 This project is pre-production, and existing Convex development data is
@@ -205,19 +215,21 @@ development deployment.
 A production migration and retention policy must be established before the
 first public deployment.
 
-## Next milestone
+## First public playtest
 
-The next major milestone is a shared two-card race. Every participant sees the
-same pair, the first valid match claim earns a point, and the first participant
-to 12 points wins:
+The next milestone is
+[First public playtest](https://github.com/virakngauv/spot-it-web/milestone/4).
+It prepares the completed multiplayer game for a small, observable playtest in
+five focused steps:
 
-- Generate valid, deterministic Spot It card pairs
-- Store server-authoritative round state
-- Render two shared cards with clickable symbols
-- Validate first-claim-wins symbol matches atomically
-- Track scores, advance pairs, and determine a winner
-- Transition completed games to `finished`
-- Cover the complete round with a multi-player end-to-end test
+1. [Refresh this README for the completed game](https://github.com/virakngauv/spot-it-web/issues/52)
+2. [Make the app reproducibly deployable](https://github.com/virakngauv/spot-it-web/issues/53)
+3. [Add bounded cleanup for stale room data](https://github.com/virakngauv/spot-it-web/issues/54)
+4. [Add privacy-safe playtest monitoring](https://github.com/virakngauv/spot-it-web/issues/55)
+5. [Run and document a real-device multiplayer smoke test](https://github.com/virakngauv/spot-it-web/issues/56)
 
-See [First playable round](docs/architecture/first-playable-round.md) for the
-gameplay contract and ordered ticket breakdown.
+Non-blocking interface improvements discovered during testing belong in the
+separate
+[Playtest UX polish](https://github.com/virakngauv/spot-it-web/milestone/5)
+milestone. Findings that prevent a safe or usable public playtest remain in the
+public-playtest milestone.
