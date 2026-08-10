@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { GameCard, type GameCardModel } from '@/components/game-card'
 import { Button } from '@/components/ui/button'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
 import { cn } from '@/lib/utils'
+
+const INCORRECT_SHAKE_MS = 1_000
 
 type GamePlayer = {
   playerId: string
@@ -25,6 +27,7 @@ export function GameScreen({
   pairRevision,
   cards,
   scoreboard,
+  cooldownUntil,
   onSubmitClaim,
 }: {
   roomCode: string
@@ -32,6 +35,7 @@ export function GameScreen({
   pairRevision: number
   cards: readonly GameCardModel[]
   scoreboard: readonly ScoreboardEntry[]
+  cooldownUntil: number | null
   onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
 }) {
   return (
@@ -42,13 +46,20 @@ export function GameScreen({
       pairRevision={pairRevision}
       cards={cards}
       scoreboard={scoreboard}
+      cooldownUntil={cooldownUntil}
       onSubmitClaim={onSubmitClaim}
     />
   )
 }
 
 type ClaimFeedback =
-  'incomplete' | 'incorrect' | 'stale' | 'accepted' | 'error' | null
+  | 'incomplete'
+  | 'incorrect'
+  | 'stale'
+  | 'accepted'
+  | 'cooldown'
+  | 'error'
+  | null
 
 /** Owns local selection state for one immutable server pair revision. */
 function GameRound({
@@ -57,6 +68,7 @@ function GameRound({
   pairRevision,
   cards,
   scoreboard,
+  cooldownUntil,
   onSubmitClaim,
 }: {
   roomCode: string
@@ -64,6 +76,7 @@ function GameRound({
   pairRevision: number
   cards: readonly GameCardModel[]
   scoreboard: readonly ScoreboardEntry[]
+  cooldownUntil: number | null
   onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
 }) {
   const [selectedSymbols, setSelectedSymbols] = useState<
@@ -71,13 +84,42 @@ function GameRound({
   >([null, null])
   const [feedback, setFeedback] = useState<ClaimFeedback>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submittedCooldownUntil, setSubmittedCooldownUntil] = useState<
+    number | null
+  >(cooldownUntil)
+  const [shakeUntil, setShakeUntil] = useState<number | null>(null)
+  const effectiveCooldownUntil = Math.max(
+    cooldownUntil ?? 0,
+    submittedCooldownUntil ?? 0,
+  )
+  const isServerCooldownActive = useDeadlineActive(effectiveCooldownUntil)
+  const isIncorrectShakeActive = useDeadlineActive(shakeUntil ?? 0)
+  const controlsDisabled =
+    isSubmitting || isServerCooldownActive || isIncorrectShakeActive
   const orderedScoreboard = [...scoreboard].sort(
     (left, right) => left.position - right.position,
   )
 
+  useEffect(() => {
+    if (shakeUntil === null) {
+      return
+    }
+
+    const timeout = window.setTimeout(
+      () => {
+        setShakeUntil(null)
+        setSelectedSymbols([null, null])
+        setFeedback(null)
+      },
+      Math.max(0, shakeUntil - Date.now()),
+    )
+
+    return () => window.clearTimeout(timeout)
+  }, [shakeUntil])
+
   /** Replaces the local selection for one card in the current round. */
   const selectSymbol = (cardIndex: number, symbolId: string) => {
-    if (isSubmitting) {
+    if (controlsDisabled) {
       return
     }
 
@@ -96,7 +138,7 @@ function GameRound({
       return
     }
 
-    if (isSubmitting) {
+    if (controlsDisabled) {
       return
     }
 
@@ -110,10 +152,18 @@ function GameRound({
         secondSymbolId,
       })
 
-      setFeedback(result.status)
+      if ('cooldownUntil' in result) {
+        setSubmittedCooldownUntil(result.cooldownUntil)
+      }
 
-      if (result.status === 'stale') {
+      if (result.status === 'incorrect') {
+        setShakeUntil(Date.now() + INCORRECT_SHAKE_MS)
+        setFeedback('incorrect')
+      } else if (result.status === 'stale') {
+        setFeedback('stale')
         setSelectedSymbols([null, null])
+      } else {
+        setFeedback(result.status)
       }
     } catch (error) {
       console.error('Match claim submission failed.', error)
@@ -159,7 +209,8 @@ function GameRound({
                   card={card}
                   cardNumber={index + 1}
                   selectedSymbolId={selectedSymbols[index] ?? null}
-                  disabled={isSubmitting}
+                  shakeSelectedSymbol={isIncorrectShakeActive}
+                  disabled={controlsDisabled}
                   onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
                 />
               ))}
@@ -184,7 +235,7 @@ function GameRound({
               <Button
                 type="button"
                 onClick={submitClaim}
-                disabled={isSubmitting}
+                disabled={controlsDisabled}
                 aria-describedby="match-claim-feedback"
               >
                 {isSubmitting ? 'Submitting…' : 'Submit match'}
@@ -198,9 +249,15 @@ function GameRound({
                 role={feedback === 'error' ? 'alert' : 'status'}
                 aria-label="Match claim feedback"
               >
-                {feedback
-                  ? getClaimFeedbackMessage(feedback)
-                  : 'Select one symbol on each card, then submit your match.'}
+                {isIncorrectShakeActive
+                  ? 'Incorrect match. Try again in a moment.'
+                  : isServerCooldownActive
+                    ? 'Please wait a moment before selecting again.'
+                    : feedback &&
+                        feedback !== 'incorrect' &&
+                        feedback !== 'cooldown'
+                      ? getClaimFeedbackMessage(feedback)
+                      : 'Select one symbol on each card, then submit your match.'}
               </p>
             </div>
           ) : null}
@@ -269,7 +326,9 @@ function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
     case 'incomplete':
       return 'Select one symbol on each card before submitting.'
     case 'incorrect':
-      return 'Those symbols do not match. Try again.'
+      return 'Incorrect match. Try again in a moment.'
+    case 'cooldown':
+      return 'Please wait a moment before selecting again.'
     case 'stale':
       return 'That round already moved on. Select from the current cards.'
     case 'accepted':
@@ -277,4 +336,23 @@ function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
     case 'error':
       return 'Unable to submit your match. Please try again.'
   }
+}
+
+/** Renders once when a timestamp-based lock changes from active to expired. */
+function useDeadlineActive(deadline: number) {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const currentTime = Date.now()
+    const remainingMs = deadline - currentTime
+
+    const timeout = window.setTimeout(
+      () => setNow(Date.now()),
+      remainingMs > 0 ? remainingMs + 10 : 0,
+    )
+
+    return () => window.clearTimeout(timeout)
+  }, [deadline])
+
+  return deadline > now
 }

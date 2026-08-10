@@ -20,13 +20,12 @@ All participants race against the same two cards.
 - After an accepted claim, every participant advances to the same next pair.
 - The first participant to reach 12 points wins and the game finishes.
 
-An incorrect selection earns no point and does not advance the pair. There is
-no wrong-answer penalty in the first playable version.
-
-After the MVP, an incorrect claim should start a three-second, per-player
-cooldown. All symbol controls are disabled for the player who guessed
-incorrectly during that cooldown, preventing click spam without pausing or
-disabling the board for other participants.
+An incorrect selection earns no point and does not advance the pair. It starts
+a one-second, per-player server cooldown that prevents repeated claims without
+pausing other participants. The two selected incorrect symbols shake for about
+one second, then clear so the player can immediately try again. A reconnect
+restores only the remaining authoritative cooldown and does not replay the
+interaction-specific shake.
 
 ## Authoritative game rules
 
@@ -77,8 +76,10 @@ symbol's identity.
 
 The playing screen also shows every participant's score, clearly marks the
 local participant, and gives feedback for selected, incorrect, accepted, and
-stale claims. Reconnecting participants receive the current pair revision and
-scores rather than restarting the game.
+stale claims. Incorrect feedback does not fade the board, and the shake is
+suppressed when reduced motion is preferred. Reconnecting participants receive
+the current pair revision, scores, and any remaining local cooldown rather than
+restarting the game.
 
 ## Ordered implementation
 
@@ -128,10 +129,9 @@ development deployment.
 
 The following should not block the first playable game:
 
-- a three-second, per-player cooldown after an incorrect claim;
 - round timers;
 - alternate Spot It game modes;
 - configurable winning scores;
 - spectators;
 - rematches and polished replay flows;
-- animation and audio polish.
+- audio polish and additional animation polish.

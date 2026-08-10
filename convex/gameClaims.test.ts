@@ -1,5 +1,5 @@
 import { convexTest } from 'convex-test'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from './_generated/api'
 import type { Id } from './_generated/dataModel'
@@ -20,11 +20,17 @@ const ROOM_CODE = 'bcdf2'
 const HOST_TOKEN = '1'.repeat(32)
 const PLAYER_TOKEN = '2'.repeat(32)
 const OUTSIDER_TOKEN = '3'.repeat(32)
+const CLAIM_TIME = 10_000
+const COOLDOWN_UNTIL = 11_000
 
 const cards = [
   { symbolIds: ['sun', 'cat', 'moon'] },
   { symbolIds: ['cat', 'star', 'heart'] },
 ]
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('match claim evaluation', () => {
   it('accepts the shared symbol from the viewed pair', () => {
@@ -114,6 +120,7 @@ describe('match claim mutation', () => {
     ).resolves.toEqual({ status: 'accepted' })
 
     const view = await readPlayingGameState(t, game)
+    const host = await readParticipant(t, game.participantIds[0])
 
     expect(view.pairRevision).toBe(1)
     expect(view.cards).not.toEqual(game.cards)
@@ -121,11 +128,13 @@ describe('match claim mutation', () => {
       expect.objectContaining({ name: 'Host', score: 1 }),
       expect.objectContaining({ name: 'Player', score: 0 }),
     ])
+    expect(host?.incorrectClaimCooldownUntil).toBeUndefined()
   })
 
   it('does not mutate scores or the pair for an incorrect claim', async () => {
     const t = convexTest(schema, modules)
     const game = await seedPlayingGame(t)
+    vi.spyOn(Date, 'now').mockReturnValue(CLAIM_TIME)
 
     await expect(
       t.mutation(api.gameClaims.submit, {
@@ -135,7 +144,30 @@ describe('match claim mutation', () => {
         firstSymbolId: game.firstIncorrectSymbolId,
         secondSymbolId: game.secondIncorrectSymbolId,
       }),
-    ).resolves.toEqual({ status: 'incorrect' })
+    ).resolves.toEqual({
+      status: 'incorrect',
+      cooldownUntil: COOLDOWN_UNTIL,
+    })
+
+    const view = await readPlayingGameState(t, game)
+    const host = await readParticipant(t, game.participantIds[0])
+
+    expect(view.pairRevision).toBe(0)
+    expect(view.scoreboard.map(({ score }) => score)).toEqual([0, 0])
+    expect(host?.incorrectClaimCooldownUntil).toBe(COOLDOWN_UNTIL)
+  })
+
+  it('rejects symbols that are not on their submitted cards', async () => {
+    const t = convexTest(schema, modules)
+    const game = await seedPlayingGame(t)
+    vi.spyOn(Date, 'now').mockReturnValue(CLAIM_TIME)
+
+    await expect(
+      submitClaim(t, HOST_TOKEN, 'not-on-either-card'),
+    ).resolves.toEqual({
+      status: 'incorrect',
+      cooldownUntil: COOLDOWN_UNTIL,
+    })
 
     const view = await readPlayingGameState(t, game)
 
@@ -143,18 +175,81 @@ describe('match claim mutation', () => {
     expect(view.scoreboard.map(({ score }) => score)).toEqual([0, 0])
   })
 
-  it('rejects symbols that are not on their submitted cards', async () => {
+  it('rejects bypassed claims during cooldown without extending it', async () => {
     const t = convexTest(schema, modules)
     const game = await seedPlayingGame(t)
+    const now = vi.spyOn(Date, 'now').mockReturnValue(CLAIM_TIME)
+
+    await t.mutation(api.gameClaims.submit, {
+      roomCode: ROOM_CODE,
+      clientToken: HOST_TOKEN,
+      pairRevision: 0,
+      firstSymbolId: game.firstIncorrectSymbolId,
+      secondSymbolId: game.secondIncorrectSymbolId,
+    })
+    now.mockReturnValue(CLAIM_TIME + 500)
 
     await expect(
-      submitClaim(t, HOST_TOKEN, 'not-on-either-card'),
-    ).resolves.toEqual({ status: 'incorrect' })
+      submitClaim(t, HOST_TOKEN, game.sharedSymbolId),
+    ).resolves.toEqual({
+      status: 'cooldown',
+      cooldownUntil: COOLDOWN_UNTIL,
+    })
 
     const view = await readPlayingGameState(t, game)
+    const host = await readParticipant(t, game.participantIds[0])
 
     expect(view.pairRevision).toBe(0)
     expect(view.scoreboard.map(({ score }) => score)).toEqual([0, 0])
+    expect(host?.incorrectClaimCooldownUntil).toBe(COOLDOWN_UNTIL)
+  })
+
+  it('keeps another participant active during a local cooldown', async () => {
+    const t = convexTest(schema, modules)
+    const game = await seedPlayingGame(t)
+    vi.spyOn(Date, 'now').mockReturnValue(CLAIM_TIME)
+
+    await t.mutation(api.gameClaims.submit, {
+      roomCode: ROOM_CODE,
+      clientToken: HOST_TOKEN,
+      pairRevision: 0,
+      firstSymbolId: game.firstIncorrectSymbolId,
+      secondSymbolId: game.secondIncorrectSymbolId,
+    })
+    await expect(
+      submitClaim(t, PLAYER_TOKEN, game.sharedSymbolId),
+    ).resolves.toEqual({ status: 'accepted' })
+
+    const view = await readPlayingGameState(t, game)
+
+    expect(view.pairRevision).toBe(1)
+    expect(view.scoreboard.map(({ score }) => score)).toEqual([0, 1])
+  })
+
+  it('accepts a claim when the persisted cooldown reaches its deadline', async () => {
+    const t = convexTest(schema, modules)
+    const game = await seedPlayingGame(t)
+    const now = vi.spyOn(Date, 'now').mockReturnValue(CLAIM_TIME)
+
+    await t.mutation(api.gameClaims.submit, {
+      roomCode: ROOM_CODE,
+      clientToken: HOST_TOKEN,
+      pairRevision: 0,
+      firstSymbolId: game.firstIncorrectSymbolId,
+      secondSymbolId: game.secondIncorrectSymbolId,
+    })
+    now.mockReturnValue(COOLDOWN_UNTIL)
+
+    await expect(
+      submitClaim(t, HOST_TOKEN, game.sharedSymbolId),
+    ).resolves.toEqual({ status: 'accepted' })
+
+    const view = await readPlayingGameState(t, game)
+    const host = await readParticipant(t, game.participantIds[0])
+
+    expect(view.pairRevision).toBe(1)
+    expect(view.scoreboard.map(({ score }) => score)).toEqual([1, 0])
+    expect(host?.incorrectClaimCooldownUntil).toBeUndefined()
   })
 
   it('requires the requester to belong to the frozen participant roster', async () => {
@@ -183,9 +278,11 @@ describe('match claim mutation', () => {
     ).resolves.toEqual({ status: 'stale' })
 
     const view = await readPlayingGameState(t, game)
+    const host = await readParticipant(t, game.participantIds[0])
 
     expect(view.pairRevision).toBe(1)
     expect(view.scoreboard.map(({ score }) => score)).toEqual([1, 0])
+    expect(host?.incorrectClaimCooldownUntil).toBeUndefined()
   })
 
   it('awards exactly one concurrent valid claim for a pair revision', async () => {
@@ -416,6 +513,14 @@ async function readPlayingGameState(
       participants.filter((participant) => participant !== null),
     )
   })
+}
+
+/** Reads one frozen participant to assert private persisted claim state. */
+async function readParticipant(
+  t: ConvexTest,
+  participantId: Id<'gameParticipants'>,
+) {
+  return await t.run(async (ctx) => await ctx.db.get(participantId))
 }
 
 /** Reads the persisted terminal state and its server-derived result view. */

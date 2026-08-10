@@ -423,6 +423,7 @@ export const getRoomView = query({
           role: participant.role,
           position: participant.position,
         },
+        cooldownUntil: participant.incorrectClaimCooldownUntil ?? null,
         ...presentPlayingGameState(game, scoreboard),
       }
     }

@@ -65,14 +65,38 @@ test('plays a complete shared race across browser sessions', async ({
     )
 
     const beforeIncorrectClaim = await playingSnapshot(hostPage)
-    await submitIncorrectClaim(hostPage, beforeIncorrectClaim.cards)
-    await expect(hostPage.getByLabel('Match claim feedback')).toHaveText(
-      'Those symbols do not match. Try again.',
+    const incorrectSelection = await submitIncorrectClaim(
+      hostPage,
+      beforeIncorrectClaim.cards,
     )
+    await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
+      'Incorrect match. Try again in a moment.',
+    )
+    const firstIncorrectSymbol = hostPage
+      .getByLabel('Card 1')
+      .locator(`button[data-symbol-id="${incorrectSelection.firstSymbolId}"]`)
+    const secondIncorrectSymbol = hostPage
+      .getByLabel('Card 2')
+      .locator(`button[data-symbol-id="${incorrectSelection.secondSymbolId}"]`)
+    await expect(firstIncorrectSymbol).toHaveAttribute('data-shaking', 'true')
+    await expect(secondIncorrectSymbol).toHaveAttribute('data-shaking', 'true')
     expect(await playingSnapshot(hostPage)).toEqual(beforeIncorrectClaim)
     await expect
       .poll(async () => await playingSnapshot(guestPage))
       .toEqual(beforeIncorrectClaim)
+    await expect(
+      hostPage.getByRole('button', { name: 'Submit match' }),
+    ).toBeDisabled()
+    await expect(
+      guestPage.getByRole('button', { name: 'Submit match' }),
+    ).toBeEnabled()
+    await expect(
+      hostPage.getByRole('button', { name: 'Submit match' }),
+    ).toBeEnabled({ timeout: 2_000 })
+    await expect(firstIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
+    await expect(secondIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
+    await expect(firstIncorrectSymbol).toHaveAttribute('data-shaking', 'false')
+    await expect(secondIncorrectSymbol).toHaveAttribute('data-shaking', 'false')
 
     await submitSharedMatch(hostPage)
     await expectScore(hostPage, playerNames.host, 1)
@@ -234,6 +258,8 @@ async function submitIncorrectClaim(page: Page, cards: CardSnapshot[]) {
 
   await selectMatch(page, firstSymbolId, secondSymbolId)
   await page.getByRole('button', { name: 'Submit match' }).click()
+
+  return { firstSymbolId, secondSymbolId }
 }
 
 async function submitSharedMatch(page: Page) {

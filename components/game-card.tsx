@@ -51,12 +51,14 @@ export function GameCard({
   card,
   cardNumber,
   selectedSymbolId,
+  shakeSelectedSymbol,
   disabled,
   onSelectSymbol,
 }: {
   card: GameCardModel
   cardNumber: number
   selectedSymbolId: string | null
+  shakeSelectedSymbol: boolean
   disabled: boolean
   onSelectSymbol: (symbolId: string) => void
 }) {
@@ -73,6 +75,7 @@ export function GameCard({
         const symbol = getSpotItSymbolPresentation(symbolId)
         const layout = getSymbolLayout(card.id, symbolId, symbolIndex)
         const isSelected = selectedSymbolId === symbolId
+        const isShaking = isSelected && shakeSelectedSymbol
 
         return (
           <button
@@ -83,13 +86,14 @@ export function GameCard({
             disabled={disabled}
             onClick={() => onSelectSymbol(symbolId)}
             className={cn(
-              'focus-visible:ring-ring/70 absolute inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border-2 p-1 leading-none transition-[filter,box-shadow,background-color,border-color] focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70',
+              'focus-visible:ring-ring/70 absolute inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border-2 p-1 leading-none transition-[filter,box-shadow,background-color,border-color] focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait',
               isSelected
                 ? 'border-accent bg-accent/15 ring-accent/40 z-[1] shadow-md ring-4'
                 : 'border-transparent bg-white/75 shadow-sm hover:brightness-105',
             )}
             data-symbol-id={symbolId}
             data-selected={isSelected}
+            data-shaking={isShaking}
             data-symbol-size={layout.size.toFixed(1)}
             data-symbol-rotation={layout.rotation}
             data-symbol-x={layout.x}
@@ -102,7 +106,15 @@ export function GameCard({
               transform: `translate(-50%, -50%) rotate(${layout.rotation}deg)`,
             }}
           >
-            <span aria-hidden="true">{symbol.glyph}</span>
+            <span
+              aria-hidden="true"
+              className={cn(
+                'inline-block',
+                isShaking && 'spot-it-incorrect-shake',
+              )}
+            >
+              {symbol.glyph}
+            </span>
           </button>
         )
       })}

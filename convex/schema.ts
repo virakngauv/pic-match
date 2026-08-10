@@ -44,6 +44,7 @@ export default defineSchema({
     role: roomMemberRole,
     position: v.number(),
     score: v.number(),
+    incorrectClaimCooldownUntil: v.optional(v.number()),
   })
     .index('by_game_id_and_position', ['gameId', 'position'])
     .index('by_game_id_and_room_member_id', ['gameId', 'roomMemberId']),
