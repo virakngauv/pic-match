@@ -336,7 +336,7 @@ describe('RoomLobby', () => {
   })
 
   it('renders the participant-specific playing view on refresh', () => {
-    mocks.roomView = playingView(player, Date.now() + 3_000)
+    mocks.roomView = playingView(player, Date.now() + 1_000)
 
     render(<RoomLobby roomCode="frvg7" />)
 
@@ -348,11 +348,12 @@ describe('RoomLobby', () => {
     expect(screen.getByLabelText("Chrome player's score")).toHaveTextContent(
       '0',
     )
+    expect(screen.getByRole('button', { name: 'Submit match' })).toBeDisabled()
     expect(
-      screen.getByRole('button', { name: 'Selection locked' }),
-    ).toBeDisabled()
+      screen.getByRole('button', { name: 'Cat on card 1' }),
+    ).toHaveAttribute('data-shaking', 'false')
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'Incorrect match. Try again in 3 seconds.',
+      'Please wait a moment before selecting again.',
     )
     expect(mocks.heartbeatEnabled).toBe(true)
   })

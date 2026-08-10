@@ -1,4 +1,11 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -190,27 +197,61 @@ describe('GameScreen', () => {
     ).toHaveTextContent('Select one symbol on each card before submitting.')
   })
 
-  it('locks local controls after an incorrect claim', async () => {
-    const user = userEvent.setup()
-    const cooldownUntil = Date.now() + 3_000
+  it('shakes the selected symbols, then clears them after an incorrect claim', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    const cooldownUntil = 11_000
     renderGame({
       onSubmitClaim: vi
         .fn()
         .mockResolvedValue({ status: 'incorrect', cooldownUntil }),
     })
 
-    await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
-    await user.click(screen.getByRole('button', { name: 'Cat on card 2' }))
-    await user.click(screen.getByRole('button', { name: 'Submit match' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cat on card 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cat on card 2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit match' }))
+
+    await act(async () => Promise.resolve())
 
     expect(
-      await screen.findByRole('status', { name: 'Match claim feedback' }),
-    ).toHaveTextContent('Incorrect match. Try again in 3 seconds.')
+      screen.getByRole('status', { name: 'Match claim feedback' }),
+    ).toHaveTextContent('Incorrect match. Try again in a moment.')
+
+    const firstSelection = screen.getByRole('button', {
+      name: 'Cat on card 1',
+    })
+    const secondSelection = screen.getByRole('button', {
+      name: 'Cat on card 2',
+    })
+
+    expect(firstSelection).toBeDisabled()
+    expect(secondSelection).toBeDisabled()
+    expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
+    expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
+    expect(firstSelection).toHaveAttribute('data-shaking', 'true')
+    expect(secondSelection).toHaveAttribute('data-shaking', 'true')
     expect(
-      screen.getByRole('button', { name: 'Selection locked' }),
-    ).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Cat on card 2' })).toBeDisabled()
+      screen.getByRole('button', { name: 'Sun on card 1' }),
+    ).toHaveAttribute('data-shaking', 'false')
+    expect(screen.getByRole('button', { name: 'Submit match' })).toBeDisabled()
+    expect(screen.queryByText(/\d seconds?/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Selection locked' }),
+    ).not.toBeInTheDocument()
+
+    await act(async () => vi.advanceTimersByTime(1_010))
+
+    expect(firstSelection).toHaveAttribute('aria-pressed', 'false')
+    expect(secondSelection).toHaveAttribute('aria-pressed', 'false')
+    expect(firstSelection).toHaveAttribute('data-shaking', 'false')
+    expect(secondSelection).toHaveAttribute('data-shaking', 'false')
+    expect(firstSelection).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Submit match' })).toBeEnabled()
+    expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
+      'Select one symbol on each card, then submit your match.',
+    )
+
+    vi.useRealTimers()
   })
 
   it('shows stale claim feedback and clears the old selection', async () => {
@@ -241,21 +282,60 @@ describe('GameScreen', () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
 
-    renderGame({ cooldownUntil: 13_000 })
+    renderGame({ cooldownUntil: 11_000 })
 
+    expect(screen.getByRole('button', { name: 'Submit match' })).toBeDisabled()
     expect(
-      screen.getByRole('button', { name: 'Selection locked' }),
-    ).toBeDisabled()
+      screen.getByRole('button', { name: 'Cat on card 1' }),
+    ).toHaveAttribute('data-shaking', 'false')
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'Incorrect match. Try again in 3 seconds.',
+      'Please wait a moment before selecting again.',
     )
 
-    act(() => vi.advanceTimersByTime(3_010))
+    act(() => vi.advanceTimersByTime(1_010))
 
     expect(screen.getByRole('button', { name: 'Submit match' })).toBeEnabled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'You can select symbols again.',
+      'Select one symbol on each card, then submit your match.',
     )
+
+    vi.useRealTimers()
+  })
+
+  it('honors a cooldown result without shaking or clearing the submitted pair', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    renderGame({
+      onSubmitClaim: vi.fn().mockResolvedValue({
+        status: 'cooldown',
+        cooldownUntil: 10_500,
+      }),
+    })
+
+    const firstSelection = screen.getByRole('button', {
+      name: 'Cat on card 1',
+    })
+    const secondSelection = screen.getByRole('button', {
+      name: 'Cat on card 2',
+    })
+
+    fireEvent.click(firstSelection)
+    fireEvent.click(secondSelection)
+    fireEvent.click(screen.getByRole('button', { name: 'Submit match' }))
+
+    await act(async () => Promise.resolve())
+
+    expect(firstSelection).toHaveAttribute('data-shaking', 'false')
+    expect(secondSelection).toHaveAttribute('data-shaking', 'false')
+    expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
+    expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
+    expect(firstSelection).toBeDisabled()
+
+    await act(async () => vi.advanceTimersByTime(510))
+
+    expect(firstSelection).toBeEnabled()
+    expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
+    expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
 
     vi.useRealTimers()
   })

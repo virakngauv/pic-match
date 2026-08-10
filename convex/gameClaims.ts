@@ -10,7 +10,7 @@ import { getRoomPhase } from './roomLifecycle'
 import { isActiveRoomMember } from './roomMembers'
 import { normalizeRoomCode, ROOM_CODE_PATTERN } from './roomCode'
 
-export const INCORRECT_CLAIM_COOLDOWN_MS = 3_000
+export const INCORRECT_CLAIM_COOLDOWN_MS = 1_000
 
 export const matchClaimResult = v.union(
   v.object({ status: v.literal('accepted') }),

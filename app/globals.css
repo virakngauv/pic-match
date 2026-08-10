@@ -54,3 +54,44 @@ body {
 ::selection {
   background: color-mix(in oklab, var(--accent) 30%, transparent);
 }
+
+@keyframes spot-it-incorrect-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  10%,
+  30% {
+    transform: translateX(-6px);
+  }
+
+  20%,
+  40% {
+    transform: translateX(6px);
+  }
+
+  50%,
+  70% {
+    transform: translateX(-3px);
+  }
+
+  60%,
+  80% {
+    transform: translateX(3px);
+  }
+
+  90% {
+    transform: translateX(-1px);
+  }
+}
+
+.spot-it-incorrect-shake {
+  animation: spot-it-incorrect-shake 1s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spot-it-incorrect-shake {
+    animation: none;
+  }
+}

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
 import { cn } from '@/lib/utils'
 
+const INCORRECT_SHAKE_MS = 1_000
+
 type GamePlayer = {
   playerId: string
   name: string
@@ -85,18 +87,35 @@ function GameRound({
   const [submittedCooldownUntil, setSubmittedCooldownUntil] = useState<
     number | null
   >(cooldownUntil)
+  const [shakeUntil, setShakeUntil] = useState<number | null>(null)
   const effectiveCooldownUntil = Math.max(
     cooldownUntil ?? 0,
     submittedCooldownUntil ?? 0,
   )
-  const cooldownNow = useCooldownClock(effectiveCooldownUntil)
-  const cooldownRemainingMs = Math.max(0, effectiveCooldownUntil - cooldownNow)
-  const isCooldownActive = cooldownRemainingMs > 0
-  const cooldownHasEnded = effectiveCooldownUntil > 0 && !isCooldownActive
-  const controlsDisabled = isSubmitting || isCooldownActive
+  const isServerCooldownActive = useDeadlineActive(effectiveCooldownUntil)
+  const isIncorrectShakeActive = useDeadlineActive(shakeUntil ?? 0)
+  const controlsDisabled =
+    isSubmitting || isServerCooldownActive || isIncorrectShakeActive
   const orderedScoreboard = [...scoreboard].sort(
     (left, right) => left.position - right.position,
   )
+
+  useEffect(() => {
+    if (shakeUntil === null) {
+      return
+    }
+
+    const timeout = window.setTimeout(
+      () => {
+        setShakeUntil(null)
+        setSelectedSymbols([null, null])
+        setFeedback(null)
+      },
+      Math.max(0, shakeUntil - Date.now()),
+    )
+
+    return () => window.clearTimeout(timeout)
+  }, [shakeUntil])
 
   /** Replaces the local selection for one card in the current round. */
   const selectSymbol = (cardIndex: number, symbolId: string) => {
@@ -133,14 +152,18 @@ function GameRound({
         secondSymbolId,
       })
 
-      setFeedback(result.status)
-
       if ('cooldownUntil' in result) {
         setSubmittedCooldownUntil(result.cooldownUntil)
       }
 
-      if (result.status === 'stale') {
+      if (result.status === 'incorrect') {
+        setShakeUntil(Date.now() + INCORRECT_SHAKE_MS)
+        setFeedback('incorrect')
+      } else if (result.status === 'stale') {
+        setFeedback('stale')
         setSelectedSymbols([null, null])
+      } else {
+        setFeedback(result.status)
       }
     } catch (error) {
       console.error('Match claim submission failed.', error)
@@ -186,6 +209,7 @@ function GameRound({
                   card={card}
                   cardNumber={index + 1}
                   selectedSymbolId={selectedSymbols[index] ?? null}
+                  shakeSelectedSymbol={isIncorrectShakeActive}
                   disabled={controlsDisabled}
                   onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
                 />
@@ -214,11 +238,7 @@ function GameRound({
                 disabled={controlsDisabled}
                 aria-describedby="match-claim-feedback"
               >
-                {isSubmitting
-                  ? 'Submitting…'
-                  : isCooldownActive
-                    ? 'Selection locked'
-                    : 'Submit match'}
+                {isSubmitting ? 'Submitting…' : 'Submit match'}
               </Button>
               <p
                 id="match-claim-feedback"
@@ -229,11 +249,13 @@ function GameRound({
                 role={feedback === 'error' ? 'alert' : 'status'}
                 aria-label="Match claim feedback"
               >
-                {isCooldownActive
-                  ? getCooldownMessage(cooldownRemainingMs)
-                  : cooldownHasEnded
-                    ? 'You can select symbols again.'
-                    : feedback
+                {isIncorrectShakeActive
+                  ? 'Incorrect match. Try again in a moment.'
+                  : isServerCooldownActive
+                    ? 'Please wait a moment before selecting again.'
+                    : feedback &&
+                        feedback !== 'incorrect' &&
+                        feedback !== 'cooldown'
                       ? getClaimFeedbackMessage(feedback)
                       : 'Select one symbol on each card, then submit your match.'}
               </p>
@@ -304,8 +326,9 @@ function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
     case 'incomplete':
       return 'Select one symbol on each card before submitting.'
     case 'incorrect':
+      return 'Incorrect match. Try again in a moment.'
     case 'cooldown':
-      return 'You can select symbols again.'
+      return 'Please wait a moment before selecting again.'
     case 'stale':
       return 'That round already moved on. Select from the current cards.'
     case 'accepted':
@@ -315,36 +338,21 @@ function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
   }
 }
 
-/** Keeps the cooldown presentation moving without relying on another query update. */
-function useCooldownClock(cooldownUntil: number) {
+/** Renders once when a timestamp-based lock changes from active to expired. */
+function useDeadlineActive(deadline: number) {
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
-    const initialTick = window.setTimeout(() => setNow(Date.now()), 0)
+    const currentTime = Date.now()
+    const remainingMs = deadline - currentTime
 
-    if (cooldownUntil <= Date.now()) {
-      return () => window.clearTimeout(initialTick)
-    }
-
-    const interval = window.setInterval(() => setNow(Date.now()), 250)
     const timeout = window.setTimeout(
       () => setNow(Date.now()),
-      cooldownUntil - Date.now() + 10,
+      remainingMs > 0 ? remainingMs + 10 : 0,
     )
 
-    return () => {
-      window.clearTimeout(initialTick)
-      window.clearInterval(interval)
-      window.clearTimeout(timeout)
-    }
-  }, [cooldownUntil])
+    return () => window.clearTimeout(timeout)
+  }, [deadline])
 
-  return now
-}
-
-/** Presents a bounded whole-second countdown for the local participant. */
-function getCooldownMessage(cooldownRemainingMs: number) {
-  const seconds = Math.max(1, Math.ceil(cooldownRemainingMs / 1_000))
-
-  return `Incorrect match. Try again in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`
+  return deadline > now
 }

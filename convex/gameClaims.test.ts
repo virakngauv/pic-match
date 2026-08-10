@@ -21,7 +21,7 @@ const HOST_TOKEN = '1'.repeat(32)
 const PLAYER_TOKEN = '2'.repeat(32)
 const OUTSIDER_TOKEN = '3'.repeat(32)
 const CLAIM_TIME = 10_000
-const COOLDOWN_UNTIL = 13_000
+const COOLDOWN_UNTIL = 11_000
 
 const cards = [
   { symbolIds: ['sun', 'cat', 'moon'] },
@@ -187,7 +187,7 @@ describe('match claim mutation', () => {
       firstSymbolId: game.firstIncorrectSymbolId,
       secondSymbolId: game.secondIncorrectSymbolId,
     })
-    now.mockReturnValue(CLAIM_TIME + 1_000)
+    now.mockReturnValue(CLAIM_TIME + 500)
 
     await expect(
       submitClaim(t, HOST_TOKEN, game.sharedSymbolId),
