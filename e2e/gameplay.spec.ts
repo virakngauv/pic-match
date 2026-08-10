@@ -295,7 +295,9 @@ async function expectNoHorizontalOverflow(page: Page) {
   await expect
     .poll(async () =>
       page.evaluate(
-        () => document.documentElement.scrollWidth - window.innerWidth,
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
       ),
     )
     .toBeLessThanOrEqual(0)
