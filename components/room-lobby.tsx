@@ -162,6 +162,7 @@ function PresentRoomLobby({
           pairRevision={roomView.pairRevision}
           cards={roomView.cards}
           scoreboard={roomView.scoreboard}
+          cooldownUntil={roomView.cooldownUntil}
           onSubmitClaim={handleSubmitMatchClaim}
         />
       )

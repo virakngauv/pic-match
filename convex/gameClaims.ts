@@ -1,7 +1,7 @@
 import { v } from 'convex/values'
 
 import { FIRST_PLAYABLE_CONFIGURATION } from '../lib/spot-it'
-import { MATCH_CLAIM_STATUSES, type MatchClaimResult } from '../lib/match-claim'
+import type { MatchClaimEvaluation, MatchClaimResult } from '../lib/match-claim'
 import { mutation } from './_generated/server'
 import { getGameParticipant } from './gameParticipants'
 import { resolvePlayingGameCards } from './gameState'
@@ -10,9 +10,20 @@ import { getRoomPhase } from './roomLifecycle'
 import { isActiveRoomMember } from './roomMembers'
 import { normalizeRoomCode, ROOM_CODE_PATTERN } from './roomCode'
 
-export const matchClaimResult = v.object({
-  status: v.union(...MATCH_CLAIM_STATUSES.map((status) => v.literal(status))),
-})
+export const INCORRECT_CLAIM_COOLDOWN_MS = 3_000
+
+export const matchClaimResult = v.union(
+  v.object({ status: v.literal('accepted') }),
+  v.object({ status: v.literal('stale') }),
+  v.object({
+    status: v.literal('incorrect'),
+    cooldownUntil: v.number(),
+  }),
+  v.object({
+    status: v.literal('cooldown'),
+    cooldownUntil: v.number(),
+  }),
+)
 
 type ClaimCard = {
   symbolIds: readonly string[]
@@ -31,7 +42,7 @@ export function evaluateMatchClaim({
   cards: readonly ClaimCard[]
   firstSymbolId: string
   secondSymbolId: string
-}): MatchClaimResult {
+}): MatchClaimEvaluation {
   if (!Number.isInteger(viewedRevision) || viewedRevision < 0) {
     throw new Error('The viewed pair revision must be a non-negative integer.')
   }
@@ -113,6 +124,18 @@ export const submit = mutation({
       throw new Error('Unable to resolve the current game.')
     }
 
+    const now = Date.now()
+
+    if (
+      participant.incorrectClaimCooldownUntil !== undefined &&
+      participant.incorrectClaimCooldownUntil > now
+    ) {
+      return {
+        status: 'cooldown',
+        cooldownUntil: participant.incorrectClaimCooldownUntil,
+      }
+    }
+
     const result = evaluateMatchClaim({
       currentRevision: game.pairRevision,
       viewedRevision: pairRevision,
@@ -121,21 +144,36 @@ export const submit = mutation({
       secondSymbolId,
     })
 
-    if (result.status === 'accepted') {
-      const nextScore = participant.score + 1
+    if (result.status === 'incorrect') {
+      const cooldownUntil = now + INCORRECT_CLAIM_COOLDOWN_MS
 
-      await ctx.db.patch(participant._id, { score: nextScore })
+      await ctx.db.patch(participant._id, {
+        incorrectClaimCooldownUntil: cooldownUntil,
+      })
 
-      if (nextScore >= FIRST_PLAYABLE_CONFIGURATION.winningScore) {
-        await ctx.db.patch(game._id, {
-          winnerRoomMemberId: participant.roomMemberId,
-        })
-        await ctx.db.patch(room._id, { phase: 'finished' })
-      } else {
-        await ctx.db.patch(game._id, { pairRevision: game.pairRevision + 1 })
-      }
+      return { status: 'incorrect', cooldownUntil }
     }
 
-    return result
+    if (result.status === 'stale') {
+      return result
+    }
+
+    const nextScore = participant.score + 1
+
+    await ctx.db.patch(participant._id, {
+      score: nextScore,
+      incorrectClaimCooldownUntil: undefined,
+    })
+
+    if (nextScore >= FIRST_PLAYABLE_CONFIGURATION.winningScore) {
+      await ctx.db.patch(game._id, {
+        winnerRoomMemberId: participant.roomMemberId,
+      })
+      await ctx.db.patch(room._id, { phase: 'finished' })
+    } else {
+      await ctx.db.patch(game._id, { pairRevision: game.pairRevision + 1 })
+    }
+
+    return { status: 'accepted' }
   },
 })

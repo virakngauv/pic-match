@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { GameCard, type GameCardModel } from '@/components/game-card'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ export function GameScreen({
   pairRevision,
   cards,
   scoreboard,
+  cooldownUntil,
   onSubmitClaim,
 }: {
   roomCode: string
@@ -32,6 +33,7 @@ export function GameScreen({
   pairRevision: number
   cards: readonly GameCardModel[]
   scoreboard: readonly ScoreboardEntry[]
+  cooldownUntil: number | null
   onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
 }) {
   return (
@@ -42,13 +44,20 @@ export function GameScreen({
       pairRevision={pairRevision}
       cards={cards}
       scoreboard={scoreboard}
+      cooldownUntil={cooldownUntil}
       onSubmitClaim={onSubmitClaim}
     />
   )
 }
 
 type ClaimFeedback =
-  'incomplete' | 'incorrect' | 'stale' | 'accepted' | 'error' | null
+  | 'incomplete'
+  | 'incorrect'
+  | 'stale'
+  | 'accepted'
+  | 'cooldown'
+  | 'error'
+  | null
 
 /** Owns local selection state for one immutable server pair revision. */
 function GameRound({
@@ -57,6 +66,7 @@ function GameRound({
   pairRevision,
   cards,
   scoreboard,
+  cooldownUntil,
   onSubmitClaim,
 }: {
   roomCode: string
@@ -64,6 +74,7 @@ function GameRound({
   pairRevision: number
   cards: readonly GameCardModel[]
   scoreboard: readonly ScoreboardEntry[]
+  cooldownUntil: number | null
   onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
 }) {
   const [selectedSymbols, setSelectedSymbols] = useState<
@@ -71,13 +82,25 @@ function GameRound({
   >([null, null])
   const [feedback, setFeedback] = useState<ClaimFeedback>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submittedCooldownUntil, setSubmittedCooldownUntil] = useState<
+    number | null
+  >(cooldownUntil)
+  const effectiveCooldownUntil = Math.max(
+    cooldownUntil ?? 0,
+    submittedCooldownUntil ?? 0,
+  )
+  const cooldownNow = useCooldownClock(effectiveCooldownUntil)
+  const cooldownRemainingMs = Math.max(0, effectiveCooldownUntil - cooldownNow)
+  const isCooldownActive = cooldownRemainingMs > 0
+  const cooldownHasEnded = effectiveCooldownUntil > 0 && !isCooldownActive
+  const controlsDisabled = isSubmitting || isCooldownActive
   const orderedScoreboard = [...scoreboard].sort(
     (left, right) => left.position - right.position,
   )
 
   /** Replaces the local selection for one card in the current round. */
   const selectSymbol = (cardIndex: number, symbolId: string) => {
-    if (isSubmitting) {
+    if (controlsDisabled) {
       return
     }
 
@@ -96,7 +119,7 @@ function GameRound({
       return
     }
 
-    if (isSubmitting) {
+    if (controlsDisabled) {
       return
     }
 
@@ -111,6 +134,10 @@ function GameRound({
       })
 
       setFeedback(result.status)
+
+      if ('cooldownUntil' in result) {
+        setSubmittedCooldownUntil(result.cooldownUntil)
+      }
 
       if (result.status === 'stale') {
         setSelectedSymbols([null, null])
@@ -159,7 +186,7 @@ function GameRound({
                   card={card}
                   cardNumber={index + 1}
                   selectedSymbolId={selectedSymbols[index] ?? null}
-                  disabled={isSubmitting}
+                  disabled={controlsDisabled}
                   onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
                 />
               ))}
@@ -184,10 +211,14 @@ function GameRound({
               <Button
                 type="button"
                 onClick={submitClaim}
-                disabled={isSubmitting}
+                disabled={controlsDisabled}
                 aria-describedby="match-claim-feedback"
               >
-                {isSubmitting ? 'Submitting…' : 'Submit match'}
+                {isSubmitting
+                  ? 'Submitting…'
+                  : isCooldownActive
+                    ? 'Selection locked'
+                    : 'Submit match'}
               </Button>
               <p
                 id="match-claim-feedback"
@@ -198,9 +229,13 @@ function GameRound({
                 role={feedback === 'error' ? 'alert' : 'status'}
                 aria-label="Match claim feedback"
               >
-                {feedback
-                  ? getClaimFeedbackMessage(feedback)
-                  : 'Select one symbol on each card, then submit your match.'}
+                {isCooldownActive
+                  ? getCooldownMessage(cooldownRemainingMs)
+                  : cooldownHasEnded
+                    ? 'You can select symbols again.'
+                    : feedback
+                      ? getClaimFeedbackMessage(feedback)
+                      : 'Select one symbol on each card, then submit your match.'}
               </p>
             </div>
           ) : null}
@@ -269,7 +304,8 @@ function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
     case 'incomplete':
       return 'Select one symbol on each card before submitting.'
     case 'incorrect':
-      return 'Those symbols do not match. Try again.'
+    case 'cooldown':
+      return 'You can select symbols again.'
     case 'stale':
       return 'That round already moved on. Select from the current cards.'
     case 'accepted':
@@ -277,4 +313,38 @@ function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
     case 'error':
       return 'Unable to submit your match. Please try again.'
   }
+}
+
+/** Keeps the cooldown presentation moving without relying on another query update. */
+function useCooldownClock(cooldownUntil: number) {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    const initialTick = window.setTimeout(() => setNow(Date.now()), 0)
+
+    if (cooldownUntil <= Date.now()) {
+      return () => window.clearTimeout(initialTick)
+    }
+
+    const interval = window.setInterval(() => setNow(Date.now()), 250)
+    const timeout = window.setTimeout(
+      () => setNow(Date.now()),
+      cooldownUntil - Date.now() + 10,
+    )
+
+    return () => {
+      window.clearTimeout(initialTick)
+      window.clearInterval(interval)
+      window.clearTimeout(timeout)
+    }
+  }, [cooldownUntil])
+
+  return now
+}
+
+/** Presents a bounded whole-second countdown for the local participant. */
+function getCooldownMessage(cooldownRemainingMs: number) {
+  const seconds = Math.max(1, Math.ceil(cooldownRemainingMs / 1_000))
+
+  return `Incorrect match. Try again in ${seconds} ${seconds === 1 ? 'second' : 'seconds'}.`
 }

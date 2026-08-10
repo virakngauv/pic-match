@@ -51,6 +51,7 @@ export const roomView = v.union(
     status: v.literal('playing'),
     roomCode: v.string(),
     player: gameRoomViewPlayer,
+    cooldownUntil: v.union(v.null(), v.number()),
     ...playingGameStateView,
   }),
   v.object({

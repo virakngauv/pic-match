@@ -66,13 +66,19 @@ test('plays a complete shared race across browser sessions', async ({
 
     const beforeIncorrectClaim = await playingSnapshot(hostPage)
     await submitIncorrectClaim(hostPage, beforeIncorrectClaim.cards)
-    await expect(hostPage.getByLabel('Match claim feedback')).toHaveText(
-      'Those symbols do not match. Try again.',
+    await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
+      'Incorrect match. Try again in',
     )
     expect(await playingSnapshot(hostPage)).toEqual(beforeIncorrectClaim)
     await expect
       .poll(async () => await playingSnapshot(guestPage))
       .toEqual(beforeIncorrectClaim)
+    await expect(
+      hostPage.getByRole('button', { name: 'Selection locked' }),
+    ).toBeDisabled()
+    await expect(
+      hostPage.getByRole('button', { name: 'Submit match' }),
+    ).toBeEnabled({ timeout: 5_000 })
 
     await submitSharedMatch(hostPage)
     await expectScore(hostPage, playerNames.host, 1)
