@@ -9,6 +9,15 @@
 - Open pull requests as ready for review by default. Create a draft only when explicitly requested or when required work remains incomplete.
 - For CodeRabbit review loops, run CodeRabbit with host credential access so it can read its authenticated account state. If authentication is required, start `coderabbit auth login`, open the printed fallback URL in the Codex in-app Browser, complete GitHub authorization there, and verify with `coderabbit auth status --agent` using the same host access before reviewing.
 
+## Multiplayer Browser Testing
+
+- For exploratory two-player browser testing, use the Codex in-app Browser as player one and connected Chrome Computer Use as player two.
+- Create and join the room through both real user interfaces. Do not use two tabs in the same browser because they share player storage.
+- Verify that each browser identifies a different local player before describing the test as two-player.
+- Test shared board state, scoring from both players, player-specific cooldowns, and reconnect behavior from both browsers.
+- If Chrome Computer Use is unavailable, report the exploratory two-player test as blocked. Use two isolated Playwright browser contexts as the automated fallback.
+- Never describe a backend-injected participant as a complete two-player UI test. Label it as a single-player UI test with a simulated participant.
+
 ## Convex Schema Migration Policy
 
 - This project is pre-production; existing Convex development data is disposable.
