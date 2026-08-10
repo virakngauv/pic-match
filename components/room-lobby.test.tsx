@@ -144,6 +144,7 @@ const mocks = vi.hoisted(() => ({
   heartbeatEnabled: false,
   joinRoom: vi.fn(),
   leaveRoom: vi.fn(),
+  prepareRematch: vi.fn(),
   startGame: vi.fn(),
   submitMatchClaim: vi.fn(),
   presenceStatus: 'connected' as
@@ -162,6 +163,7 @@ vi.mock('@/convex/_generated/api', () => ({
       getRoomView: 'getRoomView',
       join: 'join',
       leave: 'leave',
+      prepareRematch: 'prepareRematch',
       start: 'start',
     },
   },
@@ -170,6 +172,7 @@ vi.mock('@/convex/_generated/api', () => ({
 vi.mock('convex/react', () => ({
   useMutation: (mutation: string) => {
     if (mutation === 'start') return mocks.startGame
+    if (mutation === 'prepareRematch') return mocks.prepareRematch
     if (mutation === 'join') return mocks.joinRoom
     if (mutation === 'submitMatchClaim') return mocks.submitMatchClaim
     return mocks.leaveRoom
@@ -211,6 +214,8 @@ describe('RoomLobby', () => {
     mocks.joinRoom.mockReset()
     mocks.leaveRoom.mockReset()
     mocks.leaveRoom.mockResolvedValue(undefined)
+    mocks.prepareRematch.mockReset()
+    mocks.prepareRematch.mockResolvedValue(null)
     mocks.startGame.mockReset()
     mocks.startGame.mockResolvedValue(null)
     mocks.submitMatchClaim.mockReset()
@@ -399,6 +404,18 @@ describe('RoomLobby', () => {
       expect.stringContaining('Firefox host'),
       expect.stringContaining('Chrome player'),
     ])
+    expect(
+      screen.getByText(
+        'The host can return everyone to the lobby for another game.',
+      ),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Play again' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(
+      'href',
+      '/home',
+    )
     expect(mocks.heartbeatEnabled).toBe(true)
   })
 
@@ -409,6 +426,84 @@ describe('RoomLobby', () => {
 
     expect(screen.getByText('You won!')).toBeVisible()
     expect(screen.getByText('Winner · You')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Play again' })).toBeEnabled()
+  })
+
+  it('lets the host prepare one rematch while preserving final results', async () => {
+    mocks.prepareRematch.mockImplementation(
+      () =>
+        new Promise<void>(() => {
+          // Keep the mutation pending to exercise duplicate prevention.
+        }),
+    )
+    mocks.roomView = finishedView({ ...host, position: 0 })
+
+    render(<RoomLobby roomCode="frvg7" />)
+
+    const playAgainButton = screen.getByRole('button', {
+      name: 'Play again',
+    })
+    fireEvent.click(playAgainButton)
+    fireEvent.click(playAgainButton)
+
+    expect(mocks.prepareRematch).toHaveBeenCalledTimes(1)
+    expect(mocks.prepareRematch).toHaveBeenCalledWith({
+      roomCode: 'frvg7',
+      clientToken: 'a'.repeat(32),
+    })
+    expect(screen.getByRole('button', { name: 'Preparing…' })).toBeDisabled()
+    expect(screen.getByText('Preparing the lobby…')).toHaveAttribute(
+      'role',
+      'status',
+    )
+    expect(screen.getByText('Final scoreboard')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Go home' })).toBeVisible()
+  })
+
+  it('restores the rematch control after an accessible failure', async () => {
+    mocks.prepareRematch.mockRejectedValue(new Error('Network unavailable'))
+    mocks.roomView = finishedView({ ...host, position: 0 })
+
+    render(<RoomLobby roomCode="frvg7" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Play again' }))
+
+    expect(
+      await screen.findByText(
+        'Unable to return to the lobby. Please try again.',
+      ),
+    ).toHaveAttribute('role', 'alert')
+    expect(screen.getByRole('button', { name: 'Play again' })).toBeEnabled()
+    expect(screen.getByText('Final scoreboard')).toBeVisible()
+  })
+
+  it('renders the existing lobby after a successful rematch transition', async () => {
+    let resolveRematch!: () => void
+    const rematchRequest = new Promise<void>((resolve) => {
+      resolveRematch = resolve
+    })
+    mocks.prepareRematch.mockReturnValue(rematchRequest)
+    mocks.roomView = finishedView({ ...host, position: 0 })
+    const { rerender } = render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('main', { name: 'Final results for Firefox host' }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Play again' }))
+    expect(mocks.prepareRematch).toHaveBeenCalledWith({
+      roomCode: 'frvg7',
+      clientToken: 'a'.repeat(32),
+    })
+
+    resolveRematch()
+    await rematchRequest
+    mocks.roomView = lobbyView([host, player])
+    rerender(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.getByText('Ready to play.')).toBeVisible()
+    expect(screen.getByText('Firefox host')).toBeVisible()
+    expect(screen.getByText('Chrome player')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Start game' })).toBeEnabled()
   })
 
   it('follows lobby, playing, and finished server transitions', () => {
