@@ -8,10 +8,13 @@ tracked separately so each change can be delivered and reviewed on its own.
 
 ## Lifecycle
 
-A room moves through three explicit phases:
+A room moves through three explicit phases. After a completed game, an
+authorized rematch transition can reopen the same room's lobby:
 
 ```text
 lobby -> playing -> finished
+  ^                    |
+  |______ rematch _____|
 ```
 
 - `lobby`: new players may join and the host may start once the minimum player
@@ -21,6 +24,25 @@ lobby -> playing -> finished
 
 Phase transitions are server-authoritative. Client code renders the current
 phase but cannot advance it without an authorized mutation.
+
+### Rematch transition
+
+Only an active host may prepare a rematch, and only from `finished`. The
+transition changes the room back to `lobby` and clears its current `gameId` and
+`startedAt`. It does not create the next game; the existing lobby start flow
+does that later from the participants who are online at that time.
+
+Completed `games` and their `gameParticipants` snapshots remain immutable.
+Room membership is also preserved, while presence continues to determine who
+appears in the reopened lobby and who is included in the next frozen game
+roster. A disconnected member may reconnect in the lobby, and a new player may
+join until the next game starts.
+
+The transition is single-use for each completed game. Once the first authorized
+request returns the room to `lobby`, another request no longer satisfies the
+`finished` precondition. Players refreshing or reconnecting before the
+transition continue to receive the completed result; afterward they receive the
+normal lobby view.
 
 ## Participation and presence
 
@@ -117,7 +139,7 @@ The following work should not block the first playable game:
 - Ready toggles
 - Kick controls
 - Spectator mode
-- Polished replay and results flows
+- Additional replay and results polish
 - Timers
 - Room garbage collection
 

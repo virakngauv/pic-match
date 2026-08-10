@@ -133,5 +133,5 @@ The following should not block the first playable game:
 - alternate Spot It game modes;
 - configurable winning scores;
 - spectators;
-- rematches and polished replay flows;
+- rematch controls and complete replay-flow coverage;
 - audio polish and additional animation polish.
