@@ -17,7 +17,11 @@ import {
 } from './presence'
 import { canRoomMemberConnect, decideRoomJoin } from './roomAccess'
 import { explicitlyLeaveRoom } from './roomDeparture'
-import { getRoomPhase, newRoomLifecycle } from './roomLifecycle'
+import {
+  createRoomRematchPatch,
+  getRoomPhase,
+  newRoomLifecycle,
+} from './roomLifecycle'
 import { isActiveRoomMember } from './roomMembers'
 import {
   findAvailableRoomCode,
@@ -310,6 +314,82 @@ export const start = mutation({
       async () => await listOnlineActiveRoomMembers(ctx, room._id),
       Date.now(),
     )
+
+    return null
+  },
+})
+
+export const prepareRematch = mutation({
+  args: {
+    roomCode: v.string(),
+    clientToken: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, { roomCode, clientToken }) => {
+    const normalizedRoomCode = normalizeRoomCode(roomCode)
+    const validatedClientToken = validateClientToken(clientToken)
+
+    if (!ROOM_CODE_PATTERN.test(normalizedRoomCode)) {
+      throw new Error('Room not found.')
+    }
+
+    const room = await ctx.db
+      .query('rooms')
+      .withIndex('by_code', (index) => index.eq('code', normalizedRoomCode))
+      .unique()
+
+    if (!room) {
+      throw new Error('Room not found.')
+    }
+
+    const member = await ctx.db
+      .query('roomMembers')
+      .withIndex('by_room_id_and_private_player_key', (index) =>
+        index
+          .eq('roomId', room._id)
+          .eq('privatePlayerKey', validatedClientToken),
+      )
+      .unique()
+    const actor = member
+      ? {
+          role: member.role,
+          isActive: isActiveRoomMember(member.status),
+        }
+      : null
+    const rematchPatch = createRoomRematchPatch({ room, actor })
+
+    if (!room.gameId) {
+      throw new Error('Unable to resolve the completed game.')
+    }
+
+    const [game, participant] = await Promise.all([
+      ctx.db.get(room.gameId),
+      member ? getGameParticipant(ctx, room.gameId, member._id) : null,
+    ])
+
+    if (
+      !game ||
+      game.roomId !== room._id ||
+      game.winnerRoomMemberId === undefined
+    ) {
+      throw new Error('Unable to resolve the completed game.')
+    }
+
+    const winnerParticipant = await getGameParticipant(
+      ctx,
+      room.gameId,
+      game.winnerRoomMemberId,
+    )
+
+    if (!winnerParticipant) {
+      throw new Error('Unable to resolve the completed game.')
+    }
+
+    if (!participant) {
+      throw new Error('Only current game participants can prepare a rematch.')
+    }
+
+    await ctx.db.patch(room._id, rematchPatch)
 
     return null
   },
