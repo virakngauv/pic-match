@@ -203,7 +203,7 @@ pnpm build
 ```
 
 Pull-request CI runs formatting, lint, typechecking, unit tests, and the
-production build. After a merge to `main`, CI also deploys the Convex functions
+production build. After a push to `main`, CI also deploys the Convex functions
 to a clean preview deployment and runs the Playwright suite against it.
 
 ## Development data
