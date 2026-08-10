@@ -11,9 +11,10 @@ export type RoomPhase = 'lobby' | 'playing' | 'finished'
 type StoredRoomLifecycle = {
   phase: RoomPhase
   startedAt?: number
+  gameId?: string
 }
 
-type RoomStartActor = {
+type RoomLifecycleActor = {
   role: 'host' | 'player'
   isActive: boolean
 }
@@ -31,7 +32,7 @@ export function assertRoomCanStart({
   actor,
 }: {
   room: StoredRoomLifecycle
-  actor: RoomStartActor | null
+  actor: RoomLifecycleActor | null
 }) {
   if (!actor || !actor.isActive || actor.role !== 'host') {
     throw new Error('Only the host can start the game.')
@@ -49,7 +50,7 @@ export async function createRoomStartPatch({
   startedAt,
 }: {
   room: StoredRoomLifecycle
-  actor: RoomStartActor | null
+  actor: RoomLifecycleActor | null
   getOnlinePlayerCount: () => Promise<number>
   startedAt: number
 }) {
@@ -64,5 +65,38 @@ export async function createRoomStartPatch({
   return {
     phase: 'playing' as const,
     startedAt,
+  }
+}
+
+export function assertRoomCanPrepareRematch({
+  room,
+  actor,
+}: {
+  room: StoredRoomLifecycle
+  actor: RoomLifecycleActor | null
+}) {
+  if (!actor || !actor.isActive || actor.role !== 'host') {
+    throw new Error('Only the host can prepare a rematch.')
+  }
+
+  if (getRoomPhase(room) !== 'finished') {
+    throw new Error('A rematch can only be prepared after the game finishes.')
+  }
+}
+
+/** Returns the room-only patch for reopening a completed room's lobby. */
+export function createRoomRematchPatch({
+  room,
+  actor,
+}: {
+  room: StoredRoomLifecycle
+  actor: RoomLifecycleActor | null
+}) {
+  assertRoomCanPrepareRematch({ room, actor })
+
+  return {
+    phase: 'lobby' as const,
+    startedAt: undefined,
+    gameId: undefined,
   }
 }

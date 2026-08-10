@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  createRoomRematchPatch,
   createRoomStartPatch,
   getRoomPhase,
   newRoomLifecycle,
@@ -79,5 +80,56 @@ describe('room lifecycle', () => {
         startedAt: 123,
       }),
     ).rejects.toThrow('At least 2 players are required to start the game.')
+  })
+
+  it('allows an active host to reopen a finished room lobby', () => {
+    expect(
+      createRoomRematchPatch({
+        room: {
+          phase: 'finished',
+          startedAt: 123,
+          gameId: 'completed-game',
+        },
+        actor: { role: 'host', isActive: true },
+      }),
+    ).toEqual({
+      phase: 'lobby',
+      startedAt: undefined,
+      gameId: undefined,
+    })
+  })
+
+  it.each(['lobby', 'playing'] as const)(
+    'rejects preparing a rematch from the %s phase',
+    (phase) => {
+      expect(() =>
+        createRoomRematchPatch({
+          room: {
+            phase,
+            ...(phase === 'playing'
+              ? { startedAt: 123, gameId: 'current-game' }
+              : {}),
+          },
+          actor: { role: 'host', isActive: true },
+        }),
+      ).toThrow('A rematch can only be prepared after the game finishes.')
+    },
+  )
+
+  it.each([
+    ['missing member', null],
+    ['active player', { role: 'player' as const, isActive: true }],
+    ['inactive host', { role: 'host' as const, isActive: false }],
+  ])('rejects preparing a rematch for a %s', (_case, actor) => {
+    expect(() =>
+      createRoomRematchPatch({
+        room: {
+          phase: 'finished',
+          startedAt: 123,
+          gameId: 'completed-game',
+        },
+        actor,
+      }),
+    ).toThrow('Only the host can prepare a rematch.')
   })
 })
