@@ -1,4 +1,8 @@
-const requiredVercelVariables = ['CONVEX_DEPLOY_KEY']
+const publishConfirmationVariable = 'FIRST_PUBLIC_PLAYTEST_CONFIRMED'
+const requiredVercelVariables = [
+  'CONVEX_DEPLOY_KEY',
+  publishConfirmationVariable,
+]
 const optionalVercelVariables = [
   'NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY',
   'CLERK_SECRET_KEY',
@@ -8,13 +12,15 @@ const optionalVercelVariables = [
 ]
 
 const isConfigured = (name) => Boolean(process.env[name]?.trim())
-const missing = requiredVercelVariables.filter((name) => !isConfigured(name))
+const isValid = (name) =>
+  name === publishConfirmationVariable
+    ? process.env[name]?.trim() === 'true'
+    : isConfigured(name)
+const missing = requiredVercelVariables.filter((name) => !isValid(name))
 
 console.log('Deployment environment (values are intentionally hidden):')
 for (const name of requiredVercelVariables) {
-  console.log(
-    `- required ${name}: ${isConfigured(name) ? 'configured' : 'missing'}`,
-  )
+  console.log(`- required ${name}: ${isValid(name) ? 'configured' : 'missing'}`)
 }
 console.log(
   '- managed NEXT_PUBLIC_CONVEX_URL: injected by `convex deploy` during the build',

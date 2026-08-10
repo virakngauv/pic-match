@@ -17,17 +17,19 @@ Configure values in the service that owns them. Never commit their values.
 | Variable                            | Owner             | Requirement                                                                                                             | Safe validation                                                                                               |
 | ----------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `CONVEX_DEPLOY_KEY`                 | Vercel Production | Required; use a production key limited to `deployment:deploy`                                                           | `pnpm deploy:check-env` reports only whether it exists; `vercel env ls production` lists names without values |
+| `FIRST_PUBLIC_PLAYTEST_CONFIRMED`   | Vercel Production | Required to publish; set it to `true` only after written repository-owner approval                                      | `pnpm deploy:check-env` reports only whether the exact confirmation value is present                          |
 | `NEXT_PUBLIC_CONVEX_URL`            | Build process     | Required at runtime, but do not set it manually in Vercel; `convex deploy` injects the production URL into `pnpm build` | `/api/health` plus the two-browser smoke test prove the built frontend can use its backend                    |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Vercel Production | Optional; leave it and `CLERK_SECRET_KEY` unset for anonymous play                                                      | `pnpm deploy:check-env` reports configured or disabled                                                        |
 | `CLERK_SECRET_KEY`                  | Vercel Production | Optional; required together with the Clerk publishable key                                                              | `pnpm deploy:check-env` rejects partial Clerk configuration                                                   |
-| `CLERK_FRONTEND_API_URL`            | Convex production | Optional; only needed after Clerk is deliberately added to `convex/auth.config.ts`                                      | `pnpm exec convex env list --prod` lists names without revealing values                                       |
+| `CLERK_FRONTEND_API_URL`            | Convex production | Optional; only needed after Clerk is deliberately added to `convex/auth.config.ts`                                      | `pnpm exec convex env list --prod --names-only` lists names without revealing values                          |
 | `NEXT_PUBLIC_POSTHOG_KEY`           | Vercel Production | Optional; analytics remains disabled when absent                                                                        | `pnpm deploy:check-env` reports configured or disabled                                                        |
 | `NEXT_PUBLIC_POSTHOG_HOST`          | Vercel Production | Optional; defaults to the US host and has no effect without the PostHog key                                             | `pnpm deploy:check-env` reports configured or disabled                                                        |
 | `ARCJET_KEY`                        | Vercel Production | Optional; the demo endpoint remains transparent when absent                                                             | `pnpm deploy:check-env` reports configured or disabled                                                        |
 
-`NEXT_PUBLIC_` values are browser-visible. Never put a secret in one. For the
-first anonymous playtest, configure only `CONVEX_DEPLOY_KEY`; Clerk, PostHog,
-and Arcjet should remain unset unless they are intentionally enabled and tested.
+`NEXT_PUBLIC_` values are browser-visible. Never put a secret in one. During
+setup, configure only `CONVEX_DEPLOY_KEY`; add the non-secret confirmation
+variable after written approval. Clerk, PostHog, and Arcjet should remain unset
+unless they are intentionally enabled and tested.
 
 ## Prepare from a fresh clone
 
@@ -86,8 +88,9 @@ These steps prepare service configuration but stop before publishing.
    pnpm dlx vercel env ls production
    ```
 
-Do not click Deploy, run `vercel --prod`, or enable an automatic production
-deployment until the repository owner explicitly confirms the first publish.
+Do not add `FIRST_PUBLIC_PLAYTEST_CONFIRMED`, click Deploy, run `vercel --prod`,
+or enable an automatic production deployment until the repository owner gives
+written confirmation for the first publish.
 After the verified first publish, Git integration may be enabled with `main` as
 the production branch for subsequent deployments.
 
@@ -98,8 +101,14 @@ Start from a clean checkout of the commit approved for the playtest:
 ```bash
 git status --short
 git rev-parse HEAD
+pnpm dlx vercel env add FIRST_PUBLIC_PLAYTEST_CONFIRMED production
+pnpm dlx vercel env ls production
 pnpm dlx vercel --prod
 ```
+
+Enter the exact value `true` when adding the confirmation variable. The build
+fails before `convex deploy` unless both the deploy key and this exact approval
+value are present.
 
 The deployment is successful only if the Vercel build completes
 `pnpm deploy:build`. That command checks the environment, builds the Next.js
