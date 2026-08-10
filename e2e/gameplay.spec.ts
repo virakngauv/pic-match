@@ -4,6 +4,7 @@ const roomCodePattern = /^[bcdfghkpqrstvz]{4}[2-9y]$/
 const playerNames = {
   host: 'Ada',
   guest: 'Grace',
+  replacement: 'Linus',
 } as const
 
 type CardSnapshot = {
@@ -16,11 +17,11 @@ type PlayingSnapshot = {
   scores: Record<string, number>
 }
 
-test('plays a complete shared race across browser sessions', async ({
+test('replays a complete shared race across browser sessions', async ({
   browser,
   baseURL,
 }) => {
-  test.setTimeout(120_000)
+  test.setTimeout(180_000)
 
   const hostContext = await browser.newContext({ baseURL })
   let guestContext = await browser.newContext({ baseURL })
@@ -56,7 +57,7 @@ test('plays a complete shared race across browser sessions', async ({
 
     await lateJoinerPage.goto('/join')
     await lateJoinerPage.getByLabel('Room code').fill(roomCode)
-    await lateJoinerPage.getByLabel('Name').fill('Linus')
+    await lateJoinerPage.getByLabel('Name').fill(playerNames.replacement)
     await lateJoinerPage
       .getByRole('button', { name: 'Join', exact: true })
       .click()
@@ -159,6 +160,80 @@ test('plays a complete shared race across browser sessions', async ({
     await expectFinalScore(guestPage, playerNames.host, 12)
     await expectFinalScore(hostPage, playerNames.guest, guestFinalScore)
     await expectFinalScore(guestPage, playerNames.guest, guestFinalScore)
+
+    await hostPage.setViewportSize({ width: 390, height: 844 })
+    await expect(
+      hostPage.getByRole('button', { name: 'Play again' }),
+    ).toBeVisible()
+    await expect(hostPage.getByRole('link', { name: 'Go home' })).toBeVisible()
+    await expectNoHorizontalOverflow(hostPage)
+
+    await hostPage.getByRole('button', { name: 'Play again' }).click()
+    await guestPage.reload()
+
+    await expectLobby(hostPage, roomCode)
+    await expectLobby(guestPage, roomCode)
+    await expect(guestPage.getByText(playerNames.guest)).toBeVisible()
+    await expect(
+      guestPage.getByRole('listitem').filter({ hasText: playerNames.guest }),
+    ).toContainText('You')
+    await expect(hostPage).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
+    await expect(guestPage).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
+
+    await guestPage.getByRole('button', { name: 'Leave room' }).click()
+    await expect(guestPage).toHaveURL(/\/home$/)
+    await expect(
+      hostPage.getByRole('listitem').filter({ hasText: playerNames.guest }),
+    ).toHaveCount(0)
+
+    await joinRoom(lateJoinerPage, roomCode, playerNames.replacement)
+    await expect(
+      hostPage
+        .getByRole('listitem')
+        .filter({ hasText: playerNames.replacement }),
+    ).toBeVisible()
+
+    await hostPage.getByRole('button', { name: 'Start game' }).click()
+    await expectPlaying(hostPage, playerNames.host)
+    await expectPlaying(lateJoinerPage, playerNames.replacement)
+    await expect(
+      hostPage.getByText(`Room ${roomCode} · Round 1`, { exact: true }),
+    ).toBeVisible()
+
+    const secondGameInitialState = await playingSnapshot(hostPage)
+    expect(secondGameInitialState.scores).toEqual({ Ada: 0, Linus: 0 })
+    await expect
+      .poll(async () => await playingSnapshot(lateJoinerPage))
+      .toEqual(secondGameInitialState)
+    await expect(hostPage.getByText(playerNames.guest)).toHaveCount(0)
+    await expect(
+      hostPage.locator('button[data-symbol-id][aria-pressed="true"]'),
+    ).toHaveCount(0)
+
+    await submitIncorrectClaim(hostPage, secondGameInitialState.cards)
+    await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
+      'Incorrect match. Try again in a moment.',
+    )
+    expect(await playingSnapshot(hostPage)).toEqual(secondGameInitialState)
+    await expect(
+      hostPage.getByRole('button', { name: 'Submit match' }),
+    ).toBeEnabled({ timeout: 2_000 })
+
+    await submitSharedMatch(hostPage)
+    await expectScore(hostPage, playerNames.host, 1)
+    await expectScore(lateJoinerPage, playerNames.host, 1)
+    const secondGameAfterScore = await playingSnapshot(hostPage)
+    expect(secondGameAfterScore.cards).not.toEqual(secondGameInitialState.cards)
+    await expect
+      .poll(async () => await playingSnapshot(lateJoinerPage))
+      .toEqual(secondGameAfterScore)
+
+    await outsiderPage.reload()
+    await expect(
+      outsiderPage.getByRole('heading', {
+        name: 'This game has already started.',
+      }),
+    ).toBeVisible()
   } finally {
     await Promise.all([
       lateJoinerContext.close(),
@@ -207,6 +282,25 @@ async function expectFinished(page: Page, playerName: string) {
   await expect(
     page.getByRole('heading', { name: 'Game finished.' }),
   ).toBeVisible()
+}
+
+async function expectLobby(page: Page, roomCode: string) {
+  await expect(page).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
+  await expect(
+    page.getByRole('heading', { name: 'Ready to play.' }),
+  ).toBeVisible()
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  await expect
+    .poll(async () =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+    )
+    .toBeLessThanOrEqual(0)
 }
 
 async function playingSnapshot(page: Page): Promise<PlayingSnapshot> {
