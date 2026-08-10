@@ -170,6 +170,7 @@ function PresentRoomLobby({
       return (
         <FinishedRoom
           roomCode={roomView.roomCode}
+          clientToken={clientToken}
           player={roomView.player}
           winner={roomView.winner}
           scoreboard={roomView.scoreboard}
@@ -383,21 +384,44 @@ type FinishedScoreboardEntry = FinishedPlayer & {
 /** Presents the persisted winner and final scores to one participant. */
 function FinishedRoom({
   roomCode,
+  clientToken,
   player,
   winner,
   scoreboard,
 }: {
   roomCode: string
+  clientToken: string | null
   player: FinishedPlayer
   winner: FinishedScoreboardEntry
   scoreboard: readonly FinishedScoreboardEntry[]
 }) {
   const isWinner = player.playerId === winner.playerId
+  const isHost = player.role === 'host'
+  const prepareRematch = useMutation(api.rooms.prepareRematch)
+  const [isPreparingRematch, setIsPreparingRematch] = useState(false)
+  const [rematchError, setRematchError] = useState<string | null>(null)
+
+  const handlePrepareRematch = async () => {
+    if (!isHost || !clientToken || isPreparingRematch) {
+      return
+    }
+
+    setIsPreparingRematch(true)
+    setRematchError(null)
+
+    try {
+      await prepareRematch({ roomCode, clientToken })
+    } catch {
+      setRematchError('Unable to return to the lobby. Please try again.')
+      setIsPreparingRematch(false)
+    }
+  }
 
   return (
     <main
       className="flex min-h-screen items-center px-5 py-10 sm:px-8"
       aria-label={`Final results for ${player.name}`}
+      aria-busy={isPreparingRematch}
     >
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
         <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
@@ -461,9 +485,33 @@ function FinishedRoom({
           </ol>
         </div>
 
-        <Button asChild className="mt-8">
-          <Link href="/home">Go home</Link>
-        </Button>
+        <div className="mt-8 grid justify-items-center gap-3">
+          {isHost ? (
+            <Button
+              type="button"
+              className="min-w-28"
+              disabled={isPreparingRematch}
+              onClick={handlePrepareRematch}
+            >
+              {isPreparingRematch ? 'Preparing…' : 'Play again'}
+            </Button>
+          ) : (
+            <p className="text-muted-foreground text-sm leading-6">
+              The host can return everyone to the lobby for another game.
+            </p>
+          )}
+          <p className="sr-only" role="status" aria-live="polite">
+            {isPreparingRematch ? 'Preparing the lobby…' : ''}
+          </p>
+          {rematchError ? (
+            <p className="text-destructive text-sm" role="alert">
+              {rematchError}
+            </p>
+          ) : null}
+          <Button asChild variant="outline">
+            <Link href="/home">Go home</Link>
+          </Button>
+        </div>
       </section>
     </main>
   )
