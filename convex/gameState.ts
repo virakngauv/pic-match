@@ -27,6 +27,11 @@ export const playingGameStateView = {
   scoreboard: v.array(gameScoreboardEntryView),
 }
 
+export const finishedGameStateView = {
+  winner: gameScoreboardEntryView,
+  scoreboard: v.array(gameScoreboardEntryView),
+}
+
 type StoredGameState = Pick<
   Doc<'games'>,
   'configurationId' | 'seed' | 'pairRevision'
@@ -54,15 +59,32 @@ export function presentPlayingGameState(
   return {
     pairRevision: game.pairRevision,
     cards,
-    scoreboard: [...participants]
-      .sort((left, right) => left.position - right.position)
-      .map((participant) => ({
-        playerId: participant.roomMemberId,
-        name: participant.name,
-        role: participant.role,
-        position: participant.position,
-        score: participant.score,
-      })),
+    scoreboard: presentScoreboard(participants),
+  }
+}
+
+/** Presents a persisted winner and final scoreboard in frozen game order. */
+export function presentFinishedGameState(
+  game: Pick<Doc<'games'>, 'winnerRoomMemberId'>,
+  participants: readonly StoredGameScore[],
+) {
+  if (!game.winnerRoomMemberId) {
+    throw new Error('The finished game is missing its winner.')
+  }
+
+  const winner = participants.find(
+    (participant) => participant.roomMemberId === game.winnerRoomMemberId,
+  )
+
+  if (!winner) {
+    throw new Error(
+      'The finished game winner is not in its participant roster.',
+    )
+  }
+
+  return {
+    winner: presentScoreboardEntry(winner),
+    scoreboard: presentScoreboard(participants),
   }
 }
 
@@ -86,4 +108,22 @@ export function resolvePlayingGameCards(game: StoredGameState) {
     id: card.id,
     symbolIds: [...card.symbolIds],
   }))
+}
+
+/** Maps the frozen participant roster to its stable public scoreboard. */
+function presentScoreboard(participants: readonly StoredGameScore[]) {
+  return [...participants]
+    .sort((left, right) => left.position - right.position)
+    .map(presentScoreboardEntry)
+}
+
+/** Maps one frozen participant score to its public representation. */
+function presentScoreboardEntry(participant: StoredGameScore) {
+  return {
+    playerId: participant.roomMemberId,
+    name: participant.name,
+    role: participant.role,
+    position: participant.position,
+    score: participant.score,
+  }
 }

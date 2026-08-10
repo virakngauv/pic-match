@@ -6,7 +6,7 @@ import {
   listGameParticipantSnapshot,
   startRoomGame,
 } from './gameParticipants'
-import { presentPlayingGameState } from './gameState'
+import { presentFinishedGameState, presentPlayingGameState } from './gameState'
 import { parseClientToken, validateClientToken } from './playerKeys'
 import {
   claimRoomSeat,
@@ -427,7 +427,15 @@ export const getRoomView = query({
       }
     }
 
-    if (status === 'finished' && participant) {
+    if (status === 'finished' && participant && room.gameId) {
+      const game = await ctx.db.get(room.gameId)
+
+      if (!game) {
+        throw new Error('Unable to resolve the finished game.')
+      }
+
+      const scoreboard = await listGameParticipantSnapshot(ctx, room.gameId)
+
       return {
         status,
         roomCode: room.code,
@@ -437,6 +445,7 @@ export const getRoomView = query({
           role: participant.role,
           position: participant.position,
         },
+        ...presentFinishedGameState(game, scoreboard),
       }
     }
 

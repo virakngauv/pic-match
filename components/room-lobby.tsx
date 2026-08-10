@@ -169,7 +169,9 @@ function PresentRoomLobby({
       return (
         <FinishedRoom
           roomCode={roomView.roomCode}
-          name={roomView.player.name}
+          player={roomView.player}
+          winner={roomView.winner}
+          scoreboard={roomView.scoreboard}
         />
       )
     default:
@@ -366,9 +368,36 @@ function GameInProgress({ roomCode }: { roomCode: string }) {
   )
 }
 
-function FinishedRoom({ roomCode, name }: { roomCode: string; name: string }) {
+type FinishedPlayer = {
+  playerId: string
+  name: string
+  role: 'host' | 'player'
+  position: number
+}
+
+type FinishedScoreboardEntry = FinishedPlayer & {
+  score: number
+}
+
+/** Presents the persisted winner and final scores to one participant. */
+function FinishedRoom({
+  roomCode,
+  player,
+  winner,
+  scoreboard,
+}: {
+  roomCode: string
+  player: FinishedPlayer
+  winner: FinishedScoreboardEntry
+  scoreboard: readonly FinishedScoreboardEntry[]
+}) {
+  const isWinner = player.playerId === winner.playerId
+
   return (
-    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+    <main
+      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
+      aria-label={`Final results for ${player.name}`}
+    >
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
         <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
           Room {roomCode}
@@ -376,10 +405,61 @@ function FinishedRoom({ roomCode, name }: { roomCode: string; name: string }) {
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
           Game finished.
         </h1>
-        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-          Thanks for playing, {name}. Results will appear here when scoring is
-          added.
+        <p className="mt-4 text-2xl font-semibold tracking-[-0.03em]">
+          {isWinner ? 'You won!' : `${winner.name} wins!`}
         </p>
+        <p className="text-muted-foreground mt-2 text-sm leading-6 sm:text-base">
+          {isWinner
+            ? `Great match, ${player.name}.`
+            : `Thanks for playing, ${player.name}.`}
+        </p>
+
+        <div className="mt-8 text-left">
+          <h2 className="text-lg font-semibold">Final scoreboard</h2>
+          <ol className="mt-3 grid gap-2">
+            {scoreboard.map((entry) => {
+              const isLocalPlayer = entry.playerId === player.playerId
+              const isWinningPlayer = entry.playerId === winner.playerId
+
+              return (
+                <li
+                  key={entry.playerId}
+                  className={
+                    isLocalPlayer
+                      ? 'border-accent bg-accent/10 flex items-center gap-3 rounded-2xl border px-4 py-3'
+                      : 'bg-background flex items-center gap-3 rounded-2xl border px-4 py-3'
+                  }
+                  aria-current={isLocalPlayer ? 'true' : undefined}
+                  data-player-position={entry.position}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">
+                      {entry.name}
+                    </span>
+                    <span className="text-muted-foreground block text-xs">
+                      {isWinningPlayer
+                        ? isLocalPlayer
+                          ? 'Winner · You'
+                          : 'Winner'
+                        : isLocalPlayer
+                          ? 'You'
+                          : entry.role === 'host'
+                            ? 'Host'
+                            : 'Player'}
+                    </span>
+                  </span>
+                  <output
+                    className="bg-foreground text-background inline-flex h-10 min-w-10 items-center justify-center rounded-full px-3 font-mono text-lg font-bold"
+                    aria-label={`${entry.name}'s final score`}
+                  >
+                    {entry.score}
+                  </output>
+                </li>
+              )
+            })}
+          </ol>
+        </div>
+
         <Button asChild className="mt-8">
           <Link href="/home">Go home</Link>
         </Button>
