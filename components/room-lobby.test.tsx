@@ -476,7 +476,12 @@ describe('RoomLobby', () => {
     expect(screen.getByText('Final scoreboard')).toBeVisible()
   })
 
-  it('renders the existing lobby after a successful rematch transition', () => {
+  it('renders the existing lobby after a successful rematch transition', async () => {
+    let resolveRematch!: () => void
+    const rematchRequest = new Promise<void>((resolve) => {
+      resolveRematch = resolve
+    })
+    mocks.prepareRematch.mockReturnValue(rematchRequest)
     mocks.roomView = finishedView({ ...host, position: 0 })
     const { rerender } = render(<RoomLobby roomCode="frvg7" />)
 
@@ -484,6 +489,14 @@ describe('RoomLobby', () => {
       screen.getByRole('main', { name: 'Final results for Firefox host' }),
     ).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('button', { name: 'Play again' }))
+    expect(mocks.prepareRematch).toHaveBeenCalledWith({
+      roomCode: 'frvg7',
+      clientToken: 'a'.repeat(32),
+    })
+
+    resolveRematch()
+    await rematchRequest
     mocks.roomView = lobbyView([host, player])
     rerender(<RoomLobby roomCode="frvg7" />)
 
