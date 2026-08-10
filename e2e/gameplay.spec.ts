@@ -18,13 +18,14 @@ type PlayingSnapshot = {
 
 test('plays a complete shared race across browser sessions', async ({
   browser,
+  baseURL,
 }) => {
   test.setTimeout(120_000)
 
-  const hostContext = await browser.newContext()
-  let guestContext = await browser.newContext()
-  const outsiderContext = await browser.newContext()
-  const lateJoinerContext = await browser.newContext()
+  const hostContext = await browser.newContext({ baseURL })
+  let guestContext = await browser.newContext({ baseURL })
+  const outsiderContext = await browser.newContext({ baseURL })
+  const lateJoinerContext = await browser.newContext({ baseURL })
   const hostPage = await hostContext.newPage()
   let guestPage = await guestContext.newPage()
   const outsiderPage = await outsiderContext.newPage()
@@ -101,7 +102,10 @@ test('plays a complete shared race across browser sessions', async ({
 
     const guestStorage = await guestContext.storageState()
     await guestContext.close()
-    guestContext = await browser.newContext({ storageState: guestStorage })
+    guestContext = await browser.newContext({
+      baseURL,
+      storageState: guestStorage,
+    })
     guestPage = await guestContext.newPage()
     await guestPage.goto(`/${roomCode}`)
 
