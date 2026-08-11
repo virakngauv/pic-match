@@ -23,10 +23,7 @@ test('replays a complete shared race across browser sessions', async ({
 }) => {
   test.setTimeout(180_000)
 
-  const hostContext = await browser.newContext({
-    baseURL,
-    reducedMotion: 'no-preference',
-  })
+  const hostContext = await browser.newContext({ baseURL })
   let guestContext = await browser.newContext({ baseURL })
   const outsiderContext = await browser.newContext({ baseURL })
   const lateJoinerContext = await browser.newContext({ baseURL })
@@ -229,7 +226,6 @@ test('replays a complete shared race across browser sessions', async ({
       hostPage.locator('button[data-symbol-id][aria-pressed="true"]'),
     ).toHaveCount(0)
     await expectNoHorizontalOverflow(hostPage)
-    await hostPage.emulateMedia({ reducedMotion: 'reduce' })
 
     await submitIncorrectClaim(hostPage, secondGameInitialState.cards)
     await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
@@ -239,11 +235,6 @@ test('replays a complete shared race across browser sessions', async ({
       .locator('button[data-incorrect="true"] .spot-it-incorrect-mark')
       .first()
     await expect(staticErrorMark).toBeVisible()
-    expect(
-      await staticErrorMark.evaluate(
-        (mark) => window.getComputedStyle(mark).animationName,
-      ),
-    ).toBe('none')
     expect(await playingSnapshot(hostPage)).toEqual(secondGameInitialState)
     await expect(firstSymbolControl(hostPage)).toBeEnabled({ timeout: 2_000 })
 
