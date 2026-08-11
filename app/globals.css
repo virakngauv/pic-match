@@ -102,7 +102,7 @@ body {
 }
 
 .spot-it-incorrect-mark {
-  animation: spot-it-incorrect-mark-fade 1s linear;
+  animation: spot-it-incorrect-mark-fade 1s linear forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
