@@ -25,7 +25,7 @@ test('replays a complete shared race across browser sessions', async ({
 
   const hostContext = await browser.newContext({
     baseURL,
-    reducedMotion: 'reduce',
+    reducedMotion: 'no-preference',
   })
   let guestContext = await browser.newContext({ baseURL })
   const outsiderContext = await browser.newContext({ baseURL })
@@ -229,6 +229,7 @@ test('replays a complete shared race across browser sessions', async ({
       hostPage.locator('button[data-symbol-id][aria-pressed="true"]'),
     ).toHaveCount(0)
     await expectNoHorizontalOverflow(hostPage)
+    await hostPage.emulateMedia({ reducedMotion: 'reduce' })
 
     await submitIncorrectClaim(hostPage, secondGameInitialState.cards)
     await expect(hostPage.getByLabel('Match claim feedback')).toContainText(

@@ -79,7 +79,7 @@ local participant, and gives feedback for selected, incorrect, accepted, and
 stale claims. Incorrect feedback marks both rejected selections with a static
 red X during the one-second cooldown without fading or moving the board.
 Reconnecting participants receive the current pair revision, scores, and any
-remaining local cooldown rather than restarting the game.
+remaining authoritative cooldown rather than restarting the game.
 
 ## Ordered implementation
 
