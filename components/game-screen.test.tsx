@@ -204,7 +204,7 @@ describe('GameScreen', () => {
     )
   })
 
-  it('shakes the selected symbols, then clears them after an incorrect claim', async () => {
+  it('marks the selected symbols, then clears them after an incorrect claim', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
     const cooldownUntil = 11_000
@@ -234,8 +234,8 @@ describe('GameScreen', () => {
     expect(secondSelection).toBeDisabled()
     expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
     expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
-    expect(firstSelection).toHaveAttribute('data-shaking', 'true')
-    expect(secondSelection).toHaveAttribute('data-shaking', 'true')
+    expect(firstSelection).toHaveAttribute('data-incorrect', 'true')
+    expect(secondSelection).toHaveAttribute('data-incorrect', 'true')
     expect(within(firstSelection).getByText('×')).toHaveClass(
       'spot-it-incorrect-mark',
     )
@@ -244,7 +244,7 @@ describe('GameScreen', () => {
     )
     expect(
       screen.getByRole('button', { name: 'Sun on card 1' }),
-    ).toHaveAttribute('data-shaking', 'false')
+    ).toHaveAttribute('data-incorrect', 'false')
     expect(screen.queryByText(/\d seconds?/)).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Selection locked' }),
@@ -254,8 +254,8 @@ describe('GameScreen', () => {
 
     expect(firstSelection).toHaveAttribute('aria-pressed', 'false')
     expect(secondSelection).toHaveAttribute('aria-pressed', 'false')
-    expect(firstSelection).toHaveAttribute('data-shaking', 'false')
-    expect(secondSelection).toHaveAttribute('data-shaking', 'false')
+    expect(firstSelection).toHaveAttribute('data-incorrect', 'false')
+    expect(secondSelection).toHaveAttribute('data-incorrect', 'false')
     expect(within(firstSelection).queryByText('×')).not.toBeInTheDocument()
     expect(within(secondSelection).queryByText('×')).not.toBeInTheDocument()
     expect(firstSelection).toBeEnabled()
@@ -311,7 +311,7 @@ describe('GameScreen', () => {
     vi.useRealTimers()
   })
 
-  it('honors a cooldown result without shaking or clearing the submitted pair', async () => {
+  it('honors a cooldown result without marking or clearing the submitted pair', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
     renderGame({
@@ -333,8 +333,8 @@ describe('GameScreen', () => {
 
     await act(async () => Promise.resolve())
 
-    expect(firstSelection).toHaveAttribute('data-shaking', 'false')
-    expect(secondSelection).toHaveAttribute('data-shaking', 'false')
+    expect(firstSelection).toHaveAttribute('data-incorrect', 'false')
+    expect(secondSelection).toHaveAttribute('data-incorrect', 'false')
     expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
     expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
     expect(firstSelection).toBeDisabled()

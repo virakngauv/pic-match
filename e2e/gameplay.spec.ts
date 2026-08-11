@@ -82,8 +82,11 @@ test('replays a complete shared race across browser sessions', async ({
     const secondIncorrectSymbol = hostPage
       .getByLabel('Card 2')
       .locator(`button[data-symbol-id="${incorrectSelection.secondSymbolId}"]`)
-    await expect(firstIncorrectSymbol).toHaveAttribute('data-shaking', 'true')
-    await expect(secondIncorrectSymbol).toHaveAttribute('data-shaking', 'true')
+    await expect(firstIncorrectSymbol).toHaveAttribute('data-incorrect', 'true')
+    await expect(secondIncorrectSymbol).toHaveAttribute(
+      'data-incorrect',
+      'true',
+    )
     await expect(
       firstIncorrectSymbol.locator('.spot-it-incorrect-mark'),
     ).toBeVisible()
@@ -99,8 +102,14 @@ test('replays a complete shared race across browser sessions', async ({
     await expect(firstSymbolControl(hostPage)).toBeEnabled({ timeout: 2_000 })
     await expect(firstIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
     await expect(secondIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
-    await expect(firstIncorrectSymbol).toHaveAttribute('data-shaking', 'false')
-    await expect(secondIncorrectSymbol).toHaveAttribute('data-shaking', 'false')
+    await expect(firstIncorrectSymbol).toHaveAttribute(
+      'data-incorrect',
+      'false',
+    )
+    await expect(secondIncorrectSymbol).toHaveAttribute(
+      'data-incorrect',
+      'false',
+    )
     await expect(
       firstIncorrectSymbol.locator('.spot-it-incorrect-mark'),
     ).toHaveCount(0)
@@ -225,12 +234,12 @@ test('replays a complete shared race across browser sessions', async ({
     await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
       'Incorrect match. Try again in a moment.',
     )
-    const reducedMotionErrorMark = hostPage
-      .locator('button[data-shaking="true"] .spot-it-incorrect-mark')
+    const staticErrorMark = hostPage
+      .locator('button[data-incorrect="true"] .spot-it-incorrect-mark')
       .first()
-    await expect(reducedMotionErrorMark).toBeVisible()
+    await expect(staticErrorMark).toBeVisible()
     expect(
-      await reducedMotionErrorMark.evaluate(
+      await staticErrorMark.evaluate(
         (mark) => window.getComputedStyle(mark).animationName,
       ),
     ).toBe('none')

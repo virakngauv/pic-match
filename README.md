@@ -21,7 +21,7 @@ a game, return to the lobby, and play again with the same room.
 - Deterministic Spot It card generation with one shared symbol per pair
 - A real-time two-card board shared by every participant
 - Server-authoritative, first-claim-wins match validation
-- Incorrect-match feedback with a one-second cooldown and symbol shake
+- Incorrect-match feedback with a one-second cooldown and red error markers
 - Live scoring, pair advancement, and a first-to-12 winner
 - Persisted final results and participant-specific winner messaging
 - Host-controlled rematches that reopen the existing lobby

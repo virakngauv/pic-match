@@ -6,7 +6,7 @@ import { GameCard, type GameCardModel } from '@/components/game-card'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
 import { cn } from '@/lib/utils'
 
-const INCORRECT_SHAKE_MS = 1_000
+const INCORRECT_FEEDBACK_MS = 1_000
 
 type GamePlayer = {
   playerId: string
@@ -81,17 +81,21 @@ function GameRound({
   const [submittedCooldownUntil, setSubmittedCooldownUntil] = useState<
     number | null
   >(cooldownUntil)
-  const [shakeUntil, setShakeUntil] = useState<number | null>(null)
+  const [incorrectFeedbackUntil, setIncorrectFeedbackUntil] = useState<
+    number | null
+  >(null)
   const effectiveCooldownUntil = Math.max(
     cooldownUntil ?? 0,
     submittedCooldownUntil ?? 0,
   )
   const isServerCooldownActive = useDeadlineActive(effectiveCooldownUntil)
-  const isIncorrectShakeActive = useDeadlineActive(shakeUntil ?? 0)
+  const isIncorrectFeedbackActive = useDeadlineActive(
+    incorrectFeedbackUntil ?? 0,
+  )
   const controlsDisabled =
     isSubmitting ||
     isServerCooldownActive ||
-    isIncorrectShakeActive ||
+    isIncorrectFeedbackActive ||
     feedback === 'accepted' ||
     feedback === 'stale'
   const orderedScoreboard = [...scoreboard].sort(
@@ -99,21 +103,21 @@ function GameRound({
   )
 
   useEffect(() => {
-    if (shakeUntil === null) {
+    if (incorrectFeedbackUntil === null) {
       return
     }
 
     const timeout = window.setTimeout(
       () => {
-        setShakeUntil(null)
+        setIncorrectFeedbackUntil(null)
         setSelectedSymbols([null, null])
         setFeedback(null)
       },
-      Math.max(0, shakeUntil - Date.now()),
+      Math.max(0, incorrectFeedbackUntil - Date.now()),
     )
 
     return () => window.clearTimeout(timeout)
-  }, [shakeUntil])
+  }, [incorrectFeedbackUntil])
 
   /** Submits a newly completed selection once and presents its outcome. */
   const submitClaim = async (firstSymbolId: string, secondSymbolId: string) => {
@@ -137,7 +141,7 @@ function GameRound({
       }
 
       if (result.status === 'incorrect') {
-        setShakeUntil(deadlineFromNow(INCORRECT_SHAKE_MS))
+        setIncorrectFeedbackUntil(deadlineFromNow(INCORRECT_FEEDBACK_MS))
         setFeedback('incorrect')
       } else if (result.status === 'stale') {
         setFeedback('stale')
@@ -210,7 +214,7 @@ function GameRound({
                   card={card}
                   cardNumber={index + 1}
                   selectedSymbolId={selectedSymbols[index] ?? null}
-                  shakeSelectedSymbol={isIncorrectShakeActive}
+                  showIncorrectFeedback={isIncorrectFeedbackActive}
                   disabled={controlsDisabled}
                   onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
                 />
@@ -244,7 +248,7 @@ function GameRound({
               >
                 {isSubmitting
                   ? 'Submitting match…'
-                  : isIncorrectShakeActive
+                  : isIncorrectFeedbackActive
                     ? 'Incorrect match. Try again in a moment.'
                     : isServerCooldownActive
                       ? 'Please wait a moment before selecting again.'

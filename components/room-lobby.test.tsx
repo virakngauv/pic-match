@@ -356,7 +356,7 @@ describe('RoomLobby', () => {
     expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
     expect(
       screen.getByRole('button', { name: 'Cat on card 1' }),
-    ).toHaveAttribute('data-shaking', 'false')
+    ).toHaveAttribute('data-incorrect', 'false')
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
       'Please wait a moment before selecting again.',
     )
