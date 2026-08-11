@@ -85,15 +85,9 @@ test('replays a complete shared race across browser sessions', async ({
     await expect
       .poll(async () => await playingSnapshot(guestPage))
       .toEqual(beforeIncorrectClaim)
-    await expect(
-      hostPage.getByRole('button', { name: 'Submit match' }),
-    ).toBeDisabled()
-    await expect(
-      guestPage.getByRole('button', { name: 'Submit match' }),
-    ).toBeEnabled()
-    await expect(
-      hostPage.getByRole('button', { name: 'Submit match' }),
-    ).toBeEnabled({ timeout: 2_000 })
+    await expect(firstSymbolControl(hostPage)).toBeDisabled()
+    await expect(firstSymbolControl(guestPage)).toBeEnabled()
+    await expect(firstSymbolControl(hostPage)).toBeEnabled({ timeout: 2_000 })
     await expect(firstIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
     await expect(secondIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
     await expect(firstIncorrectSymbol).toHaveAttribute('data-shaking', 'false')
@@ -109,11 +103,12 @@ test('replays a complete shared race across browser sessions', async ({
       .toEqual(afterAcceptedClaim)
 
     const beforeCompetingClaims = afterAcceptedClaim
-    await selectSharedMatch(hostPage, beforeCompetingClaims.cards)
-    await selectSharedMatch(guestPage, beforeCompetingClaims.cards)
+    const competingSymbolId = findSharedSymbol(beforeCompetingClaims.cards)
+    await selectCardSymbol(hostPage, 1, competingSymbolId)
+    await selectCardSymbol(guestPage, 1, competingSymbolId)
     await Promise.all([
-      hostPage.getByRole('button', { name: 'Submit match' }).click(),
-      guestPage.getByRole('button', { name: 'Submit match' }).click(),
+      selectCardSymbol(hostPage, 2, competingSymbolId),
+      selectCardSymbol(guestPage, 2, competingSymbolId),
     ])
 
     await expect
@@ -209,15 +204,14 @@ test('replays a complete shared race across browser sessions', async ({
     await expect(
       hostPage.locator('button[data-symbol-id][aria-pressed="true"]'),
     ).toHaveCount(0)
+    await expectNoHorizontalOverflow(hostPage)
 
     await submitIncorrectClaim(hostPage, secondGameInitialState.cards)
     await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
       'Incorrect match. Try again in a moment.',
     )
     expect(await playingSnapshot(hostPage)).toEqual(secondGameInitialState)
-    await expect(
-      hostPage.getByRole('button', { name: 'Submit match' }),
-    ).toBeEnabled({ timeout: 2_000 })
+    await expect(firstSymbolControl(hostPage)).toBeEnabled({ timeout: 2_000 })
 
     await submitSharedMatch(hostPage)
     await expectScore(hostPage, playerNames.host, 1)
@@ -351,14 +345,12 @@ async function submitIncorrectClaim(page: Page, cards: CardSnapshot[]) {
   }
 
   await selectMatch(page, firstSymbolId, secondSymbolId)
-  await page.getByRole('button', { name: 'Submit match' }).click()
 
   return { firstSymbolId, secondSymbolId }
 }
 
 async function submitSharedMatch(page: Page) {
   await selectSharedMatch(page, (await playingSnapshot(page)).cards)
-  await page.getByRole('button', { name: 'Submit match' }).click()
 }
 
 async function selectSharedMatch(page: Page, cards: CardSnapshot[]) {
@@ -371,14 +363,23 @@ async function selectMatch(
   firstSymbolId: string,
   secondSymbolId: string,
 ) {
+  await selectCardSymbol(page, 1, firstSymbolId)
+  await selectCardSymbol(page, 2, secondSymbolId)
+}
+
+async function selectCardSymbol(
+  page: Page,
+  cardNumber: 1 | 2,
+  symbolId: string,
+) {
   await page
-    .getByLabel('Card 1')
-    .locator(`button[data-symbol-id="${firstSymbolId}"]`)
+    .getByLabel(`Card ${cardNumber}`)
+    .locator(`button[data-symbol-id="${symbolId}"]`)
     .click()
-  await page
-    .getByLabel('Card 2')
-    .locator(`button[data-symbol-id="${secondSymbolId}"]`)
-    .click()
+}
+
+function firstSymbolControl(page: Page) {
+  return page.getByLabel('Card 1').locator('button[data-symbol-id]').first()
 }
 
 function findSharedSymbol(cards: CardSnapshot[]) {
