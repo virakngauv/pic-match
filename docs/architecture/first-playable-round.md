@@ -22,10 +22,10 @@ All participants race against the same two cards.
 
 An incorrect selection earns no point and does not advance the pair. It starts
 a one-second, per-player server cooldown that prevents repeated claims without
-pausing other participants. The two selected incorrect symbols shake for about
-one second, then clear so the player can immediately try again. A reconnect
-restores only the remaining authoritative cooldown and does not replay the
-interaction-specific shake.
+pausing other participants. The two selected incorrect symbols show a static
+red X for about one second, then clear so the player can immediately try again.
+A reconnect restores only the remaining authoritative cooldown and does not
+replay the interaction-specific feedback.
 
 ## Authoritative game rules
 
@@ -76,10 +76,10 @@ symbol's identity.
 
 The playing screen also shows every participant's score, clearly marks the
 local participant, and gives feedback for selected, incorrect, accepted, and
-stale claims. Incorrect feedback does not fade the board, and the shake is
-suppressed when reduced motion is preferred. Reconnecting participants receive
-the current pair revision, scores, and any remaining local cooldown rather than
-restarting the game.
+stale claims. Incorrect feedback marks both rejected selections with a static
+red X during the one-second cooldown without fading or moving the board.
+Reconnecting participants receive the current pair revision, scores, and any
+remaining authoritative cooldown rather than restarting the game.
 
 ## Ordered implementation
 

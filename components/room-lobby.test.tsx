@@ -353,10 +353,10 @@ describe('RoomLobby', () => {
     expect(screen.getByLabelText("Chrome player's score")).toHaveTextContent(
       '0',
     )
-    expect(screen.getByRole('button', { name: 'Submit match' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
     expect(
       screen.getByRole('button', { name: 'Cat on card 1' }),
-    ).toHaveAttribute('data-shaking', 'false')
+    ).toHaveAttribute('data-incorrect', 'false')
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
       'Please wait a moment before selecting again.',
     )
@@ -369,7 +369,6 @@ describe('RoomLobby', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cat on card 1' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cat on card 2' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit match' }))
 
     await waitFor(() => {
       expect(mocks.submitMatchClaim).toHaveBeenCalledWith({

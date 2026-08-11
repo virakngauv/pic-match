@@ -1,13 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { GameCard, type GameCardModel } from '@/components/game-card'
-import { Button } from '@/components/ui/button'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
 import { cn } from '@/lib/utils'
 
-const INCORRECT_SHAKE_MS = 1_000
+const INCORRECT_FEEDBACK_MS = 1_000
 
 type GamePlayer = {
   playerId: string
@@ -53,13 +52,7 @@ export function GameScreen({
 }
 
 type ClaimFeedback =
-  | 'incomplete'
-  | 'incorrect'
-  | 'stale'
-  | 'accepted'
-  | 'cooldown'
-  | 'error'
-  | null
+  'incorrect' | 'stale' | 'accepted' | 'cooldown' | 'error' | null
 
 /** Owns local selection state for one immutable server pair revision. */
 function GameRound({
@@ -84,64 +77,55 @@ function GameRound({
   >([null, null])
   const [feedback, setFeedback] = useState<ClaimFeedback>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const submissionLockedRef = useRef(false)
   const [submittedCooldownUntil, setSubmittedCooldownUntil] = useState<
     number | null
   >(cooldownUntil)
-  const [shakeUntil, setShakeUntil] = useState<number | null>(null)
+  const [incorrectFeedbackUntil, setIncorrectFeedbackUntil] = useState<
+    number | null
+  >(null)
   const effectiveCooldownUntil = Math.max(
     cooldownUntil ?? 0,
     submittedCooldownUntil ?? 0,
   )
   const isServerCooldownActive = useDeadlineActive(effectiveCooldownUntil)
-  const isIncorrectShakeActive = useDeadlineActive(shakeUntil ?? 0)
+  const isIncorrectFeedbackActive = useDeadlineActive(
+    incorrectFeedbackUntil ?? 0,
+  )
   const controlsDisabled =
-    isSubmitting || isServerCooldownActive || isIncorrectShakeActive
+    isSubmitting ||
+    isServerCooldownActive ||
+    isIncorrectFeedbackActive ||
+    feedback === 'accepted' ||
+    feedback === 'stale'
   const orderedScoreboard = [...scoreboard].sort(
     (left, right) => left.position - right.position,
   )
 
   useEffect(() => {
-    if (shakeUntil === null) {
+    if (incorrectFeedbackUntil === null) {
       return
     }
 
     const timeout = window.setTimeout(
       () => {
-        setShakeUntil(null)
+        setIncorrectFeedbackUntil(null)
         setSelectedSymbols([null, null])
         setFeedback(null)
       },
-      Math.max(0, shakeUntil - Date.now()),
+      Math.max(0, incorrectFeedbackUntil - Date.now()),
     )
 
     return () => window.clearTimeout(timeout)
-  }, [shakeUntil])
+  }, [incorrectFeedbackUntil])
 
-  /** Replaces the local selection for one card in the current round. */
-  const selectSymbol = (cardIndex: number, symbolId: string) => {
-    if (controlsDisabled) {
+  /** Submits a newly completed selection once and presents its outcome. */
+  const submitClaim = async (firstSymbolId: string, secondSymbolId: string) => {
+    if (controlsDisabled || submissionLockedRef.current) {
       return
     }
 
-    setSelectedSymbols((current) =>
-      cardIndex === 0 ? [symbolId, current[1]] : [current[0], symbolId],
-    )
-    setFeedback(null)
-  }
-
-  /** Submits a complete selection once and presents its outcome. */
-  const submitClaim = async () => {
-    const [firstSymbolId, secondSymbolId] = selectedSymbols
-
-    if (!firstSymbolId || !secondSymbolId) {
-      setFeedback('incomplete')
-      return
-    }
-
-    if (controlsDisabled) {
-      return
-    }
-
+    submissionLockedRef.current = true
     setIsSubmitting(true)
     setFeedback(null)
 
@@ -157,7 +141,7 @@ function GameRound({
       }
 
       if (result.status === 'incorrect') {
-        setShakeUntil(Date.now() + INCORRECT_SHAKE_MS)
+        setIncorrectFeedbackUntil(deadlineFromNow(INCORRECT_FEEDBACK_MS))
         setFeedback('incorrect')
       } else if (result.status === 'stale') {
         setFeedback('stale')
@@ -169,7 +153,28 @@ function GameRound({
       console.error('Match claim submission failed.', error)
       setFeedback('error')
     } finally {
+      submissionLockedRef.current = false
       setIsSubmitting(false)
+    }
+  }
+
+  /** Replaces the local selection for one card in the current round. */
+  const selectSymbol = (cardIndex: number, symbolId: string) => {
+    if (controlsDisabled || submissionLockedRef.current) {
+      return
+    }
+
+    const nextSelection =
+      cardIndex === 0
+        ? ([symbolId, selectedSymbols[1]] as const)
+        : ([selectedSymbols[0], symbolId] as const)
+
+    setSelectedSymbols(nextSelection)
+    setFeedback(null)
+
+    const [firstSymbolId, secondSymbolId] = nextSelection
+    if (firstSymbolId && secondSymbolId) {
+      void submitClaim(firstSymbolId, secondSymbolId)
     }
   }
 
@@ -209,7 +214,7 @@ function GameRound({
                   card={card}
                   cardNumber={index + 1}
                   selectedSymbolId={selectedSymbols[index] ?? null}
-                  shakeSelectedSymbol={isIncorrectShakeActive}
+                  showIncorrectFeedback={isIncorrectFeedbackActive}
                   disabled={controlsDisabled}
                   onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
                 />
@@ -231,15 +236,7 @@ function GameRound({
           )}
 
           {cards.length === 2 ? (
-            <div className="mt-6 flex min-h-24 flex-col items-center gap-3">
-              <Button
-                type="button"
-                onClick={submitClaim}
-                disabled={controlsDisabled}
-                aria-describedby="match-claim-feedback"
-              >
-                {isSubmitting ? 'Submitting…' : 'Submit match'}
-              </Button>
+            <div className="mt-6 flex min-h-16 flex-col items-center gap-3">
               <p
                 id="match-claim-feedback"
                 className={cn(
@@ -249,15 +246,17 @@ function GameRound({
                 role={feedback === 'error' ? 'alert' : 'status'}
                 aria-label="Match claim feedback"
               >
-                {isIncorrectShakeActive
-                  ? 'Incorrect match. Try again in a moment.'
-                  : isServerCooldownActive
-                    ? 'Please wait a moment before selecting again.'
-                    : feedback &&
-                        feedback !== 'incorrect' &&
-                        feedback !== 'cooldown'
-                      ? getClaimFeedbackMessage(feedback)
-                      : 'Select one symbol on each card, then submit your match.'}
+                {isSubmitting
+                  ? 'Submitting match…'
+                  : isIncorrectFeedbackActive
+                    ? 'Incorrect match. Try again in a moment.'
+                    : isServerCooldownActive
+                      ? 'Please wait a moment before selecting again.'
+                      : feedback &&
+                          feedback !== 'incorrect' &&
+                          feedback !== 'cooldown'
+                        ? getClaimFeedbackMessage(feedback)
+                        : 'Select one symbol on each card. Your match submits automatically.'}
               </p>
             </div>
           ) : null}
@@ -323,8 +322,6 @@ function GameRound({
 /** Maps claim outcomes to distinct, user-facing status messages. */
 function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
   switch (feedback) {
-    case 'incomplete':
-      return 'Select one symbol on each card before submitting.'
     case 'incorrect':
       return 'Incorrect match. Try again in a moment.'
     case 'cooldown':
@@ -334,8 +331,13 @@ function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
     case 'accepted':
       return 'Match accepted.'
     case 'error':
-      return 'Unable to submit your match. Please try again.'
+      return 'Unable to submit your match. Select either symbol again to retry.'
   }
+}
+
+/** Creates a wall-clock deadline for interaction feedback started by an event. */
+function deadlineFromNow(durationMs: number) {
+  return Date.now() + durationMs
 }
 
 /** Renders once when a timestamp-based lock changes from active to expired. */

@@ -132,44 +132,47 @@ describe('GameScreen', () => {
     )
   })
 
-  it('selects and replaces one local symbol per card', async () => {
+  it('selects and replaces one local symbol without submitting', async () => {
     const user = userEvent.setup()
-    renderGame()
+    const onSubmitClaim = vi.fn()
+    renderGame({ onSubmitClaim })
     const sun = screen.getByRole('button', { name: 'Sun on card 1' })
     const moon = screen.getByRole('button', { name: 'Moon on card 1' })
-    const cat = screen.getByRole('button', { name: 'Cat on card 2' })
 
     await user.click(sun)
-    await user.click(cat)
-
-    expect(sun).toHaveAttribute('aria-pressed', 'true')
-    expect(cat).toHaveAttribute('aria-pressed', 'true')
-
     await user.click(moon)
 
     expect(sun).toHaveAttribute('aria-pressed', 'false')
     expect(moon).toHaveAttribute('aria-pressed', 'true')
+    expect(onSubmitClaim).not.toHaveBeenCalled()
   })
 
   it('provides the same symbol selection behavior from the keyboard', async () => {
     const user = userEvent.setup()
-    renderGame()
-    const cat = screen.getByRole('button', { name: 'Cat on card 1' })
+    const onSubmitClaim = vi.fn().mockResolvedValue({ status: 'accepted' })
+    renderGame({ onSubmitClaim })
+    const firstCat = screen.getByRole('button', { name: 'Cat on card 1' })
+    const secondCat = screen.getByRole('button', { name: 'Cat on card 2' })
 
-    cat.focus()
+    firstCat.focus()
     await user.keyboard('{Enter}')
+    secondCat.focus()
+    await user.keyboard(' ')
 
-    expect(cat).toHaveAttribute('aria-pressed', 'true')
+    expect(firstCat).toHaveAttribute('aria-pressed', 'true')
+    expect(secondCat).toHaveAttribute('aria-pressed', 'true')
+    expect(onSubmitClaim).toHaveBeenCalledTimes(1)
   })
 
-  it('submits both selected symbols with the viewed pair revision', async () => {
+  it('automatically submits both selected symbols with the viewed pair revision', async () => {
     const user = userEvent.setup()
     const onSubmitClaim = vi.fn().mockResolvedValue({ status: 'accepted' })
     renderGame({ onSubmitClaim })
 
     await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
+    expect(onSubmitClaim).not.toHaveBeenCalled()
+
     await user.click(screen.getByRole('button', { name: 'Cat on card 2' }))
-    await user.click(screen.getByRole('button', { name: 'Submit match' }))
 
     await waitFor(() => {
       expect(onSubmitClaim).toHaveBeenCalledWith({
@@ -181,23 +184,27 @@ describe('GameScreen', () => {
     expect(
       screen.getByRole('status', { name: 'Match claim feedback' }),
     ).toHaveTextContent('Match accepted.')
+    expect(
+      screen.queryByRole('button', { name: 'Submit match' }),
+    ).not.toBeInTheDocument()
   })
 
-  it('reports an incomplete selection without submitting it', async () => {
+  it('does not submit until both cards have a selection', async () => {
     const user = userEvent.setup()
     const onSubmitClaim = vi.fn()
     renderGame({ onSubmitClaim })
 
     await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
-    await user.click(screen.getByRole('button', { name: 'Submit match' }))
 
     expect(onSubmitClaim).not.toHaveBeenCalled()
     expect(
       screen.getByRole('status', { name: 'Match claim feedback' }),
-    ).toHaveTextContent('Select one symbol on each card before submitting.')
+    ).toHaveTextContent(
+      'Select one symbol on each card. Your match submits automatically.',
+    )
   })
 
-  it('shakes the selected symbols, then clears them after an incorrect claim', async () => {
+  it('marks the selected symbols, then clears them after an incorrect claim', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
     const cooldownUntil = 11_000
@@ -209,7 +216,6 @@ describe('GameScreen', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cat on card 1' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cat on card 2' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit match' }))
 
     await act(async () => Promise.resolve())
 
@@ -228,12 +234,17 @@ describe('GameScreen', () => {
     expect(secondSelection).toBeDisabled()
     expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
     expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
-    expect(firstSelection).toHaveAttribute('data-shaking', 'true')
-    expect(secondSelection).toHaveAttribute('data-shaking', 'true')
+    expect(firstSelection).toHaveAttribute('data-incorrect', 'true')
+    expect(secondSelection).toHaveAttribute('data-incorrect', 'true')
+    expect(within(firstSelection).getByText('×')).toHaveClass(
+      'spot-it-incorrect-mark',
+    )
+    expect(within(secondSelection).getByText('×')).toHaveClass(
+      'spot-it-incorrect-mark',
+    )
     expect(
       screen.getByRole('button', { name: 'Sun on card 1' }),
-    ).toHaveAttribute('data-shaking', 'false')
-    expect(screen.getByRole('button', { name: 'Submit match' })).toBeDisabled()
+    ).toHaveAttribute('data-incorrect', 'false')
     expect(screen.queryByText(/\d seconds?/)).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Selection locked' }),
@@ -243,12 +254,13 @@ describe('GameScreen', () => {
 
     expect(firstSelection).toHaveAttribute('aria-pressed', 'false')
     expect(secondSelection).toHaveAttribute('aria-pressed', 'false')
-    expect(firstSelection).toHaveAttribute('data-shaking', 'false')
-    expect(secondSelection).toHaveAttribute('data-shaking', 'false')
+    expect(firstSelection).toHaveAttribute('data-incorrect', 'false')
+    expect(secondSelection).toHaveAttribute('data-incorrect', 'false')
+    expect(within(firstSelection).queryByText('×')).not.toBeInTheDocument()
+    expect(within(secondSelection).queryByText('×')).not.toBeInTheDocument()
     expect(firstSelection).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Submit match' })).toBeEnabled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'Select one symbol on each card, then submit your match.',
+      'Select one symbol on each card. Your match submits automatically.',
     )
 
     vi.useRealTimers()
@@ -262,7 +274,6 @@ describe('GameScreen', () => {
 
     await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
     await user.click(screen.getByRole('button', { name: 'Cat on card 2' }))
-    await user.click(screen.getByRole('button', { name: 'Submit match' }))
 
     expect(
       await screen.findByRole('status', { name: 'Match claim feedback' }),
@@ -276,6 +287,7 @@ describe('GameScreen', () => {
     expect(
       screen.getByRole('button', { name: 'Cat on card 2' }),
     ).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
   })
 
   it('restores a persisted cooldown and enables controls at its deadline', () => {
@@ -284,25 +296,22 @@ describe('GameScreen', () => {
 
     renderGame({ cooldownUntil: 11_000 })
 
-    expect(screen.getByRole('button', { name: 'Submit match' })).toBeDisabled()
-    expect(
-      screen.getByRole('button', { name: 'Cat on card 1' }),
-    ).toHaveAttribute('data-shaking', 'false')
+    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
       'Please wait a moment before selecting again.',
     )
 
     act(() => vi.advanceTimersByTime(1_010))
 
-    expect(screen.getByRole('button', { name: 'Submit match' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeEnabled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'Select one symbol on each card, then submit your match.',
+      'Select one symbol on each card. Your match submits automatically.',
     )
 
     vi.useRealTimers()
   })
 
-  it('honors a cooldown result without shaking or clearing the submitted pair', async () => {
+  it('honors a cooldown result without marking or clearing the submitted pair', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
     renderGame({
@@ -321,12 +330,11 @@ describe('GameScreen', () => {
 
     fireEvent.click(firstSelection)
     fireEvent.click(secondSelection)
-    fireEvent.click(screen.getByRole('button', { name: 'Submit match' }))
 
     await act(async () => Promise.resolve())
 
-    expect(firstSelection).toHaveAttribute('data-shaking', 'false')
-    expect(secondSelection).toHaveAttribute('data-shaking', 'false')
+    expect(firstSelection).toHaveAttribute('data-incorrect', 'false')
+    expect(secondSelection).toHaveAttribute('data-incorrect', 'false')
     expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
     expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
     expect(firstSelection).toBeDisabled()
@@ -344,26 +352,37 @@ describe('GameScreen', () => {
     const user = userEvent.setup()
     const error = new Error('offline')
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    renderGame({ onSubmitClaim: vi.fn().mockRejectedValue(error) })
+    const onSubmitClaim = vi
+      .fn()
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({ status: 'accepted' })
+    renderGame({ onSubmitClaim })
 
     await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
     await user.click(screen.getByRole('button', { name: 'Cat on card 2' }))
-    await user.click(screen.getByRole('button', { name: 'Submit match' }))
 
     expect(
       await screen.findByRole('alert', { name: 'Match claim feedback' }),
-    ).toHaveTextContent('Unable to submit your match. Please try again.')
-    expect(screen.getByRole('button', { name: 'Submit match' })).toBeEnabled()
+    ).toHaveTextContent(
+      'Unable to submit your match. Select either symbol again to retry.',
+    )
+    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeEnabled()
     expect(consoleError).toHaveBeenCalledWith(
       'Match claim submission failed.',
       error,
     )
 
+    await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
+
+    expect(onSubmitClaim).toHaveBeenCalledTimes(2)
+    expect(
+      await screen.findByRole('status', { name: 'Match claim feedback' }),
+    ).toHaveTextContent('Match accepted.')
+
     consoleError.mockRestore()
   })
 
   it('prevents duplicate input while the same claim is pending', async () => {
-    const user = userEvent.setup()
     let resolveClaim: ((value: { status: 'accepted' }) => void) | undefined
     const onSubmitClaim = vi.fn(
       () =>
@@ -373,20 +392,22 @@ describe('GameScreen', () => {
     )
     renderGame({ onSubmitClaim })
 
-    await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
-    await user.click(screen.getByRole('button', { name: 'Cat on card 2' }))
-    await user.click(screen.getByRole('button', { name: 'Submit match' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cat on card 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cat on card 2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Flower on card 2' }))
 
-    expect(screen.getByRole('button', { name: 'Submitting…' })).toBeDisabled()
+    expect(
+      screen.getByRole('status', { name: 'Match claim feedback' }),
+    ).toHaveTextContent('Submitting match…')
     expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Submitting…' }))
+    expect(screen.getByRole('button', { name: 'Cat on card 2' })).toBeDisabled()
     expect(onSubmitClaim).toHaveBeenCalledTimes(1)
 
     await act(async () => {
       resolveClaim?.({ status: 'accepted' })
     })
 
-    expect(screen.getByRole('button', { name: 'Submit match' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
   })
 
   it('resets selections when the server advances to the next revision', async () => {
