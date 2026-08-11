@@ -86,10 +86,12 @@ export function GameCard({
             disabled={disabled}
             onClick={() => onSelectSymbol(symbolId)}
             className={cn(
-              'focus-visible:ring-ring/70 absolute inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border-2 p-1 leading-none transition-[filter,box-shadow,background-color,border-color] focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait',
-              isSelected
-                ? 'border-accent bg-accent/15 ring-accent/40 z-[1] shadow-md ring-4'
-                : 'border-transparent bg-white/75 shadow-sm hover:brightness-105',
+              'focus-visible:ring-ring/70 absolute inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border-2 p-1 leading-none transition-[filter,box-shadow,background-color,border-color] focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait motion-reduce:transition-none',
+              isShaking
+                ? 'z-[1] border-red-700 bg-red-100/95 shadow-md ring-4 ring-red-500/50'
+                : isSelected
+                  ? 'border-accent bg-accent/15 ring-accent/40 z-[1] shadow-md ring-4'
+                  : 'border-transparent bg-white/75 shadow-sm hover:brightness-105',
             )}
             data-symbol-id={symbolId}
             data-selected={isSelected}
@@ -115,6 +117,14 @@ export function GameCard({
             >
               {symbol.glyph}
             </span>
+            {isShaking ? (
+              <span
+                aria-hidden="true"
+                className="spot-it-incorrect-mark pointer-events-none absolute inset-0 z-10 inline-flex items-center justify-center text-5xl font-black text-red-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]"
+              >
+                ×
+              </span>
+            ) : null}
           </button>
         )
       })}

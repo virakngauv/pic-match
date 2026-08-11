@@ -236,6 +236,12 @@ describe('GameScreen', () => {
     expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
     expect(firstSelection).toHaveAttribute('data-shaking', 'true')
     expect(secondSelection).toHaveAttribute('data-shaking', 'true')
+    expect(within(firstSelection).getByText('×')).toHaveClass(
+      'spot-it-incorrect-mark',
+    )
+    expect(within(secondSelection).getByText('×')).toHaveClass(
+      'spot-it-incorrect-mark',
+    )
     expect(
       screen.getByRole('button', { name: 'Sun on card 1' }),
     ).toHaveAttribute('data-shaking', 'false')
@@ -250,6 +256,8 @@ describe('GameScreen', () => {
     expect(secondSelection).toHaveAttribute('aria-pressed', 'false')
     expect(firstSelection).toHaveAttribute('data-shaking', 'false')
     expect(secondSelection).toHaveAttribute('data-shaking', 'false')
+    expect(within(firstSelection).queryByText('×')).not.toBeInTheDocument()
+    expect(within(secondSelection).queryByText('×')).not.toBeInTheDocument()
     expect(firstSelection).toBeEnabled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
       'Select one symbol on each card. Your match submits automatically.',

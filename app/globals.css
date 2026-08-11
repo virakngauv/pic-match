@@ -86,12 +86,28 @@ body {
   }
 }
 
+@keyframes spot-it-incorrect-mark-fade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
 .spot-it-incorrect-shake {
   animation: spot-it-incorrect-shake 1s ease-in-out;
 }
 
+.spot-it-incorrect-mark {
+  animation: spot-it-incorrect-mark-fade 1s linear;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .spot-it-incorrect-shake {
+  .spot-it-incorrect-shake,
+  .spot-it-incorrect-mark {
     animation: none;
   }
 }

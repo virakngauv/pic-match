@@ -23,7 +23,10 @@ test('replays a complete shared race across browser sessions', async ({
 }) => {
   test.setTimeout(180_000)
 
-  const hostContext = await browser.newContext({ baseURL })
+  const hostContext = await browser.newContext({
+    baseURL,
+    reducedMotion: 'reduce',
+  })
   let guestContext = await browser.newContext({ baseURL })
   const outsiderContext = await browser.newContext({ baseURL })
   const lateJoinerContext = await browser.newContext({ baseURL })
@@ -81,6 +84,12 @@ test('replays a complete shared race across browser sessions', async ({
       .locator(`button[data-symbol-id="${incorrectSelection.secondSymbolId}"]`)
     await expect(firstIncorrectSymbol).toHaveAttribute('data-shaking', 'true')
     await expect(secondIncorrectSymbol).toHaveAttribute('data-shaking', 'true')
+    await expect(
+      firstIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+    ).toBeVisible()
+    await expect(
+      secondIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+    ).toBeVisible()
     expect(await playingSnapshot(hostPage)).toEqual(beforeIncorrectClaim)
     await expect
       .poll(async () => await playingSnapshot(guestPage))
@@ -92,6 +101,12 @@ test('replays a complete shared race across browser sessions', async ({
     await expect(secondIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
     await expect(firstIncorrectSymbol).toHaveAttribute('data-shaking', 'false')
     await expect(secondIncorrectSymbol).toHaveAttribute('data-shaking', 'false')
+    await expect(
+      firstIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+    ).toHaveCount(0)
+    await expect(
+      secondIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+    ).toHaveCount(0)
 
     await submitSharedMatch(hostPage)
     await expectScore(hostPage, playerNames.host, 1)
@@ -210,6 +225,15 @@ test('replays a complete shared race across browser sessions', async ({
     await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
       'Incorrect match. Try again in a moment.',
     )
+    const reducedMotionErrorMark = hostPage
+      .locator('button[data-shaking="true"] .spot-it-incorrect-mark')
+      .first()
+    await expect(reducedMotionErrorMark).toBeVisible()
+    expect(
+      await reducedMotionErrorMark.evaluate(
+        (mark) => window.getComputedStyle(mark).animationName,
+      ),
+    ).toBe('none')
     expect(await playingSnapshot(hostPage)).toEqual(secondGameInitialState)
     await expect(firstSymbolControl(hostPage)).toBeEnabled({ timeout: 2_000 })
 
