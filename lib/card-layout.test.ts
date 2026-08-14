@@ -73,6 +73,22 @@ describe('card layout templates', () => {
     }
   })
 
+  it('avoids the WebKit paint failure at exactly 180 degrees', () => {
+    const slot = {
+      x: 0,
+      y: 0,
+      size: MIN_SYMBOL_SIZE,
+      rotation: 0,
+      collisionRadius: 0.17,
+    }
+
+    expect(
+      [-181, -180, -179, 0, 179, 180, 540].map(
+        (rotation) => rotateCardLayoutSlot(slot, rotation).rotation,
+      ),
+    ).toEqual([179, -179, -179, 0, 179, -179, -179])
+  })
+
   it('builds stable plans with unique slots and different paired templates', () => {
     const firstPlans = getPairLayoutPlans(cards, 7)
     const secondPlans = getPairLayoutPlans(cards, 7)
