@@ -68,15 +68,36 @@ export async function expectValidCardGeometry(cards: Locator) {
         }
 
         if (glyph instanceof HTMLElement) {
-          const glyphRadius = Math.hypot(
-            glyph.offsetWidth / 2,
-            glyph.offsetHeight / 2,
-          )
+          const glyphBounds = glyph.getBoundingClientRect()
+          const glyphCenter = {
+            x: glyphBounds.left + glyphBounds.width / 2,
+            y: glyphBounds.top + glyphBounds.height / 2,
+          }
+          const glyphStyles = getComputedStyle(glyph)
+          const transform = new DOMMatrixReadOnly(glyphStyles.transform)
+          const halfWidth = glyph.offsetWidth / 2
+          const halfHeight = glyph.offsetHeight / 2
+          const corners = [
+            [-halfWidth, -halfHeight],
+            [halfWidth, -halfHeight],
+            [halfWidth, halfHeight],
+            [-halfWidth, halfHeight],
+          ]
 
-          if (glyphRadius > radius + 1) {
-            issues.push(
-              `card ${cardIndex} template ${card.getAttribute('data-layout-template')} slot ${button.dataset.layoutSlot} symbol ${button.dataset.symbolId} exceeds its collision target by ${(glyphRadius - radius).toFixed(1)}px`,
+          for (const [x = 0, y = 0] of corners) {
+            const transformedX = transform.a * x + transform.c * y
+            const transformedY = transform.b * x + transform.d * y
+            const distanceFromCardCenter = Math.hypot(
+              glyphCenter.x + transformedX - cardCenter.x,
+              glyphCenter.y + transformedY - cardCenter.y,
             )
+
+            if (distanceFromCardCenter > cardRadius + 1) {
+              issues.push(
+                `card ${cardIndex} template ${card.getAttribute('data-layout-template')} slot ${button.dataset.layoutSlot} symbol ${button.dataset.symbolId} has a glyph corner outside its edge`,
+              )
+              break
+            }
           }
         }
 
