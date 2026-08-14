@@ -227,8 +227,8 @@ test('replays a complete shared race across browser sessions', async ({
     await expectPlaying(hostPage, playerNames.host)
     await expectPlaying(lateJoinerPage, playerNames.replacement)
     await expect(
-      hostPage.getByLabel(`Room ${roomCode}, round 1`, { exact: true }),
-    ).toBeVisible()
+      hostPage.getByText(`Room ${roomCode}, round 1`, { exact: true }),
+    ).toBeAttached()
 
     const secondGameInitialState = await playingSnapshot(hostPage)
     expect(secondGameInitialState.scores).toEqual({ Ada: 0, Linus: 0 })

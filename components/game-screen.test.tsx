@@ -448,7 +448,9 @@ describe('GameScreen', () => {
       />,
     )
 
-    expect(screen.getByLabelText('Room frvg7, round 2')).toBeInTheDocument()
+    expect(
+      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
     expect(screen.getByLabelText("Chrome player's score")).toHaveTextContent(
       '1',
     )

@@ -190,10 +190,10 @@ function GameRound({
       <div className="game-shell">
         <header className="game-header" aria-labelledby="game-heading">
           <div className="flex min-w-0 flex-1 items-baseline justify-between gap-3 lg:block">
-            <p
-              className="text-accent shrink-0 text-[0.65rem] font-bold tracking-[0.14em] uppercase sm:text-xs lg:tracking-[0.18em]"
-              aria-label={`Room ${roomCode}, round ${pairRevision + 1}`}
-            >
+            <p className="text-accent shrink-0 text-[0.65rem] font-bold tracking-[0.14em] uppercase sm:text-xs lg:tracking-[0.18em]">
+              <span className="sr-only">
+                Room {roomCode}, round {pairRevision + 1}
+              </span>
               <span className="sm:hidden" aria-hidden="true">
                 {roomCode} · R{pairRevision + 1}
               </span>

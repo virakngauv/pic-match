@@ -55,7 +55,7 @@ export async function expectValidCardGeometry(
             Math.min(bounds.width, bounds.height) < thresholds.minimumTargetSize
           ) {
             issues.push(
-              `card ${cardIndex} has a target below ${Math.ceil(thresholds.minimumTargetSize)}px`,
+              `card ${cardIndex} has a target below ${thresholds.minimumTargetSize}px`,
             )
           }
 

@@ -186,7 +186,7 @@ body {
     height: 1px;
     padding: 0;
     overflow: hidden;
-    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
     white-space: nowrap;
   }
 
@@ -216,7 +216,11 @@ body {
     right: 0.5rem;
     bottom: 0;
     left: 0.5rem;
-    height: 1.5rem;
+    height: auto;
+    min-height: 1.5rem;
+    max-height: 3rem;
+    overflow-y: visible;
+    padding-block: 0.25rem;
     border: 1px solid var(--border);
     border-radius: 999px;
     background: color-mix(in oklab, var(--card) 94%, transparent);
@@ -262,7 +266,7 @@ body {
     height: 1px;
     padding: 0;
     overflow: hidden;
-    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
     white-space: nowrap;
   }
 
@@ -279,7 +283,11 @@ body {
     right: 0.5rem;
     bottom: 0;
     left: 0.5rem;
-    height: 1.5rem;
+    height: auto;
+    min-height: 1.5rem;
+    max-height: 3rem;
+    overflow-y: visible;
+    padding-block: 0.25rem;
     border: 1px solid var(--border);
     border-radius: 999px;
     background: color-mix(in oklab, var(--card) 94%, transparent);

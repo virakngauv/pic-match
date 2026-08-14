@@ -181,37 +181,54 @@ async function expectGameplayAtDoubleTextSize(page: Page) {
   })
 
   const measurements = await page.evaluate(() => {
+    const surface = document.querySelector<HTMLElement>('.game-surface')
+
+    if (!surface) {
+      throw new Error('Missing the gameplay scroll container.')
+    }
+
+    const surfaceBounds = surface.getBoundingClientRect()
     const cards = Array.from(
       document.querySelectorAll('article[data-card-id]'),
     ).map((card) => {
       const bounds = card.getBoundingClientRect()
 
       return {
-        bottom: bounds.bottom + window.scrollY,
-        left: bounds.left,
-        right: bounds.right,
-        top: bounds.top + window.scrollY,
+        bottom: bounds.bottom - surfaceBounds.top + surface.scrollTop,
+        left: bounds.left - surfaceBounds.left + surface.scrollLeft,
+        right: bounds.right - surfaceBounds.left + surface.scrollLeft,
+        top: bounds.top - surfaceBounds.top + surface.scrollTop,
       }
     })
 
     return {
       cards,
-      scrollHeight: document.documentElement.scrollHeight,
-      scrollWidth: document.documentElement.scrollWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      surfaceClientHeight: surface.clientHeight,
+      surfaceClientWidth: surface.clientWidth,
+      surfaceScrollHeight: surface.scrollHeight,
+      surfaceScrollWidth: surface.scrollWidth,
       viewportWidth: document.documentElement.clientWidth,
     }
   })
 
-  expect(measurements.scrollWidth).toBeLessThanOrEqual(
+  expect(measurements.documentScrollWidth).toBeLessThanOrEqual(
     measurements.viewportWidth + 1,
   )
-  expect(measurements.scrollHeight).toBeGreaterThan(0)
+  expect(measurements.surfaceScrollWidth).toBeLessThanOrEqual(
+    measurements.surfaceClientWidth + 1,
+  )
+  expect(measurements.surfaceScrollHeight).toBeGreaterThan(
+    measurements.surfaceClientHeight,
+  )
 
   for (const card of measurements.cards) {
     expect(card.left).toBeGreaterThanOrEqual(-1)
-    expect(card.right).toBeLessThanOrEqual(measurements.scrollWidth + 1)
+    expect(card.right).toBeLessThanOrEqual(measurements.surfaceScrollWidth + 1)
     expect(card.top).toBeGreaterThanOrEqual(-1)
-    expect(card.bottom).toBeLessThanOrEqual(measurements.scrollHeight + 1)
+    expect(card.bottom).toBeLessThanOrEqual(
+      measurements.surfaceScrollHeight + 1,
+    )
   }
 
   await page.getByLabel("Ada's score").scrollIntoViewIfNeeded()
