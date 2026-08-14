@@ -161,19 +161,23 @@ function GameRound({
     }
   }
 
-  /** Replaces the local selection for one card in the current round. */
+  /** Toggles or replaces the local selection for one editable card. */
   const selectSymbol = (cardIndex: number, symbolId: string) => {
     if (controlsDisabled || submissionLockedRef.current) {
       return
     }
 
+    const nextSymbolId =
+      selectedSymbols[cardIndex] === symbolId ? null : symbolId
     const nextSelection =
       cardIndex === 0
-        ? ([symbolId, selectedSymbols[1]] as const)
-        : ([selectedSymbols[0], symbolId] as const)
+        ? ([nextSymbolId, selectedSymbols[1]] as const)
+        : ([selectedSymbols[0], nextSymbolId] as const)
 
     setSelectedSymbols(nextSelection)
-    setFeedback(null)
+    if (feedback !== 'error') {
+      setFeedback(null)
+    }
 
     const [firstSymbolId, secondSymbolId] = nextSelection
     if (firstSymbolId && secondSymbolId) {
@@ -356,7 +360,7 @@ function getClaimFeedbackMessage(feedback: Exclude<ClaimFeedback, null>) {
     case 'accepted':
       return 'Match accepted.'
     case 'error':
-      return 'Unable to submit your match. Select either symbol again to retry.'
+      return 'Unable to submit your match. Change or reselect either symbol to retry.'
   }
 }
 
