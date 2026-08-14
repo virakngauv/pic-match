@@ -33,4 +33,19 @@ test('renders every fixed card template without collisions or movement', async (
 
   await page.setViewportSize({ width: 390, height: 844 })
   await expectValidCardGeometry(cards)
+
+  await cards.evaluateAll((elements) => {
+    elements.forEach((card) => {
+      if (card instanceof HTMLElement) {
+        card.style.width = '240px'
+        card.style.minWidth = '0'
+        card.style.setProperty('--symbol-min-target-size', '2.75rem')
+      }
+    })
+  })
+  await expectValidCardGeometry(cards, {
+    minimumLargestSymbol: 36,
+    minimumSymbolSizeRange: 12,
+    minimumTargetSize: 43.5,
+  })
 })
