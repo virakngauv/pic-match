@@ -42,7 +42,7 @@ const cards = [
 describe('card layout templates', () => {
   it('ships twelve distinct, collision-free eight-symbol templates', () => {
     expect(CARD_LAYOUT_TEMPLATES).toHaveLength(12)
-    expect(new Set(CARD_LAYOUT_TEMPLATES.map(({ id }) => id))).toHaveLength(12)
+    expect(new Set(CARD_LAYOUT_TEMPLATES.map(({ id }) => id)).size).toBe(12)
 
     for (const layoutTemplate of CARD_LAYOUT_TEMPLATES) {
       expect(validateCardLayoutTemplate(layoutTemplate)).toEqual([])

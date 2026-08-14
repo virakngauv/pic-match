@@ -341,7 +341,7 @@ function shuffleIndexes(length: number, seed: string): number[] {
 
   for (let index = indexes.length - 1; index > 0; index -= 1) {
     state = nextRandomState(state)
-    const swapIndex = state % (index + 1)
+    const swapIndex = Math.floor((state * (index + 1)) / 0x1_0000_0000)
     const currentValue = indexes[index]
     const swapValue = indexes[swapIndex]
 

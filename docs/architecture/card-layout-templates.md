@@ -29,7 +29,8 @@ margin.
 
 Generation never runs in the browser. Candidate output must be visually
 reviewed before it is copied into `CARD_LAYOUT_TEMPLATES`. The committed data is
-then protected by unit tests that require:
+validated immediately after rounding and curated overrides, before it is
+printed, and is then protected by unit tests that require:
 
 - exactly eight slots per template;
 - a 48px target at the smallest supported card diameter;

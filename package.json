@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "card-layout:generate": "node scripts/generate-card-layout-templates.mjs",
+    "card-layout:generate": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-card-layout-templates.mjs",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",

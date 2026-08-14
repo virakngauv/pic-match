@@ -1,3 +1,5 @@
+import { validateCardLayoutTemplate } from '../lib/card-layout.ts'
+
 const TEMPLATE_NAMES = [
   'aurora',
   'borealis',
@@ -80,6 +82,23 @@ for (
       round(COLLISION_RADII[slotIndex]),
     ]
   })
+
+  const errors = validateCardLayoutTemplate({
+    id: templateName,
+    slots: slots.map(([x, y, size, rotation, collisionRadius]) => ({
+      x,
+      y,
+      size,
+      rotation,
+      collisionRadius,
+    })),
+  })
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Generated invalid template ${templateName}:\n${errors.join('\n')}`,
+    )
+  }
 
   console.log(`template('${templateName}', ${JSON.stringify(slots)}),`)
 }
