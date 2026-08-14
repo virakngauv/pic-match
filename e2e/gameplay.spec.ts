@@ -66,11 +66,31 @@ test('replays a complete shared race across browser sessions', async ({
     const initialViewport = hostPage.viewportSize()
     await hostPage.setViewportSize({ width: 390, height: 844 })
     const toggledSymbol = firstSymbolControl(hostPage)
+    const toggledSymbolId = await toggledSymbol.getAttribute('data-symbol-id')
+    const selectionStylesBefore = await cardSelectionStyleSnapshot(hostPage)
     await toggledSymbol.click()
     await expect(toggledSymbol).toHaveAttribute('aria-pressed', 'true')
+    const selectionStylesAfter = await cardSelectionStyleSnapshot(hostPage)
+    const selectedCardStyles = selectionStylesAfter[0]
+
+    expect(
+      selectedCardStyles?.find(({ id }) => id === toggledSymbolId)?.filter,
+    ).toBe('none')
+    expect(
+      selectedCardStyles
+        ?.filter(({ id }) => id !== toggledSymbolId)
+        .every(({ filter }) => filter === 'saturate(0.42)'),
+    ).toBe(true)
+    expect(selectionStylesAfter[1]).toEqual(selectionStylesBefore[1])
+    await expectValidCardGeometry(
+      hostPage.getByLabel('Shared game board').locator('article[data-card-id]'),
+    )
     await toggledSymbol.click()
     await expect(toggledSymbol).toBeFocused()
     await expect(toggledSymbol).toHaveAttribute('aria-pressed', 'false')
+    expect(await cardSelectionStyleSnapshot(hostPage)).toEqual(
+      selectionStylesBefore,
+    )
     expect(await playingSnapshot(hostPage)).toEqual(initialState)
     if (initialViewport) {
       await hostPage.setViewportSize(initialViewport)
@@ -407,6 +427,36 @@ async function cardLayoutSnapshot(page: Page) {
           }),
         ),
       })),
+    )
+}
+
+async function cardSelectionStyleSnapshot(page: Page) {
+  return page
+    .getByLabel('Shared game board')
+    .locator('article[data-card-id]')
+    .evaluateAll((cardElements) =>
+      cardElements.map((card) =>
+        Array.from(
+          card.querySelectorAll<HTMLButtonElement>('button[data-symbol-id]'),
+          (symbol) => {
+            const glyph = symbol.querySelector<HTMLElement>(
+              '[data-symbol-glyph]',
+            )
+
+            if (!glyph) {
+              throw new Error('Missing a symbol glyph wrapper.')
+            }
+
+            const styles = getComputedStyle(glyph)
+
+            return {
+              id: symbol.dataset.symbolId ?? '',
+              filter: styles.filter,
+              transform: styles.transform,
+            }
+          },
+        ),
+      ),
     )
 }
 
