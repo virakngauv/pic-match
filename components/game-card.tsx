@@ -1,5 +1,10 @@
 import type { CSSProperties } from 'react'
 
+import {
+  SELECTED_SYMBOL_SCALE,
+  UNSELECTED_SYMBOL_FILTER,
+  getSelectedSymbolRotationOffset,
+} from '@/lib/card-selection'
 import { getSpotItSymbolPresentation } from '@/lib/spot-it-symbols'
 import type { CardLayoutPlan } from '@/lib/card-layout'
 import { cn } from '@/lib/utils'
@@ -37,6 +42,7 @@ export function GameCard({
   const symbolLayouts = new Map(
     layoutPlan.symbols.map((layout) => [layout.symbolId, layout]),
   )
+  const hasSelection = selectedSymbolId !== null
 
   return (
     <article
@@ -54,6 +60,7 @@ export function GameCard({
         const layout = symbolLayouts.get(symbolId)
         const isSelected = selectedSymbolId === symbolId
         const isIncorrect = isSelected && showIncorrectFeedback
+        const isDesaturated = hasSelection && !isSelected
 
         if (!layout) {
           throw new Error(`Missing layout for symbol ${symbolId}.`)
@@ -63,6 +70,13 @@ export function GameCard({
           SYMBOL_COLORS[
             hashText(`${card.id}:${symbolId}:color`) % SYMBOL_COLORS.length
           ]
+        const selectionRotation = getSelectedSymbolRotationOffset(
+          card.id,
+          symbolId,
+        )
+        const glyphTransform = isSelected
+          ? `rotate(${layout.rotation}deg) rotate(${selectionRotation}deg) scale(${SELECTED_SYMBOL_SCALE})`
+          : `rotate(${layout.rotation}deg)`
 
         return (
           <button
@@ -77,7 +91,7 @@ export function GameCard({
               isIncorrect
                 ? 'z-[1] border-2 border-red-700/70 bg-red-100/80 ring-4 ring-red-500/50'
                 : isSelected
-                  ? 'border-accent/70 bg-accent/15 ring-accent/40 z-[1] border-2 ring-4'
+                  ? 'z-[1]'
                   : 'hover:brightness-110',
             )}
             data-symbol-id={symbolId}
@@ -103,7 +117,13 @@ export function GameCard({
             <span
               aria-hidden="true"
               className="inline-block drop-shadow-[0_1px_0_rgba(255,255,255,0.75)]"
-              style={{ transform: `rotate(${layout.rotation}deg)` }}
+              data-symbol-glyph=""
+              data-desaturated={isDesaturated}
+              data-selection-rotation={selectionRotation}
+              style={{
+                filter: isDesaturated ? UNSELECTED_SYMBOL_FILTER : 'none',
+                transform: glyphTransform,
+              }}
             >
               {symbol.glyph}
             </span>

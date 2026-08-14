@@ -1,3 +1,5 @@
+import { SELECTED_SYMBOL_SCALE } from './card-selection'
+
 export const CARD_LAYOUT_EDGE_PADDING = 0.055
 export const CARD_LAYOUT_SLOT_GAP = 0.04
 export const MIN_CARD_DIAMETER_PX = 288
@@ -231,17 +233,23 @@ export function validateCardLayoutTemplate(
       )
     }
 
+    const selectedGlyphRadius = slot.size * SELECTED_SYMBOL_SCALE
+    const collisionEnvelopeRadius = Math.max(
+      slot.collisionRadius,
+      selectedGlyphRadius,
+    )
+
     if (
       slot.size < MIN_SYMBOL_SIZE ||
       slot.size > MAX_SYMBOL_SIZE ||
-      slot.collisionRadius < slot.size * 1.5
+      slot.collisionRadius < Math.max(slot.size * 1.5, selectedGlyphRadius)
     ) {
       errors.push(`${layoutTemplate.id} slot ${index} has invalid sizing.`)
     }
 
     const edgeExtent =
       Math.hypot(slot.x, slot.y) +
-      slot.collisionRadius +
+      collisionEnvelopeRadius +
       CARD_LAYOUT_EDGE_PADDING
 
     if (edgeExtent > 1) {
@@ -262,8 +270,14 @@ export function validateCardLayoutTemplate(
       }
 
       const distance = Math.hypot(slot.x - otherSlot.x, slot.y - otherSlot.y)
+      const otherCollisionEnvelopeRadius = Math.max(
+        otherSlot.collisionRadius,
+        otherSlot.size * SELECTED_SYMBOL_SCALE,
+      )
       const requiredDistance =
-        slot.collisionRadius + otherSlot.collisionRadius + CARD_LAYOUT_SLOT_GAP
+        collisionEnvelopeRadius +
+        otherCollisionEnvelopeRadius +
+        CARD_LAYOUT_SLOT_GAP
 
       if (distance < requiredDistance) {
         errors.push(

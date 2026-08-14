@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { SELECTED_SYMBOL_SCALE } from './card-selection'
 import {
   CARD_LAYOUT_TEMPLATES,
   MAX_SYMBOL_SIZE,
@@ -56,6 +57,16 @@ describe('card layout templates', () => {
 
     expect(Math.min(...sizes)).toBe(MIN_SYMBOL_SIZE)
     expect(Math.max(...sizes)).toBe(MAX_SYMBOL_SIZE)
+  })
+
+  it('reserves every collision envelope for the maximum selected scale', () => {
+    for (const layoutTemplate of CARD_LAYOUT_TEMPLATES) {
+      for (const slot of layoutTemplate.slots) {
+        expect(slot.size * SELECTED_SYMBOL_SCALE).toBeLessThanOrEqual(
+          slot.collisionRadius,
+        )
+      }
+    }
   })
 
   it('preserves every layout invariant through whole-template rotation', () => {

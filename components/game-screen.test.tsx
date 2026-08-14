@@ -9,6 +9,11 @@ import {
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import {
+  SELECTED_SYMBOL_SCALE,
+  UNSELECTED_SYMBOL_FILTER,
+} from '@/lib/card-selection'
+
 import { GameScreen } from './game-screen'
 
 const player = {
@@ -160,12 +165,45 @@ describe('GameScreen', () => {
     renderGame({ onSubmitClaim })
     const sun = screen.getByRole('button', { name: 'Sun on card 1' })
     const moon = screen.getByRole('button', { name: 'Moon on card 1' })
+    const secondCard = screen.getByRole('article', { name: 'Card 2' })
+    const sunGlyph = symbolGlyph(sun)
+    const moonGlyph = symbolGlyph(moon)
+    const sunBaseTransform = sunGlyph.style.transform
+    const moonBaseTransform = moonGlyph.style.transform
 
     await user.click(sun)
+
+    expect(sunGlyph.style.transform).toContain(
+      `scale(${SELECTED_SYMBOL_SCALE})`,
+    )
+    expect(sunGlyph.style.transform).toMatch(/rotate\(-?6deg\)/)
+    expect(sunGlyph.style.filter).toBe('none')
+    expect(moonGlyph.style.filter).toBe(UNSELECTED_SYMBOL_FILTER)
+    expect(sun).not.toHaveClass(
+      'border-accent/70',
+      'bg-accent/15',
+      'ring-accent/40',
+      'border-2',
+      'ring-4',
+    )
+    expect(sun).toHaveClass('focus-visible:ring-4')
+    expect(
+      within(secondCard)
+        .getAllByRole('button')
+        .map((button) => symbolGlyph(button).style.filter),
+    ).toEqual(Array(8).fill('none'))
+
     await user.click(moon)
 
     expect(sun).toHaveAttribute('aria-pressed', 'false')
     expect(moon).toHaveAttribute('aria-pressed', 'true')
+    expect(sunGlyph.style.transform).toBe(sunBaseTransform)
+    expect(sunGlyph.style.filter).toBe(UNSELECTED_SYMBOL_FILTER)
+    expect(moonGlyph.style.transform).not.toBe(moonBaseTransform)
+    expect(moonGlyph.style.transform).toContain(
+      `scale(${SELECTED_SYMBOL_SCALE})`,
+    )
+    expect(moonGlyph.style.filter).toBe('none')
     expect(onSubmitClaim).not.toHaveBeenCalled()
   })
 
@@ -174,11 +212,14 @@ describe('GameScreen', () => {
     const onSubmitClaim = vi.fn()
     renderGame({ onSubmitClaim })
     const cat = screen.getByRole('button', { name: 'Cat on card 1' })
+    const catGlyph = symbolGlyph(cat)
+    const baseTransform = catGlyph.style.transform
 
     await user.click(cat)
 
     expect(cat).toHaveAttribute('aria-pressed', 'true')
     expect(cat).toHaveAttribute('data-selected', 'true')
+    expect(catGlyph.style.transform).not.toBe(baseTransform)
 
     await user.click(cat)
 
@@ -186,6 +227,13 @@ describe('GameScreen', () => {
     expect(cat).toHaveAttribute('aria-pressed', 'false')
     expect(cat).toHaveAttribute('data-selected', 'false')
     expect(cat).not.toHaveClass('border-accent/70', 'bg-accent/15', 'ring-4')
+    expect(catGlyph.style.transform).toBe(baseTransform)
+    expect(catGlyph.style.filter).toBe('none')
+    expect(
+      within(screen.getByRole('article', { name: 'Card 1' }))
+        .getAllByRole('button')
+        .map((button) => symbolGlyph(button).style.filter),
+    ).toEqual(Array(8).fill('none'))
     expect(onSubmitClaim).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
       'Select the match on both cards.',
@@ -246,6 +294,82 @@ describe('GameScreen', () => {
     expect(onSubmitClaim).toHaveBeenCalledTimes(1)
   })
 
+  it('styles selections independently on both cards while a claim is pending', async () => {
+    const user = userEvent.setup()
+    let resolveClaim: ((value: { status: 'accepted' }) => void) | undefined
+    const onSubmitClaim = vi.fn(
+      () =>
+        new Promise<{ status: 'accepted' }>((resolve) => {
+          resolveClaim = resolve
+        }),
+    )
+    renderGame({ onSubmitClaim })
+    const firstCard = screen.getByRole('article', { name: 'Card 1' })
+    const secondCard = screen.getByRole('article', { name: 'Card 2' })
+    const firstCat = within(firstCard).getByRole('button', {
+      name: 'Cat on card 1',
+    })
+    const secondCat = within(secondCard).getByRole('button', {
+      name: 'Cat on card 2',
+    })
+
+    await user.click(firstCat)
+
+    expect(cardGlyphFilters(firstCard)).toEqual([
+      ...Array(4).fill(UNSELECTED_SYMBOL_FILTER),
+      'none',
+      ...Array(3).fill(UNSELECTED_SYMBOL_FILTER),
+    ])
+    expect(cardGlyphFilters(secondCard)).toEqual(Array(8).fill('none'))
+
+    await user.click(secondCat)
+
+    expect(firstCat).toHaveAttribute('aria-pressed', 'true')
+    expect(secondCat).toHaveAttribute('aria-pressed', 'true')
+    expect(symbolGlyph(firstCat).style.filter).toBe('none')
+    expect(symbolGlyph(secondCat).style.filter).toBe('none')
+    expect(
+      cardGlyphFilters(firstCard).filter((filter) => filter === 'none'),
+    ).toHaveLength(1)
+    expect(
+      cardGlyphFilters(secondCard).filter((filter) => filter === 'none'),
+    ).toHaveLength(1)
+    expect(onSubmitClaim).toHaveBeenCalledTimes(1)
+
+    await act(async () => resolveClaim?.({ status: 'accepted' }))
+  })
+
+  it('derives selection transforms from the base layout across rerenders', async () => {
+    const user = userEvent.setup()
+    const onSubmitClaim = vi.fn()
+    const { rerender } = renderGame({ onSubmitClaim })
+    const sun = screen.getByRole('button', { name: 'Sun on card 1' })
+    const baseTransform = symbolGlyph(sun).style.transform
+
+    await user.click(sun)
+    const selectedTransform = symbolGlyph(sun).style.transform
+
+    rerender(
+      <GameScreen
+        roomCode="frvg7"
+        player={player}
+        pairRevision={0}
+        cards={cards}
+        scoreboard={scoreboard}
+        cooldownUntil={null}
+        onSubmitClaim={onSubmitClaim}
+      />,
+    )
+
+    expect(symbolGlyph(sun).style.transform).toBe(selectedTransform)
+    expect(symbolGlyph(sun).style.transform).toContain(
+      `scale(${SELECTED_SYMBOL_SCALE})`,
+    )
+
+    await user.click(sun)
+    expect(symbolGlyph(sun).style.transform).toBe(baseTransform)
+  })
+
   it('automatically submits both selected symbols with the viewed pair revision', async () => {
     const user = userEvent.setup()
     const onSubmitClaim = vi.fn().mockResolvedValue({ status: 'accepted' })
@@ -300,22 +424,23 @@ describe('GameScreen', () => {
         .fn()
         .mockResolvedValue({ status: 'incorrect', cooldownUntil }),
     })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cat on card 1' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Cat on card 2' }))
-
-    await act(async () => Promise.resolve())
-
-    expect(
-      screen.getByRole('status', { name: 'Match claim feedback' }),
-    ).toHaveTextContent('Incorrect match. Try again in a moment.')
-
     const firstSelection = screen.getByRole('button', {
       name: 'Cat on card 1',
     })
     const secondSelection = screen.getByRole('button', {
       name: 'Cat on card 2',
     })
+    const firstGlyph = symbolGlyph(firstSelection)
+    const firstBaseTransform = firstGlyph.style.transform
+
+    fireEvent.click(firstSelection)
+    fireEvent.click(secondSelection)
+
+    await act(async () => Promise.resolve())
+
+    expect(
+      screen.getByRole('status', { name: 'Match claim feedback' }),
+    ).toHaveTextContent('Incorrect match. Try again in a moment.')
 
     expect(firstSelection).toBeDisabled()
     expect(secondSelection).toBeDisabled()
@@ -325,9 +450,21 @@ describe('GameScreen', () => {
     expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
     expect(firstSelection).toHaveAttribute('data-incorrect', 'true')
     expect(secondSelection).toHaveAttribute('data-incorrect', 'true')
-    expect(within(firstSelection).getByText('×')).toHaveClass(
-      'spot-it-incorrect-mark',
+    const incorrectMark = within(firstSelection).getByText('×')
+
+    expect(incorrectMark).toHaveClass('spot-it-incorrect-mark')
+    expect(incorrectMark).not.toHaveStyle({
+      filter: UNSELECTED_SYMBOL_FILTER,
+      transform: firstGlyph.style.transform,
+    })
+    expect(firstGlyph.style.filter).toBe('none')
+    expect(firstGlyph.style.transform).toContain(
+      `scale(${SELECTED_SYMBOL_SCALE})`,
     )
+    expect(
+      symbolGlyph(screen.getByRole('button', { name: 'Sun on card 1' })).style
+        .filter,
+    ).toBe(UNSELECTED_SYMBOL_FILTER)
     expect(within(secondSelection).getByText('×')).toHaveClass(
       'spot-it-incorrect-mark',
     )
@@ -349,6 +486,12 @@ describe('GameScreen', () => {
     expect(secondSelection).toHaveAttribute('data-incorrect', 'false')
     expect(within(firstSelection).queryByText('×')).not.toBeInTheDocument()
     expect(within(secondSelection).queryByText('×')).not.toBeInTheDocument()
+    expect(firstGlyph.style.transform).toBe(firstBaseTransform)
+    expect(firstGlyph.style.filter).toBe('none')
+    expect(
+      symbolGlyph(screen.getByRole('button', { name: 'Sun on card 1' })).style
+        .filter,
+    ).toBe('none')
     expect(firstSelection).toBeEnabled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
       'Select the match on both cards.',
@@ -621,6 +764,22 @@ function symbolMetadata(element: HTMLElement) {
     x: element.dataset.symbolX,
     y: element.dataset.symbolY,
   }
+}
+
+function symbolGlyph(element: HTMLElement): HTMLElement {
+  const glyph = element.querySelector<HTMLElement>('[data-symbol-glyph]')
+
+  if (!glyph) {
+    throw new Error('Missing symbol glyph wrapper.')
+  }
+
+  return glyph
+}
+
+function cardGlyphFilters(card: HTMLElement): string[] {
+  return within(card)
+    .getAllByRole('button')
+    .map((button) => symbolGlyph(button).style.filter)
 }
 
 function expectNeutralSymbolCursor(element: HTMLElement) {
