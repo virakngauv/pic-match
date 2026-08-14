@@ -43,7 +43,7 @@ export async function expectValidCardGeometry(
 
         const symbols = buttons.map((button) => {
           const bounds = button.getBoundingClientRect()
-          const glyph = button.firstElementChild
+          const glyph = button.querySelector('[data-symbol-glyph]')
           const styles = getComputedStyle(button)
           const radius = Math.max(bounds.width, bounds.height) / 2
           const center = {

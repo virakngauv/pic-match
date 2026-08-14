@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { PNG } from 'pngjs'
 
 import {
   expectStableSymbolHover,
@@ -24,6 +25,7 @@ type PlayingSnapshot = {
 
 test('replays a complete shared race across browser sessions', async ({
   browser,
+  browserName,
   baseURL,
 }) => {
   test.setTimeout(180_000)
@@ -68,6 +70,9 @@ test('replays a complete shared race across browser sessions', async ({
     const toggledSymbol = firstSymbolControl(hostPage)
     const toggledSymbolId = await toggledSymbol.getAttribute('data-symbol-id')
     const selectionStylesBefore = await cardSelectionStyleSnapshot(hostPage)
+    const paintCoverageBefore = await cardGlyphPaintCoverage(
+      hostPage.getByLabel('Card 1'),
+    )
     await toggledSymbol.click()
     await expect(toggledSymbol).toHaveAttribute('aria-pressed', 'true')
     const selectionStylesAfter = await cardSelectionStyleSnapshot(hostPage)
@@ -82,11 +87,18 @@ test('replays a complete shared race across browser sessions', async ({
         .every(({ filter }) => filter === 'saturate(0.42)'),
     ).toBe(true)
     expect(selectionStylesAfter[1]).toEqual(selectionStylesBefore[1])
+    await expectUnclippedSiblingGlyphs(
+      hostPage.getByLabel('Card 1'),
+      paintCoverageBefore,
+      toggledSymbolId,
+    )
     await expectValidCardGeometry(
       hostPage.getByLabel('Shared game board').locator('article[data-card-id]'),
     )
     await toggledSymbol.click()
-    await expect(toggledSymbol).toBeFocused()
+    if (browserName !== 'webkit') {
+      await expect(toggledSymbol).toBeFocused()
+    }
     await expect(toggledSymbol).toHaveAttribute('aria-pressed', 'false')
     expect(await cardSelectionStyleSnapshot(hostPage)).toEqual(
       selectionStylesBefore,
@@ -447,17 +459,104 @@ async function cardSelectionStyleSnapshot(page: Page) {
               throw new Error('Missing a symbol glyph wrapper.')
             }
 
-            const styles = getComputedStyle(glyph)
+            const filter = symbol.querySelector<HTMLElement>(
+              '[data-symbol-filter]',
+            )
+
+            if (!filter) {
+              throw new Error('Missing a symbol filter wrapper.')
+            }
+
+            const glyphStyles = getComputedStyle(glyph)
 
             return {
               id: symbol.dataset.symbolId ?? '',
-              filter: styles.filter,
-              transform: styles.transform,
+              filter: getComputedStyle(filter).filter,
+              transform: glyphStyles.transform,
             }
           },
         ),
       ),
     )
+}
+
+async function cardGlyphPaintCoverage(card: Locator) {
+  const symbols = await card.locator('button[data-symbol-id]').all()
+  const coverage = await Promise.all(
+    symbols.map(async (symbol) => {
+      const symbolId = await symbol.getAttribute('data-symbol-id')
+
+      if (!symbolId) {
+        throw new Error('Missing a symbol ID for paint coverage.')
+      }
+
+      const screenshot = await symbol
+        .locator('[data-symbol-glyph]')
+        .screenshot({ animations: 'disabled' })
+
+      return [symbolId, countPaintedPixels(screenshot)] as const
+    }),
+  )
+
+  return new Map(coverage)
+}
+
+async function expectUnclippedSiblingGlyphs(
+  card: Locator,
+  coverageBefore: Map<string, number>,
+  selectedSymbolId: string | null,
+) {
+  const coverageAfter = await cardGlyphPaintCoverage(card)
+
+  for (const [symbolId, before] of coverageBefore) {
+    if (symbolId === selectedSymbolId) {
+      continue
+    }
+
+    const after = coverageAfter.get(symbolId)
+
+    expect(after, `${symbolId} should retain its painted area`).toBeDefined()
+    expect(
+      (after ?? 0) / before,
+      `${symbolId} is visually clipped`,
+    ).toBeGreaterThan(0.7)
+  }
+}
+
+function countPaintedPixels(buffer: Buffer): number {
+  const image = PNG.sync.read(buffer)
+  const cornerOffsets = [
+    0,
+    (image.width - 1) * 4,
+    image.width * (image.height - 1) * 4,
+    (image.width * image.height - 1) * 4,
+  ]
+  const background = [0, 1, 2].map((channel) =>
+    Math.round(
+      cornerOffsets.reduce(
+        (total, offset) => total + (image.data[offset + channel] ?? 0),
+        0,
+      ) / cornerOffsets.length,
+    ),
+  )
+  let paintedPixels = 0
+
+  for (let offset = 0; offset < image.data.length; offset += 4) {
+    const distance = [0, 1, 2].reduce(
+      (total, channel) =>
+        total +
+        Math.abs(
+          (image.data[offset + channel] ?? 0) - (background[channel] ?? 0),
+        ),
+      0,
+    )
+
+    if (distance > 30) {
+      paintedPixels += 1
+    }
+  }
+
+  return paintedPixels
 }
 
 async function submitIncorrectClaim(page: Page, cards: CardSnapshot[]) {

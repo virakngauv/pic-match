@@ -119,7 +119,7 @@ describe('GameScreen', () => {
     expect(sun.style.getPropertyValue('--symbol-font-size')).toMatch(/cqi$/)
     expect(sun.style.getPropertyValue('--symbol-target-size')).toMatch(/cqi$/)
     expect(sun.style.transform).toBe('translate(-50%, -50%)')
-    expect((sun.firstElementChild as HTMLElement).style.transform).toMatch(
+    expect(symbolGlyph(sun).style.transform).toMatch(
       /rotate\(-?\d+(\.\d+)?deg\)/,
     )
 
@@ -177,8 +177,11 @@ describe('GameScreen', () => {
       `scale(${SELECTED_SYMBOL_SCALE})`,
     )
     expect(sunGlyph.style.transform).toMatch(/rotate\(-?6deg\)/)
-    expect(sunGlyph.style.filter).toBe('none')
-    expect(moonGlyph.style.filter).toBe(UNSELECTED_SYMBOL_FILTER)
+    expect(symbolFilter(sun).style.filter).toBe('none')
+    expect(symbolFilter(moon).style.filter).toBe(UNSELECTED_SYMBOL_FILTER)
+    expect(symbolFilter(moon)).not.toBe(moonGlyph)
+    expect(symbolFilter(moon).style.transform).toBe('')
+    expect(moonGlyph.style.filter).toBe('')
     expect(sun).not.toHaveClass(
       'border-accent/70',
       'bg-accent/15',
@@ -190,7 +193,7 @@ describe('GameScreen', () => {
     expect(
       within(secondCard)
         .getAllByRole('button')
-        .map((button) => symbolGlyph(button).style.filter),
+        .map((button) => symbolFilter(button).style.filter),
     ).toEqual(Array(8).fill('none'))
 
     await user.click(moon)
@@ -198,12 +201,12 @@ describe('GameScreen', () => {
     expect(sun).toHaveAttribute('aria-pressed', 'false')
     expect(moon).toHaveAttribute('aria-pressed', 'true')
     expect(sunGlyph.style.transform).toBe(sunBaseTransform)
-    expect(sunGlyph.style.filter).toBe(UNSELECTED_SYMBOL_FILTER)
+    expect(symbolFilter(sun).style.filter).toBe(UNSELECTED_SYMBOL_FILTER)
     expect(moonGlyph.style.transform).not.toBe(moonBaseTransform)
     expect(moonGlyph.style.transform).toContain(
       `scale(${SELECTED_SYMBOL_SCALE})`,
     )
-    expect(moonGlyph.style.filter).toBe('none')
+    expect(symbolFilter(moon).style.filter).toBe('none')
     expect(onSubmitClaim).not.toHaveBeenCalled()
   })
 
@@ -228,11 +231,11 @@ describe('GameScreen', () => {
     expect(cat).toHaveAttribute('data-selected', 'false')
     expect(cat).not.toHaveClass('border-accent/70', 'bg-accent/15', 'ring-4')
     expect(catGlyph.style.transform).toBe(baseTransform)
-    expect(catGlyph.style.filter).toBe('none')
+    expect(symbolFilter(cat).style.filter).toBe('none')
     expect(
       within(screen.getByRole('article', { name: 'Card 1' }))
         .getAllByRole('button')
-        .map((button) => symbolGlyph(button).style.filter),
+        .map((button) => symbolFilter(button).style.filter),
     ).toEqual(Array(8).fill('none'))
     expect(onSubmitClaim).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
@@ -326,8 +329,8 @@ describe('GameScreen', () => {
 
     expect(firstCat).toHaveAttribute('aria-pressed', 'true')
     expect(secondCat).toHaveAttribute('aria-pressed', 'true')
-    expect(symbolGlyph(firstCat).style.filter).toBe('none')
-    expect(symbolGlyph(secondCat).style.filter).toBe('none')
+    expect(symbolFilter(firstCat).style.filter).toBe('none')
+    expect(symbolFilter(secondCat).style.filter).toBe('none')
     expect(
       cardGlyphFilters(firstCard).filter((filter) => filter === 'none'),
     ).toHaveLength(1)
@@ -457,12 +460,12 @@ describe('GameScreen', () => {
       filter: UNSELECTED_SYMBOL_FILTER,
       transform: firstGlyph.style.transform,
     })
-    expect(firstGlyph.style.filter).toBe('none')
+    expect(symbolFilter(firstSelection).style.filter).toBe('none')
     expect(firstGlyph.style.transform).toContain(
       `scale(${SELECTED_SYMBOL_SCALE})`,
     )
     expect(
-      symbolGlyph(screen.getByRole('button', { name: 'Sun on card 1' })).style
+      symbolFilter(screen.getByRole('button', { name: 'Sun on card 1' })).style
         .filter,
     ).toBe(UNSELECTED_SYMBOL_FILTER)
     expect(within(secondSelection).getByText('×')).toHaveClass(
@@ -487,9 +490,9 @@ describe('GameScreen', () => {
     expect(within(firstSelection).queryByText('×')).not.toBeInTheDocument()
     expect(within(secondSelection).queryByText('×')).not.toBeInTheDocument()
     expect(firstGlyph.style.transform).toBe(firstBaseTransform)
-    expect(firstGlyph.style.filter).toBe('none')
+    expect(symbolFilter(firstSelection).style.filter).toBe('none')
     expect(
-      symbolGlyph(screen.getByRole('button', { name: 'Sun on card 1' })).style
+      symbolFilter(screen.getByRole('button', { name: 'Sun on card 1' })).style
         .filter,
     ).toBe('none')
     expect(firstSelection).toBeEnabled()
@@ -776,10 +779,20 @@ function symbolGlyph(element: HTMLElement): HTMLElement {
   return glyph
 }
 
+function symbolFilter(element: HTMLElement): HTMLElement {
+  const filter = element.querySelector<HTMLElement>('[data-symbol-filter]')
+
+  if (!filter) {
+    throw new Error('Missing symbol filter wrapper.')
+  }
+
+  return filter
+}
+
 function cardGlyphFilters(card: HTMLElement): string[] {
   return within(card)
     .getAllByRole('button')
-    .map((button) => symbolGlyph(button).style.filter)
+    .map((button) => symbolFilter(button).style.filter)
 }
 
 function expectNeutralSymbolCursor(element: HTMLElement) {
