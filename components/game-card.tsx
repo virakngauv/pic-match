@@ -40,7 +40,7 @@ export function GameCard({
 
   return (
     <article
-      className="bg-card [container-type:inline-size] relative aspect-square w-full overflow-hidden rounded-full border-4 border-white shadow-[0_18px_55px_rgba(73,52,31,0.16),inset_0_0_0_1px_var(--border)]"
+      className="bg-card [container-type:inline-size] relative aspect-square w-full min-w-72 overflow-hidden rounded-full border-4 border-white shadow-[0_18px_55px_rgba(73,52,31,0.16),inset_0_0_0_1px_var(--border)]"
       aria-label={`Card ${cardNumber}`}
       data-card-id={card.id}
       data-layout-template={layoutPlan.templateId}
@@ -73,7 +73,7 @@ export function GameCard({
             disabled={disabled}
             onClick={() => onSelectSymbol(symbolId)}
             className={cn(
-              'focus-visible:ring-ring/70 absolute inline-flex [height:max(3rem,var(--symbol-target-size))] min-h-12 [width:max(3rem,var(--symbol-target-size))] min-w-12 items-center justify-center overflow-visible rounded-full border-0 p-0 [font-size:clamp(2rem,var(--symbol-font-size),5rem)] leading-none focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait',
+              'focus-visible:ring-ring/70 absolute inline-flex [height:max(3rem,var(--symbol-target-size))] [width:max(3rem,var(--symbol-target-size))] items-center justify-center overflow-visible rounded-full border-0 p-0 [font-size:clamp(2rem,var(--symbol-font-size),5rem)] leading-none focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait',
               isIncorrect
                 ? 'z-[1] border-2 border-red-700/70 bg-red-100/80 ring-4 ring-red-500/50'
                 : isSelected

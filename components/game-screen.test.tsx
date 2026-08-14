@@ -74,6 +74,8 @@ describe('GameScreen', () => {
 
     expect(firstCard).toHaveAttribute('data-card-id', 'card-13')
     expect(secondCard).toHaveAttribute('data-card-id', 'card-52')
+    expect(firstCard).toHaveClass('min-w-72')
+    expect(secondCard).toHaveClass('min-w-72')
     expect(firstCard.dataset.layoutTemplate).toBeTruthy()
     expect(secondCard.dataset.layoutTemplate).toBeTruthy()
     expect(firstCard.dataset.layoutTemplate).not.toBe(
@@ -94,7 +96,10 @@ describe('GameScreen', () => {
     const sun = screen.getByRole('button', { name: 'Sun on card 1' })
     const originalMetadata = symbolMetadata(sun)
 
-    expect(sun).toHaveClass('min-h-12', 'min-w-12')
+    expect(sun).toHaveClass(
+      '[height:max(3rem,var(--symbol-target-size))]',
+      '[width:max(3rem,var(--symbol-target-size))]',
+    )
     expect(sun).toHaveClass('focus-visible:ring-4')
     expect(sun).not.toHaveClass('bg-white/75', 'shadow-sm')
     expect(sun.style.top).toMatch(/%$/)

@@ -3,7 +3,9 @@
 Game cards use 12 fixed numerical templates from `lib/card-layout.ts`. Each
 template defines eight symbol centers, sizes, base rotations, and conservative
 collision radii in a normalized card whose center is `(0, 0)` and radius is
-`1`.
+`1`. The card component enforces the validator's 288px minimum rendered
+diameter; changing that responsive floor requires updating and revalidating the
+target geometry.
 
 The templates are generated offline with:
 
