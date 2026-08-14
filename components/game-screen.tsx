@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { GameCard, type GameCardModel } from '@/components/game-card'
+import { getPairLayoutPlans } from '@/lib/card-layout'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
 import { cn } from '@/lib/utils'
 
@@ -98,6 +99,8 @@ function GameRound({
     isIncorrectFeedbackActive ||
     feedback === 'accepted' ||
     feedback === 'stale'
+  const cardLayoutPlans =
+    cards.length === 2 ? getPairLayoutPlans(cards, pairRevision) : null
   const orderedScoreboard = [...scoreboard].sort(
     (left, right) => left.position - right.position,
   )
@@ -208,17 +211,26 @@ function GameRound({
               className="mt-6 grid gap-5 sm:grid-cols-2 sm:gap-7"
               aria-label="Shared game board"
             >
-              {cards.map((card, index) => (
-                <GameCard
-                  key={card.id}
-                  card={card}
-                  cardNumber={index + 1}
-                  selectedSymbolId={selectedSymbols[index] ?? null}
-                  showIncorrectFeedback={isIncorrectFeedbackActive}
-                  disabled={controlsDisabled}
-                  onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
-                />
-              ))}
+              {cards.map((card, index) => {
+                const layoutPlan = cardLayoutPlans?.[index as 0 | 1]
+
+                if (!layoutPlan) {
+                  throw new Error('Missing a layout plan for a game card.')
+                }
+
+                return (
+                  <GameCard
+                    key={card.id}
+                    card={card}
+                    cardNumber={index + 1}
+                    layoutPlan={layoutPlan}
+                    selectedSymbolId={selectedSymbols[index] ?? null}
+                    showIncorrectFeedback={isIncorrectFeedbackActive}
+                    disabled={controlsDisabled}
+                    onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
+                  />
+                )
+              })}
             </div>
           ) : (
             <div

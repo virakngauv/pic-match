@@ -69,10 +69,11 @@ repeating a pair.
 ## Presentation and accessibility
 
 Both cards are visible at the same time and are identical for every active
-participant. Symbols vary in size and rotation to create the visual search
-challenge. Each clickable symbol still needs an accessible name and a visible
-keyboard focus state. Rotation, scale, and placement must not be used as the
-symbol's identity.
+participant. Symbols use the prevalidated numerical templates documented in
+[`card-layout-templates.md`](card-layout-templates.md), vary in size and
+rotation, and never reuse one template on both displayed cards. Each clickable
+symbol still needs an accessible name and a visible keyboard focus state.
+Rotation, scale, and placement must not be used as the symbol's identity.
 
 The playing screen also shows every participant's score, clearly marks the
 local participant, and gives feedback for selected, incorrect, accepted, and
