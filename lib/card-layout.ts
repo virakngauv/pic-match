@@ -361,7 +361,11 @@ function nextRandomState(state: number): number {
 }
 
 function normalizeRotation(rotation: number): number {
-  return (((rotation % 360) + 540) % 360) - 180
+  const normalized = (((rotation % 360) + 540) % 360) - 180
+
+  // Avoid a WebKit paint failure for color emoji transformed by exactly 180°
+  // inside an overflow-clipped card. Related: https://bugs.webkit.org/show_bug.cgi?id=265480
+  return normalized === -180 ? -179 : normalized
 }
 
 function hashText(value: string): number {
