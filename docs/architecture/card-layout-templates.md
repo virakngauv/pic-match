@@ -7,6 +7,12 @@ collision radii in a normalized card whose center is `(0, 0)` and radius is
 diameter; changing that responsive floor requires updating and revalidating the
 target geometry.
 
+Visible symbol sizes deliberately span `0.076` through `0.2` of the card
+diameter so every layout has a clear hierarchy instead of eight similarly sized
+glyphs. The renderer permits that smallest authored value to render at roughly
+24px on the minimum card, while collision radii remain independently large
+enough to provide a 48px minimum tap target.
+
 The templates are generated offline with:
 
 ```bash

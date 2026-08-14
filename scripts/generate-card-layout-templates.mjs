@@ -13,16 +13,14 @@ const TEMPLATE_NAMES = [
   'lagoon',
 ]
 
-const SYMBOL_SIZES = [0.15, 0.14, 0.129, 0.122, 0.115, 0.113, 0.108, 0.103]
+const SYMBOL_SIZES = [0.2, 0.175, 0.155, 0.135, 0.118, 0.102, 0.088, 0.076]
 const COLLISION_RADII = [
-  0.2268, 0.2106, 0.1944, 0.1836, 0.1728, 0.17, 0.17, 0.17,
+  0.3024, 0.2646, 0.2344, 0.2041, 0.1784, 0.17, 0.17, 0.17,
 ]
 const GENERATION_EDGE_PADDING = 0.07
 const GENERATION_SLOT_GAP = 0.055
 const CANDIDATES_PER_TEMPLATE = 300
-const CURATED_ADJUSTMENTS = {
-  lagoon: { 0: { x: -0.023, y: -0.006 } },
-}
+const CURATED_ADJUSTMENTS = {}
 
 for (
   let templateIndex = 0;

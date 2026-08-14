@@ -18,11 +18,11 @@ export async function expectValidCardGeometry(cards: Locator) {
         Number.parseFloat(getComputedStyle(button).fontSize),
       )
 
-      if (Math.max(...fontSizes) < 48) {
+      if (Math.max(...fontSizes) < 55) {
         issues.push(`card ${cardIndex} does not contain a large symbol`)
       }
 
-      if (Math.max(...fontSizes) - Math.min(...fontSizes) < 10) {
+      if (Math.max(...fontSizes) - Math.min(...fontSizes) < 25) {
         issues.push(`card ${cardIndex} does not vary symbol sizes`)
       }
 

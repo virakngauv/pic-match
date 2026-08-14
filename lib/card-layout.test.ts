@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   CARD_LAYOUT_TEMPLATES,
+  MAX_SYMBOL_SIZE,
+  MIN_SYMBOL_SIZE,
   getCardLayoutPreviewPlan,
   getPairLayoutPlans,
   rotateCardLayoutSlot,
@@ -45,6 +47,15 @@ describe('card layout templates', () => {
     for (const layoutTemplate of CARD_LAYOUT_TEMPLATES) {
       expect(validateCardLayoutTemplate(layoutTemplate)).toEqual([])
     }
+  })
+
+  it('uses the full reviewed symbol-size range', () => {
+    const sizes = CARD_LAYOUT_TEMPLATES.flatMap(({ slots }) =>
+      slots.map(({ size }) => size),
+    )
+
+    expect(Math.min(...sizes)).toBe(MIN_SYMBOL_SIZE)
+    expect(Math.max(...sizes)).toBe(MAX_SYMBOL_SIZE)
   })
 
   it('preserves every layout invariant through whole-template rotation', () => {
