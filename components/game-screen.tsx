@@ -183,129 +183,75 @@ function GameRound({
 
   return (
     <main
-      className="min-h-screen px-4 py-6 sm:px-8 sm:py-8"
+      className="game-surface"
       aria-label={`Game for ${player.name}`}
       data-player-position={player.position}
     >
-      <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
-        <section className="min-w-0" aria-labelledby="game-heading">
-          <header className="flex flex-wrap items-end justify-between gap-4 px-1">
-            <div>
-              <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+      <div className="game-shell">
+        <header className="game-header" aria-labelledby="game-heading">
+          <div className="flex min-w-0 flex-1 items-baseline justify-between gap-3 lg:block">
+            <p
+              className="text-accent shrink-0 text-[0.65rem] font-bold tracking-[0.14em] uppercase sm:text-xs lg:tracking-[0.18em]"
+              aria-label={`Room ${roomCode}, round ${pairRevision + 1}`}
+            >
+              <span className="sm:hidden" aria-hidden="true">
+                {roomCode} · R{pairRevision + 1}
+              </span>
+              <span className="hidden sm:inline" aria-hidden="true">
                 Room {roomCode} · Round {pairRevision + 1}
-              </p>
-              <h1
-                id="game-heading"
-                className="mt-2 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl"
-              >
-                Find the match.
-              </h1>
-            </div>
-            <p className="text-muted-foreground max-w-xs text-sm leading-6">
-              The same symbol appears once on each card.
+              </span>
             </p>
-          </header>
-
-          {cards.length === 2 ? (
-            <div
-              className="mt-6 grid gap-5 sm:grid-cols-2 sm:gap-7"
-              aria-label="Shared game board"
+            <h1
+              id="game-heading"
+              className="truncate text-xl leading-none font-semibold tracking-[-0.04em] sm:text-2xl lg:mt-2 lg:text-4xl"
             >
-              {cards.map((card, index) => {
-                const layoutPlan = cardLayoutPlans?.[index as 0 | 1]
-
-                if (!layoutPlan) {
-                  throw new Error('Missing a layout plan for a game card.')
-                }
-
-                return (
-                  <GameCard
-                    key={card.id}
-                    card={card}
-                    cardNumber={index + 1}
-                    layoutPlan={layoutPlan}
-                    selectedSymbolId={selectedSymbols[index] ?? null}
-                    showIncorrectFeedback={isIncorrectFeedbackActive}
-                    disabled={controlsDisabled}
-                    onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
-                  />
-                )
-              })}
-            </div>
-          ) : (
-            <div
-              className="bg-card mt-6 rounded-[2rem] border p-8 text-center shadow-sm"
-              role="status"
-              aria-label="Shared game board unavailable"
-            >
-              <p className="font-semibold">
-                The cards are temporarily unavailable.
-              </p>
-              <p className="text-muted-foreground mt-2 text-sm">
-                Keep this page open while the shared board reconnects.
-              </p>
-            </div>
-          )}
-
-          {cards.length === 2 ? (
-            <div className="mt-6 flex min-h-16 flex-col items-center gap-3">
-              <p
-                id="match-claim-feedback"
-                className={cn(
-                  'text-muted-foreground text-center text-sm',
-                  feedback && 'font-semibold',
-                )}
-                role={feedback === 'error' ? 'alert' : 'status'}
-                aria-label="Match claim feedback"
-              >
-                {isSubmitting
-                  ? 'Submitting match…'
-                  : isIncorrectFeedbackActive
-                    ? 'Incorrect match. Try again in a moment.'
-                    : isServerCooldownActive
-                      ? 'Please wait a moment before selecting again.'
-                      : feedback &&
-                          feedback !== 'incorrect' &&
-                          feedback !== 'cooldown'
-                        ? getClaimFeedbackMessage(feedback)
-                        : 'Select one symbol on each card. Your match submits automatically.'}
-              </p>
-            </div>
-          ) : null}
-        </section>
+              Find the match.
+            </h1>
+          </div>
+          <p className="text-muted-foreground sr-only max-w-xs text-sm leading-6 lg:not-sr-only">
+            The same symbol appears once on each card.
+          </p>
+        </header>
 
         <aside
-          className="bg-card h-fit rounded-[2rem] border p-5 shadow-sm lg:sticky lg:top-8"
+          className="game-scoreboard bg-card border shadow-sm"
           aria-labelledby="scoreboard-heading"
         >
-          <div className="flex items-baseline justify-between gap-4">
-            <h2 id="scoreboard-heading" className="text-xl font-semibold">
+          <div className="game-scoreboard-heading">
+            <h2
+              id="scoreboard-heading"
+              className="sr-only text-xl font-semibold lg:not-sr-only"
+            >
               Scoreboard
             </h2>
-            <span className="text-muted-foreground text-xs font-bold tracking-[0.12em] uppercase">
+            <span className="text-muted-foreground shrink-0 text-[0.65rem] font-bold tracking-[0.1em] uppercase lg:text-xs lg:tracking-[0.12em]">
+              <span className="game-short-round" aria-hidden="true">
+                R{pairRevision + 1} ·{' '}
+              </span>
               First to 12
             </span>
           </div>
-          <ol className="mt-4 grid gap-2">
+          <ol className="game-score-list">
             {orderedScoreboard.map((entry) => {
               const isLocalPlayer = entry.playerId === player.playerId
 
               return (
                 <li
                   key={entry.playerId}
-                  className={
+                  className={cn(
+                    'game-score-entry border',
                     isLocalPlayer
-                      ? 'border-accent bg-accent/10 flex items-center gap-3 rounded-2xl border px-4 py-3'
-                      : 'bg-background flex items-center gap-3 rounded-2xl border px-4 py-3'
-                  }
+                      ? 'border-accent bg-accent/10'
+                      : 'bg-background',
+                  )}
                   aria-current={isLocalPlayer ? 'true' : undefined}
                   data-player-position={entry.position}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">
+                    <span className="block truncate text-sm font-semibold lg:text-base">
                       {entry.name}
                     </span>
-                    <span className="text-muted-foreground block text-xs">
+                    <span className="text-muted-foreground block truncate text-[0.65rem] lg:text-xs">
                       {isLocalPlayer
                         ? entry.role === 'host'
                           ? 'You · Host'
@@ -316,7 +262,7 @@ function GameRound({
                     </span>
                   </span>
                   <output
-                    className="bg-foreground text-background inline-flex h-10 min-w-10 items-center justify-center rounded-full px-3 font-mono text-lg font-bold"
+                    className="bg-foreground text-background inline-flex size-8 shrink-0 items-center justify-center rounded-full px-2 font-mono text-sm font-bold lg:h-10 lg:min-w-10 lg:px-3 lg:text-lg"
                     aria-label={`${entry.name}'s score`}
                   >
                     {entry.score}
@@ -326,6 +272,73 @@ function GameRound({
             })}
           </ol>
         </aside>
+
+        {cards.length === 2 ? (
+          <section className="game-board" aria-label="Shared game board">
+            {cards.map((card, index) => {
+              const layoutPlan = cardLayoutPlans?.[index as 0 | 1]
+
+              if (!layoutPlan) {
+                throw new Error('Missing a layout plan for a game card.')
+              }
+
+              return (
+                <div className="game-card-slot" key={card.id}>
+                  <GameCard
+                    card={card}
+                    cardNumber={index + 1}
+                    layoutPlan={layoutPlan}
+                    selectedSymbolId={selectedSymbols[index] ?? null}
+                    showIncorrectFeedback={isIncorrectFeedbackActive}
+                    disabled={controlsDisabled}
+                    onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}
+                  />
+                </div>
+              )
+            })}
+          </section>
+        ) : (
+          <div
+            className="game-board game-board-unavailable bg-card rounded-[2rem] border p-8 text-center shadow-sm"
+            role="status"
+            aria-label="Shared game board unavailable"
+          >
+            <div>
+              <p className="font-semibold">
+                The cards are temporarily unavailable.
+              </p>
+              <p className="text-muted-foreground mt-2 text-sm">
+                Keep this page open while the shared board reconnects.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {cards.length === 2 ? (
+          <div className="game-feedback">
+            <p
+              id="match-claim-feedback"
+              className={cn(
+                'text-muted-foreground text-center text-sm leading-tight',
+                feedback && 'font-semibold',
+              )}
+              role={feedback === 'error' ? 'alert' : 'status'}
+              aria-label="Match claim feedback"
+            >
+              {isSubmitting
+                ? 'Submitting match…'
+                : isIncorrectFeedbackActive
+                  ? 'Incorrect match. Try again in a moment.'
+                  : isServerCooldownActive
+                    ? 'Please wait a moment before selecting again.'
+                    : feedback &&
+                        feedback !== 'incorrect' &&
+                        feedback !== 'cooldown'
+                      ? getClaimFeedbackMessage(feedback)
+                      : 'Select the match on both cards.'}
+            </p>
+          </div>
+        ) : null}
       </div>
     </main>
   )

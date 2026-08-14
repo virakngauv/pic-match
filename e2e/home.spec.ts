@@ -1,6 +1,14 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+
+import { expectValidCardGeometry } from './card-layout-assertions'
 
 const roomCodePattern = /^[bcdfghkpqrstvz]{4}[2-9y]$/
+const compactGameplayViewports = [
+  { width: 320, height: 568 },
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+  { width: 667, height: 375 },
+] as const
 
 test('moves a room from creation into a reconnectable game', async ({
   browser,
@@ -72,6 +80,13 @@ test('moves a room from creation into a reconnectable game', async ({
       guestPage.getByRole('main', { name: 'Game for Grace' }),
     ).toHaveAttribute('data-player-position', '1')
 
+    for (const viewport of compactGameplayViewports) {
+      await expectGameplayFitsViewport(hostPage, viewport)
+    }
+
+    await expectGameplayAtDoubleTextSize(hostPage)
+    await hostPage.setViewportSize({ width: 1_280, height: 720 })
+
     await guestPage.reload()
     await expect(
       guestPage.getByRole('main', { name: 'Game for Grace' }),
@@ -95,3 +110,116 @@ test('moves a room from creation into a reconnectable game', async ({
     ])
   }
 })
+
+async function expectGameplayFitsViewport(
+  page: Page,
+  viewport: { width: number; height: number },
+) {
+  await page.setViewportSize(viewport)
+  const minimumTargetSize = 44
+
+  const measurements = await page.evaluate(() => {
+    const boundsFor = (element: Element) => {
+      const bounds = element.getBoundingClientRect()
+
+      return {
+        bottom: bounds.bottom,
+        left: bounds.left,
+        right: bounds.right,
+        top: bounds.top,
+      }
+    }
+    const cards = Array.from(document.querySelectorAll('article[data-card-id]'))
+    const targets = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('button[data-symbol-id]'),
+    )
+
+    return {
+      cards: cards.map(boundsFor),
+      clientHeight: document.documentElement.clientHeight,
+      clientWidth: document.documentElement.clientWidth,
+      minTargetSize: Math.min(
+        ...targets.flatMap((target) => {
+          const bounds = target.getBoundingClientRect()
+          return [bounds.width, bounds.height]
+        }),
+      ),
+      scrollHeight: document.documentElement.scrollHeight,
+      scrollWidth: document.documentElement.scrollWidth,
+    }
+  })
+
+  expect(measurements.cards).toHaveLength(2)
+  expect(measurements.scrollHeight).toBeLessThanOrEqual(
+    measurements.clientHeight + 1,
+  )
+  expect(measurements.scrollWidth).toBeLessThanOrEqual(
+    measurements.clientWidth + 1,
+  )
+  expect(measurements.minTargetSize).toBeGreaterThanOrEqual(minimumTargetSize)
+
+  for (const card of measurements.cards) {
+    expect(card.top).toBeGreaterThanOrEqual(-1)
+    expect(card.left).toBeGreaterThanOrEqual(-1)
+    expect(card.right).toBeLessThanOrEqual(measurements.clientWidth + 1)
+    expect(card.bottom).toBeLessThanOrEqual(measurements.clientHeight + 1)
+  }
+
+  await expectValidCardGeometry(page.locator('article[data-card-id]'), {
+    minimumLargestSymbol: 36,
+    minimumSymbolSizeRange: 12,
+    minimumTargetSize: minimumTargetSize - 0.5,
+  })
+  await expect(page.getByLabel("Ada's score")).toBeVisible()
+  await expect(page.getByLabel("Grace's score")).toBeVisible()
+}
+
+async function expectGameplayAtDoubleTextSize(page: Page) {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%'
+  })
+
+  const measurements = await page.evaluate(() => {
+    const cards = Array.from(
+      document.querySelectorAll('article[data-card-id]'),
+    ).map((card) => {
+      const bounds = card.getBoundingClientRect()
+
+      return {
+        bottom: bounds.bottom + window.scrollY,
+        left: bounds.left,
+        right: bounds.right,
+        top: bounds.top + window.scrollY,
+      }
+    })
+
+    return {
+      cards,
+      scrollHeight: document.documentElement.scrollHeight,
+      scrollWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+    }
+  })
+
+  expect(measurements.scrollWidth).toBeLessThanOrEqual(
+    measurements.viewportWidth + 1,
+  )
+  expect(measurements.scrollHeight).toBeGreaterThan(0)
+
+  for (const card of measurements.cards) {
+    expect(card.left).toBeGreaterThanOrEqual(-1)
+    expect(card.right).toBeLessThanOrEqual(measurements.scrollWidth + 1)
+    expect(card.top).toBeGreaterThanOrEqual(-1)
+    expect(card.bottom).toBeLessThanOrEqual(measurements.scrollHeight + 1)
+  }
+
+  await page.getByLabel("Ada's score").scrollIntoViewIfNeeded()
+  await expect(page.getByLabel("Ada's score")).toBeVisible()
+  await page.getByLabel('Match claim feedback').scrollIntoViewIfNeeded()
+  await expect(page.getByLabel('Match claim feedback')).toBeVisible()
+
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = ''
+  })
+}
