@@ -28,7 +28,7 @@ export async function expectValidCardGeometry(cards: Locator) {
 
       const symbols = buttons.map((button) => {
         const bounds = button.getBoundingClientRect()
-        const glyphBounds = button.firstElementChild?.getBoundingClientRect()
+        const glyph = button.firstElementChild
         const styles = getComputedStyle(button)
         const radius = Math.max(bounds.width, bounds.height) / 2
         const center = {
@@ -67,31 +67,15 @@ export async function expectValidCardGeometry(cards: Locator) {
           issues.push(`card ${cardIndex} has a persistent symbol border`)
         }
 
-        if (glyphBounds) {
-          const glyphRadius =
-            Math.hypot(glyphBounds.width, glyphBounds.height) / 2
-          const glyphCenter = {
-            x: glyphBounds.left + glyphBounds.width / 2,
-            y: glyphBounds.top + glyphBounds.height / 2,
-          }
+        if (glyph instanceof HTMLElement) {
+          const glyphRadius = Math.hypot(
+            glyph.offsetWidth / 2,
+            glyph.offsetHeight / 2,
+          )
 
-          if (
-            Math.hypot(
-              glyphCenter.x - cardCenter.x,
-              glyphCenter.y - cardCenter.y,
-            ) +
-              glyphRadius >
-            cardRadius - 1
-          ) {
-            const overflow =
-              Math.hypot(
-                glyphCenter.x - cardCenter.x,
-                glyphCenter.y - cardCenter.y,
-              ) +
-              glyphRadius -
-              (cardRadius - 1)
+          if (glyphRadius > radius + 1) {
             issues.push(
-              `card ${cardIndex} template ${card.getAttribute('data-layout-template')} slot ${button.dataset.layoutSlot} symbol ${button.dataset.symbolId} exceeds its edge by ${overflow.toFixed(1)}px`,
+              `card ${cardIndex} template ${card.getAttribute('data-layout-template')} slot ${button.dataset.layoutSlot} symbol ${button.dataset.symbolId} exceeds its collision target by ${(glyphRadius - radius).toFixed(1)}px`,
             )
           }
         }
