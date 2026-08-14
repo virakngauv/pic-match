@@ -74,8 +74,12 @@ describe('GameScreen', () => {
 
     expect(firstCard).toHaveAttribute('data-card-id', 'card-13')
     expect(secondCard).toHaveAttribute('data-card-id', 'card-52')
-    expect(firstCard).toHaveClass('min-w-72')
-    expect(secondCard).toHaveClass('min-w-72')
+    expect(firstCard.parentElement).toHaveClass('game-card-slot')
+    expect(secondCard.parentElement).toHaveClass('game-card-slot')
+    expect(board).toHaveClass('game-board')
+    expect(
+      screen.getByRole('main', { name: 'Game for Chrome player' }),
+    ).toHaveClass('game-surface')
     expect(firstCard.dataset.layoutTemplate).toBeTruthy()
     expect(secondCard.dataset.layoutTemplate).toBeTruthy()
     expect(firstCard.dataset.layoutTemplate).not.toBe(
@@ -97,8 +101,8 @@ describe('GameScreen', () => {
     const originalMetadata = symbolMetadata(sun)
 
     expect(sun).toHaveClass(
-      '[height:max(3rem,var(--symbol-target-size))]',
-      '[width:max(3rem,var(--symbol-target-size))]',
+      '[height:max(var(--symbol-min-target-size,3rem),var(--symbol-target-size))]',
+      '[width:max(var(--symbol-min-target-size,3rem),var(--symbol-target-size))]',
     )
     expect(sun).toHaveClass('focus-visible:ring-4')
     expect(sun).not.toHaveClass('bg-white/75', 'shadow-sm')
@@ -214,9 +218,7 @@ describe('GameScreen', () => {
     expect(onSubmitClaim).not.toHaveBeenCalled()
     expect(
       screen.getByRole('status', { name: 'Match claim feedback' }),
-    ).toHaveTextContent(
-      'Select one symbol on each card. Your match submits automatically.',
-    )
+    ).toHaveTextContent('Select the match on both cards.')
   })
 
   it('marks the selected symbols, then clears them after an incorrect claim', async () => {
@@ -275,7 +277,7 @@ describe('GameScreen', () => {
     expect(within(secondSelection).queryByText('×')).not.toBeInTheDocument()
     expect(firstSelection).toBeEnabled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'Select one symbol on each card. Your match submits automatically.',
+      'Select the match on both cards.',
     )
 
     vi.useRealTimers()
@@ -320,7 +322,7 @@ describe('GameScreen', () => {
 
     expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeEnabled()
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'Select one symbol on each card. Your match submits automatically.',
+      'Select the match on both cards.',
     )
 
     vi.useRealTimers()
@@ -446,7 +448,9 @@ describe('GameScreen', () => {
       />,
     )
 
-    expect(screen.getByText('Room frvg7 · Round 2')).toBeInTheDocument()
+    expect(
+      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
     expect(screen.getByLabelText("Chrome player's score")).toHaveTextContent(
       '1',
     )
