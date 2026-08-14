@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import {
   expectStableSymbolHover,
@@ -61,6 +61,7 @@ test('replays a complete shared race across browser sessions', async ({
       hostPage.getByLabel('Shared game board').locator('article[data-card-id]'),
     )
     await expectStableSymbolHover(firstSymbolControl(hostPage))
+    await expectComputedCursor(firstSymbolControl(hostPage), 'pointer')
 
     await outsiderPage.goto(`/${roomCode}`)
     await expect(
@@ -98,6 +99,8 @@ test('replays a complete shared race across browser sessions', async ({
       'data-incorrect',
       'true',
     )
+    await expectComputedCursor(firstIncorrectSymbol, 'default')
+    await expectComputedCursor(secondIncorrectSymbol, 'default')
     await expect(
       firstIncorrectSymbol.locator('.spot-it-incorrect-mark'),
     ).toBeVisible()
@@ -128,9 +131,11 @@ test('replays a complete shared race across browser sessions', async ({
       secondIncorrectSymbol.locator('.spot-it-incorrect-mark'),
     ).toHaveCount(0)
 
+    await beginDisabledCursorObservation(hostPage)
     await submitSharedMatch(hostPage)
     await expectScore(hostPage, playerNames.host, 1)
     await expectScore(guestPage, playerNames.host, 1)
+    expect(await endDisabledCursorObservation(hostPage)).toEqual(['default'])
     const afterAcceptedClaim = await playingSnapshot(hostPage)
     expect(afterAcceptedClaim.cards).not.toEqual(beforeIncorrectClaim.cards)
     await expect
@@ -442,6 +447,70 @@ async function selectCardSymbol(
 
 function firstSymbolControl(page: Page) {
   return page.getByLabel('Card 1').locator('button[data-symbol-id]').first()
+}
+
+async function expectComputedCursor(locator: Locator, expected: string) {
+  await expect
+    .poll(async () =>
+      locator.evaluate((element) => getComputedStyle(element).cursor),
+    )
+    .toBe(expected)
+}
+
+type CursorObservationWindow = Window & {
+  __disabledCursorObservation?: {
+    cursors: string[]
+    observer: MutationObserver
+  }
+}
+
+async function beginDisabledCursorObservation(page: Page) {
+  await page.evaluate(() => {
+    const board = document.querySelector('[aria-label="Shared game board"]')
+
+    if (!board) {
+      throw new Error('Missing the shared game board.')
+    }
+
+    const cursors: string[] = []
+    const collectDisabledCursors = () => {
+      for (const button of board.querySelectorAll<HTMLButtonElement>(
+        'button[data-symbol-id]:disabled',
+      )) {
+        cursors.push(getComputedStyle(button).cursor)
+      }
+    }
+    const observer = new MutationObserver(collectDisabledCursors)
+
+    observer.observe(board, {
+      attributeFilter: ['disabled'],
+      attributes: true,
+      subtree: true,
+    })
+    ;(window as CursorObservationWindow).__disabledCursorObservation = {
+      cursors,
+      observer,
+    }
+  })
+}
+
+async function endDisabledCursorObservation(page: Page) {
+  const observedCursors = await page.evaluate(() => {
+    const testWindow = window as CursorObservationWindow
+    const observation = testWindow.__disabledCursorObservation
+
+    if (!observation) {
+      throw new Error('Missing the disabled cursor observation.')
+    }
+
+    observation.observer.disconnect()
+    delete testWindow.__disabledCursorObservation
+
+    return observation.cursors
+  })
+
+  expect(observedCursors.length).toBeGreaterThan(0)
+  return [...new Set(observedCursors)]
 }
 
 function findSharedSymbol(cards: CardSnapshot[]) {

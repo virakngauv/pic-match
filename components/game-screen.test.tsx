@@ -87,9 +87,12 @@ describe('GameScreen', () => {
     )
     expect(within(firstCard).getAllByRole('button')).toHaveLength(8)
     expect(within(secondCard).getAllByRole('button')).toHaveLength(8)
-    expect(
-      within(firstCard).getByRole('button', { name: 'Cat on card 1' }),
-    ).toBeEnabled()
+    const firstCat = within(firstCard).getByRole('button', {
+      name: 'Cat on card 1',
+    })
+
+    expect(firstCat).toBeEnabled()
+    expectNeutralSymbolCursor(firstCat)
     expect(
       within(secondCard).getByRole('button', { name: 'Cat on card 2' }),
     ).toBeEnabled()
@@ -203,6 +206,10 @@ describe('GameScreen', () => {
     expect(
       screen.getByRole('status', { name: 'Match claim feedback' }),
     ).toHaveTextContent('Match accepted.')
+    const firstCat = screen.getByRole('button', { name: 'Cat on card 1' })
+
+    expect(firstCat).toBeDisabled()
+    expectNeutralSymbolCursor(firstCat)
     expect(
       screen.queryByRole('button', { name: 'Submit match' }),
     ).not.toBeInTheDocument()
@@ -249,6 +256,8 @@ describe('GameScreen', () => {
 
     expect(firstSelection).toBeDisabled()
     expect(secondSelection).toBeDisabled()
+    expectNeutralSymbolCursor(firstSelection)
+    expectNeutralSymbolCursor(secondSelection)
     expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
     expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
     expect(firstSelection).toHaveAttribute('data-incorrect', 'true')
@@ -304,7 +313,10 @@ describe('GameScreen', () => {
     expect(
       screen.getByRole('button', { name: 'Cat on card 2' }),
     ).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
+    const firstCat = screen.getByRole('button', { name: 'Cat on card 1' })
+
+    expect(firstCat).toBeDisabled()
+    expectNeutralSymbolCursor(firstCat)
   })
 
   it('restores a persisted cooldown and enables controls at its deadline', () => {
@@ -313,7 +325,10 @@ describe('GameScreen', () => {
 
     renderGame({ cooldownUntil: 11_000 })
 
-    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
+    const firstCat = screen.getByRole('button', { name: 'Cat on card 1' })
+
+    expect(firstCat).toBeDisabled()
+    expectNeutralSymbolCursor(firstCat)
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
       'Please wait a moment before selecting again.',
     )
@@ -355,6 +370,7 @@ describe('GameScreen', () => {
     expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
     expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
     expect(firstSelection).toBeDisabled()
+    expectNeutralSymbolCursor(firstSelection)
 
     await act(async () => vi.advanceTimersByTime(510))
 
@@ -383,7 +399,10 @@ describe('GameScreen', () => {
     ).toHaveTextContent(
       'Unable to submit your match. Select either symbol again to retry.',
     )
-    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeEnabled()
+    const firstCat = screen.getByRole('button', { name: 'Cat on card 1' })
+
+    expect(firstCat).toBeEnabled()
+    expectNeutralSymbolCursor(firstCat)
     expect(consoleError).toHaveBeenCalledWith(
       'Match claim submission failed.',
       error,
@@ -416,8 +435,13 @@ describe('GameScreen', () => {
     expect(
       screen.getByRole('status', { name: 'Match claim feedback' }),
     ).toHaveTextContent('Submitting match…')
-    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Cat on card 2' })).toBeDisabled()
+    const firstCat = screen.getByRole('button', { name: 'Cat on card 1' })
+    const secondCat = screen.getByRole('button', { name: 'Cat on card 2' })
+
+    expect(firstCat).toBeDisabled()
+    expect(secondCat).toBeDisabled()
+    expectNeutralSymbolCursor(firstCat)
+    expectNeutralSymbolCursor(secondCat)
     expect(onSubmitClaim).toHaveBeenCalledTimes(1)
 
     await act(async () => {
@@ -513,4 +537,12 @@ function symbolMetadata(element: HTMLElement) {
     x: element.dataset.symbolX,
     y: element.dataset.symbolY,
   }
+}
+
+function expectNeutralSymbolCursor(element: HTMLElement) {
+  expect(element).toHaveClass('cursor-pointer', 'disabled:cursor-default')
+  expect(element).not.toHaveClass(
+    'disabled:cursor-wait',
+    'disabled:cursor-progress',
+  )
 }

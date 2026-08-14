@@ -73,7 +73,7 @@ export function GameCard({
             disabled={disabled}
             onClick={() => onSelectSymbol(symbolId)}
             className={cn(
-              'focus-visible:ring-ring/70 absolute inline-flex [height:max(var(--symbol-min-target-size,3rem),var(--symbol-target-size))] [width:max(var(--symbol-min-target-size,3rem),var(--symbol-target-size))] items-center justify-center overflow-visible rounded-full border-0 p-0 [font-size:clamp(1.5rem,var(--symbol-font-size),5rem)] leading-none focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait',
+              'focus-visible:ring-ring/70 absolute inline-flex [height:max(var(--symbol-min-target-size,3rem),var(--symbol-target-size))] [width:max(var(--symbol-min-target-size,3rem),var(--symbol-target-size))] cursor-pointer items-center justify-center overflow-visible rounded-full border-0 p-0 [font-size:clamp(1.5rem,var(--symbol-font-size),5rem)] leading-none focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-default',
               isIncorrect
                 ? 'z-[1] border-2 border-red-700/70 bg-red-100/80 ring-4 ring-red-500/50'
                 : isSelected
