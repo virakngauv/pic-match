@@ -63,6 +63,19 @@ test('replays a complete shared race across browser sessions', async ({
     await expectStableSymbolHover(firstSymbolControl(hostPage))
     await expectComputedCursor(firstSymbolControl(hostPage), 'pointer')
 
+    const initialViewport = hostPage.viewportSize()
+    await hostPage.setViewportSize({ width: 390, height: 844 })
+    const toggledSymbol = firstSymbolControl(hostPage)
+    await toggledSymbol.click()
+    await expect(toggledSymbol).toHaveAttribute('aria-pressed', 'true')
+    await toggledSymbol.click()
+    await expect(toggledSymbol).toBeFocused()
+    await expect(toggledSymbol).toHaveAttribute('aria-pressed', 'false')
+    expect(await playingSnapshot(hostPage)).toEqual(initialState)
+    if (initialViewport) {
+      await hostPage.setViewportSize(initialViewport)
+    }
+
     await outsiderPage.goto(`/${roomCode}`)
     await expect(
       outsiderPage.getByRole('heading', {

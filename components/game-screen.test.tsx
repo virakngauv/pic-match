@@ -169,6 +169,66 @@ describe('GameScreen', () => {
     expect(onSubmitClaim).not.toHaveBeenCalled()
   })
 
+  it('toggles an editable selection off without submitting or moving focus', async () => {
+    const user = userEvent.setup()
+    const onSubmitClaim = vi.fn()
+    renderGame({ onSubmitClaim })
+    const cat = screen.getByRole('button', { name: 'Cat on card 1' })
+
+    await user.click(cat)
+
+    expect(cat).toHaveAttribute('aria-pressed', 'true')
+    expect(cat).toHaveAttribute('data-selected', 'true')
+
+    await user.click(cat)
+
+    expect(cat).toHaveFocus()
+    expect(cat).toHaveAttribute('aria-pressed', 'false')
+    expect(cat).toHaveAttribute('data-selected', 'false')
+    expect(cat).not.toHaveClass('border-accent/70', 'bg-accent/15', 'ring-4')
+    expect(onSubmitClaim).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
+      'Select the match on both cards.',
+    )
+    expect(
+      screen.getByText('Room frvg7, round 1', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
+  })
+
+  it('toggles an editable selection with Enter and Space', async () => {
+    const user = userEvent.setup()
+    const onSubmitClaim = vi.fn()
+    renderGame({ onSubmitClaim })
+    const cat = screen.getByRole('button', { name: 'Cat on card 1' })
+
+    cat.focus()
+    await user.keyboard('{Enter}')
+    expect(cat).toHaveAttribute('aria-pressed', 'true')
+
+    await user.keyboard('{Enter}')
+    expect(cat).toHaveAttribute('aria-pressed', 'false')
+
+    await user.keyboard(' ')
+    expect(cat).toHaveAttribute('aria-pressed', 'true')
+
+    await user.keyboard(' ')
+    expect(cat).toHaveFocus()
+    expect(cat).toHaveAttribute('aria-pressed', 'false')
+    expect(onSubmitClaim).not.toHaveBeenCalled()
+  })
+
+  it('leaves an editable selection off after rapid double activation', async () => {
+    const user = userEvent.setup()
+    const onSubmitClaim = vi.fn()
+    renderGame({ onSubmitClaim })
+    const cat = screen.getByRole('button', { name: 'Cat on card 1' })
+
+    await user.dblClick(cat)
+
+    expect(cat).toHaveAttribute('aria-pressed', 'false')
+    expect(onSubmitClaim).not.toHaveBeenCalled()
+  })
+
   it('provides the same symbol selection behavior from the keyboard', async () => {
     const user = userEvent.setup()
     const onSubmitClaim = vi.fn().mockResolvedValue({ status: 'accepted' })
@@ -210,6 +270,9 @@ describe('GameScreen', () => {
 
     expect(firstCat).toBeDisabled()
     expectNeutralSymbolCursor(firstCat)
+    fireEvent.click(firstCat)
+    expect(firstCat).toHaveAttribute('aria-pressed', 'true')
+    expect(onSubmitClaim).toHaveBeenCalledTimes(1)
     expect(
       screen.queryByRole('button', { name: 'Submit match' }),
     ).not.toBeInTheDocument()
@@ -268,6 +331,8 @@ describe('GameScreen', () => {
     expect(within(secondSelection).getByText('×')).toHaveClass(
       'spot-it-incorrect-mark',
     )
+    fireEvent.click(firstSelection)
+    expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
     expect(
       screen.getByRole('button', { name: 'Sun on card 1' }),
     ).toHaveAttribute('data-incorrect', 'false')
@@ -317,6 +382,8 @@ describe('GameScreen', () => {
 
     expect(firstCat).toBeDisabled()
     expectNeutralSymbolCursor(firstCat)
+    fireEvent.click(firstCat)
+    expect(firstCat).toHaveAttribute('aria-pressed', 'false')
   })
 
   it('restores a persisted cooldown and enables controls at its deadline', () => {
@@ -371,6 +438,8 @@ describe('GameScreen', () => {
     expect(secondSelection).toHaveAttribute('aria-pressed', 'true')
     expect(firstSelection).toBeDisabled()
     expectNeutralSymbolCursor(firstSelection)
+    fireEvent.click(firstSelection)
+    expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
 
     await act(async () => vi.advanceTimersByTime(510))
 
@@ -397,9 +466,10 @@ describe('GameScreen', () => {
     expect(
       await screen.findByRole('alert', { name: 'Match claim feedback' }),
     ).toHaveTextContent(
-      'Unable to submit your match. Select either symbol again to retry.',
+      'Unable to submit your match. Change or reselect either symbol to retry.',
     )
     const firstCat = screen.getByRole('button', { name: 'Cat on card 1' })
+    const secondCat = screen.getByRole('button', { name: 'Cat on card 2' })
 
     expect(firstCat).toBeEnabled()
     expectNeutralSymbolCursor(firstCat)
@@ -409,6 +479,17 @@ describe('GameScreen', () => {
     )
 
     await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
+
+    expect(firstCat).toHaveAttribute('aria-pressed', 'false')
+    expect(secondCat).toHaveAttribute('aria-pressed', 'true')
+    expect(onSubmitClaim).toHaveBeenCalledTimes(1)
+    expect(
+      screen.getByRole('alert', { name: 'Match claim feedback' }),
+    ).toHaveTextContent(
+      'Unable to submit your match. Change or reselect either symbol to retry.',
+    )
+
+    await user.click(firstCat)
 
     expect(onSubmitClaim).toHaveBeenCalledTimes(2)
     expect(
@@ -442,6 +523,9 @@ describe('GameScreen', () => {
     expect(secondCat).toBeDisabled()
     expectNeutralSymbolCursor(firstCat)
     expectNeutralSymbolCursor(secondCat)
+    expect(onSubmitClaim).toHaveBeenCalledTimes(1)
+    fireEvent.click(firstCat)
+    expect(firstCat).toHaveAttribute('aria-pressed', 'true')
     expect(onSubmitClaim).toHaveBeenCalledTimes(1)
 
     await act(async () => {
