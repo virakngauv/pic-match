@@ -20,7 +20,21 @@ const COLLISION_RADII = [
 const GENERATION_EDGE_PADDING = 0.07
 const GENERATION_SLOT_GAP = 0.055
 const CANDIDATES_PER_TEMPLATE = 300
-const CURATED_ADJUSTMENTS = {}
+const CURATED_ADJUSTMENTS = {
+  borealis: {
+    5: { x: -0.437, y: -0.026 },
+    6: { x: 0.034, y: -0.63 },
+  },
+  cascade: { 6: { x: -0.071, y: -0.16 } },
+  glimmer: { 4: { x: 0.25, y: 0.279 } },
+  isotope: { 2: { x: -0.303, y: 0.101 } },
+}
+const CURATED_SIZE_OVERRIDES = {
+  borealis: { 5: 0.11, 6: 0.105, 7: 0.095 },
+  cascade: { 5: 0.11, 6: 0.105, 7: 0.095 },
+  glimmer: { 5: 0.11, 6: 0.105, 7: 0.095 },
+  isotope: { 5: 0.11, 6: 0.105, 7: 0.095 },
+}
 
 for (
   let templateIndex = 0;
@@ -54,11 +68,14 @@ for (
   const templateName = TEMPLATE_NAMES[templateIndex]
   const slots = bestCandidate.points.map((point, slotIndex) => {
     const adjustment = CURATED_ADJUSTMENTS[templateName]?.[slotIndex]
+    const size =
+      CURATED_SIZE_OVERRIDES[templateName]?.[slotIndex] ??
+      SYMBOL_SIZES[slotIndex]
 
     return [
       round(point.x + (adjustment?.x ?? 0)),
       round(point.y + (adjustment?.y ?? 0)),
-      SYMBOL_SIZES[slotIndex],
+      size,
       Math.round(rotationRandom() * 359 - 179),
       round(COLLISION_RADII[slotIndex]),
     ]

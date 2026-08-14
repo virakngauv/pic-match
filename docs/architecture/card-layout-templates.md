@@ -40,10 +40,10 @@ then protected by unit tests that require:
 - collision-radius clearance from the circular card edge;
 - the same invariants after non-right-angle whole-template rotations.
 
-Small reviewed coordinate corrections may be recorded in the generator's
-`CURATED_ADJUSTMENTS` map when browser glyph-box checks need more clearance.
-Those corrections are part of the reproducible output and must pass the same
-numerical validation.
+Small reviewed coordinate and size corrections may be recorded in the
+generator's `CURATED_ADJUSTMENTS` and `CURATED_SIZE_OVERRIDES` maps when browser
+review finds a sparse quadrant or a weak size hierarchy. Those corrections are
+part of the reproducible output and must pass the same numerical validation.
 
 To replace or add a template, update the generator's stable template names and
 seeds, inspect the rendered candidates, copy the chosen numerical output, and
