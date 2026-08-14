@@ -74,6 +74,11 @@ describe('GameScreen', () => {
 
     expect(firstCard).toHaveAttribute('data-card-id', 'card-13')
     expect(secondCard).toHaveAttribute('data-card-id', 'card-52')
+    expect(firstCard.dataset.layoutTemplate).toBeTruthy()
+    expect(secondCard.dataset.layoutTemplate).toBeTruthy()
+    expect(firstCard.dataset.layoutTemplate).not.toBe(
+      secondCard.dataset.layoutTemplate,
+    )
     expect(within(firstCard).getAllByRole('button')).toHaveLength(8)
     expect(within(secondCard).getAllByRole('button')).toHaveLength(8)
     expect(
@@ -91,10 +96,15 @@ describe('GameScreen', () => {
 
     expect(sun).toHaveClass('min-h-12', 'min-w-12')
     expect(sun).toHaveClass('focus-visible:ring-4')
+    expect(sun).not.toHaveClass('bg-white/75', 'shadow-sm')
     expect(sun.style.top).toMatch(/%$/)
     expect(sun.style.left).toMatch(/%$/)
-    expect(sun.style.fontSize).toMatch(/rem$/)
-    expect(sun.style.transform).toMatch(/rotate\(-?\d+deg\)/)
+    expect(sun.style.getPropertyValue('--symbol-font-size')).toMatch(/cqi$/)
+    expect(sun.style.getPropertyValue('--symbol-target-size')).toMatch(/cqi$/)
+    expect(sun.style.transform).toBe('translate(-50%, -50%)')
+    expect((sun.firstElementChild as HTMLElement).style.transform).toMatch(
+      /rotate\(-?\d+(\.\d+)?deg\)/,
+    )
 
     rerender(
       <GameScreen
@@ -487,6 +497,8 @@ function renderGame({
 
 function symbolMetadata(element: HTMLElement) {
   return {
+    collisionRadius: element.dataset.collisionRadius,
+    slot: element.dataset.layoutSlot,
     size: element.dataset.symbolSize,
     rotation: element.dataset.symbolRotation,
     x: element.dataset.symbolX,

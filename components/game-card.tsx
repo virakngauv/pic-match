@@ -1,21 +1,13 @@
+import type { CSSProperties } from 'react'
+
 import { getSpotItSymbolPresentation } from '@/lib/spot-it-symbols'
+import type { CardLayoutPlan } from '@/lib/card-layout'
 import { cn } from '@/lib/utils'
 
 export type GameCardModel = {
   id: string
   symbolIds: readonly string[]
 }
-
-const SYMBOL_SLOTS = [
-  { x: 27, y: 23 },
-  { x: 55, y: 19 },
-  { x: 77, y: 36 },
-  { x: 77, y: 65 },
-  { x: 55, y: 81 },
-  { x: 27, y: 77 },
-  { x: 19, y: 53 },
-  { x: 49, y: 50 },
-] as const
 
 const SYMBOL_COLORS = [
   'oklch(0.51 0.19 28)',
@@ -24,32 +16,11 @@ const SYMBOL_COLORS = [
   'oklch(0.55 0.18 320)',
 ] as const
 
-/** Derives stable, slot-based presentation metadata for one card symbol. */
-export function getSymbolLayout(
-  cardId: string,
-  symbolId: string,
-  symbolIndex: number,
-) {
-  const slot = SYMBOL_SLOTS[symbolIndex % SYMBOL_SLOTS.length]
-  const hash = hashText(`${cardId}:${symbolId}:${symbolIndex}`)
-
-  if (!slot) {
-    throw new Error('Unable to place a symbol without a layout slot.')
-  }
-
-  return {
-    x: slot.x + ((hash >>> 3) % 7) - 3,
-    y: slot.y + ((hash >>> 7) % 7) - 3,
-    size: 1.8 + ((hash >>> 11) % 9) / 10,
-    rotation: ((hash >>> 15) % 45) - 22,
-    color: SYMBOL_COLORS[(hash >>> 21) % SYMBOL_COLORS.length],
-  }
-}
-
 /** Renders one server-derived card as a circular set of symbol controls. */
 export function GameCard({
   card,
   cardNumber,
+  layoutPlan,
   selectedSymbolId,
   showIncorrectFeedback,
   disabled,
@@ -57,25 +28,41 @@ export function GameCard({
 }: {
   card: GameCardModel
   cardNumber: number
+  layoutPlan: CardLayoutPlan
   selectedSymbolId: string | null
   showIncorrectFeedback: boolean
   disabled: boolean
   onSelectSymbol: (symbolId: string) => void
 }) {
+  const symbolLayouts = new Map(
+    layoutPlan.symbols.map((layout) => [layout.symbolId, layout]),
+  )
+
   return (
     <article
-      className="bg-card relative aspect-square w-full overflow-hidden rounded-full border-4 border-white shadow-[0_18px_55px_rgba(73,52,31,0.16),inset_0_0_0_1px_var(--border)]"
+      className="bg-card [container-type:inline-size] relative aspect-square w-full overflow-hidden rounded-full border-4 border-white shadow-[0_18px_55px_rgba(73,52,31,0.16),inset_0_0_0_1px_var(--border)]"
       aria-label={`Card ${cardNumber}`}
       data-card-id={card.id}
+      data-layout-template={layoutPlan.templateId}
+      data-template-rotation={layoutPlan.templateRotation}
     >
       <p className="sr-only">
         Card {cardNumber} contains {card.symbolIds.length} symbols.
       </p>
-      {card.symbolIds.map((symbolId, symbolIndex) => {
+      {card.symbolIds.map((symbolId) => {
         const symbol = getSpotItSymbolPresentation(symbolId)
-        const layout = getSymbolLayout(card.id, symbolId, symbolIndex)
+        const layout = symbolLayouts.get(symbolId)
         const isSelected = selectedSymbolId === symbolId
         const isIncorrect = isSelected && showIncorrectFeedback
+
+        if (!layout) {
+          throw new Error(`Missing layout for symbol ${symbolId}.`)
+        }
+
+        const color =
+          SYMBOL_COLORS[
+            hashText(`${card.id}:${symbolId}:color`) % SYMBOL_COLORS.length
+          ]
 
         return (
           <button
@@ -86,29 +73,38 @@ export function GameCard({
             disabled={disabled}
             onClick={() => onSelectSymbol(symbolId)}
             className={cn(
-              'focus-visible:ring-ring/70 absolute inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border-2 p-1 leading-none focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait',
+              'focus-visible:ring-ring/70 absolute inline-flex [height:max(3rem,var(--symbol-target-size))] min-h-12 [width:max(3rem,var(--symbol-target-size))] min-w-12 items-center justify-center overflow-visible rounded-full border-0 p-0 [font-size:clamp(2rem,var(--symbol-font-size),5rem)] leading-none focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-wait',
               isIncorrect
-                ? 'z-[1] border-red-700 bg-red-100/95 shadow-md ring-4 ring-red-500/50'
+                ? 'z-[1] border-2 border-red-700/70 bg-red-100/80 ring-4 ring-red-500/50'
                 : isSelected
-                  ? 'border-accent bg-accent/15 ring-accent/40 z-[1] shadow-md ring-4'
-                  : 'border-transparent bg-white/75 shadow-sm hover:brightness-105',
+                  ? 'border-accent/70 bg-accent/15 ring-accent/40 z-[1] border-2 ring-4'
+                  : 'hover:brightness-110',
             )}
             data-symbol-id={symbolId}
             data-selected={isSelected}
             data-incorrect={isIncorrect}
-            data-symbol-size={layout.size.toFixed(1)}
+            data-layout-slot={layout.slotIndex}
+            data-symbol-size={layout.size}
             data-symbol-rotation={layout.rotation}
             data-symbol-x={layout.x}
             data-symbol-y={layout.y}
-            style={{
-              color: layout.color,
-              fontSize: `${layout.size}rem`,
-              left: `${layout.x}%`,
-              top: `${layout.y}%`,
-              transform: `translate(-50%, -50%) rotate(${layout.rotation}deg)`,
-            }}
+            data-collision-radius={layout.collisionRadius}
+            style={
+              {
+                '--symbol-font-size': `${layout.size * 100}cqi`,
+                '--symbol-target-size': `${layout.collisionRadius * 100}cqi`,
+                color,
+                left: `${50 + layout.x * 50}%`,
+                top: `${50 + layout.y * 50}%`,
+                transform: 'translate(-50%, -50%)',
+              } as CSSProperties
+            }
           >
-            <span aria-hidden="true" className="inline-block">
+            <span
+              aria-hidden="true"
+              className="inline-block drop-shadow-[0_1px_0_rgba(255,255,255,0.75)]"
+              style={{ transform: `rotate(${layout.rotation}deg)` }}
+            >
               {symbol.glyph}
             </span>
             {isIncorrect ? (

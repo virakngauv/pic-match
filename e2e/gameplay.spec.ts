@@ -1,5 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import {
+  expectStableSymbolHover,
+  expectValidCardGeometry,
+} from './card-layout-assertions'
+
 const roomCodePattern = /^[bcdfghkpqrstvz]{4}[2-9y]$/
 const playerNames = {
   host: 'Ada',
@@ -47,6 +52,15 @@ test('replays a complete shared race across browser sessions', async ({
     await expect
       .poll(async () => await playingSnapshot(guestPage))
       .toEqual(initialState)
+    const initialLayout = await cardLayoutSnapshot(hostPage)
+    expect(initialLayout[0]?.templateId).not.toBe(initialLayout[1]?.templateId)
+    await expect
+      .poll(async () => await cardLayoutSnapshot(guestPage))
+      .toEqual(initialLayout)
+    await expectValidCardGeometry(
+      hostPage.getByLabel('Shared game board').locator('article[data-card-id]'),
+    )
+    await expectStableSymbolHover(firstSymbolControl(hostPage))
 
     await outsiderPage.goto(`/${roomCode}`)
     await expect(
@@ -353,6 +367,29 @@ async function playingSnapshot(page: Page): Promise<PlayingSnapshot> {
   )
 
   return { cards, scores }
+}
+
+async function cardLayoutSnapshot(page: Page) {
+  return page
+    .getByLabel('Shared game board')
+    .locator('article[data-card-id]')
+    .evaluateAll((cardElements) =>
+      cardElements.map((card) => ({
+        templateId: card.getAttribute('data-layout-template'),
+        rotation: card.getAttribute('data-template-rotation'),
+        symbols: Array.from(
+          card.querySelectorAll<HTMLButtonElement>('button[data-symbol-id]'),
+          (symbol) => ({
+            id: symbol.dataset.symbolId,
+            slot: symbol.dataset.layoutSlot,
+            size: symbol.dataset.symbolSize,
+            rotation: symbol.dataset.symbolRotation,
+            x: symbol.dataset.symbolX,
+            y: symbol.dataset.symbolY,
+          }),
+        ),
+      })),
+    )
 }
 
 async function submitIncorrectClaim(page: Page, cards: CardSnapshot[]) {
