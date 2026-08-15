@@ -69,6 +69,13 @@ const scoreboard = [
   },
 ]
 
+const navigationProps = {
+  isLeaving: false,
+  leaveError: null,
+  onGoHome: vi.fn(),
+  onLeaveRoom: vi.fn(),
+}
+
 describe('GameScreen', () => {
   it('renders both server-provided cards and every symbol as a named control', () => {
     renderGame()
@@ -125,6 +132,7 @@ describe('GameScreen', () => {
 
     rerender(
       <GameScreen
+        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={0}
@@ -354,6 +362,7 @@ describe('GameScreen', () => {
 
     rerender(
       <GameScreen
+        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={0}
@@ -690,6 +699,7 @@ describe('GameScreen', () => {
 
     rerender(
       <GameScreen
+        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={1}
@@ -716,9 +726,52 @@ describe('GameScreen', () => {
     ).toHaveAttribute('aria-pressed', 'false')
   })
 
+  it('keeps a leave confirmation open while the shared pair advances', async () => {
+    const user = userEvent.setup()
+    const onLeaveRoom = vi.fn()
+    const { rerender } = render(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={0}
+        cards={cards}
+        scoreboard={scoreboard}
+        cooldownUntil={null}
+        onLeaveRoom={onLeaveRoom}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Leave room' }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    rerender(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={1}
+        cards={cards}
+        scoreboard={scoreboard}
+        cooldownUntil={null}
+        onLeaveRoom={onLeaveRoom}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: 'Leave this room?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Leave room' }))
+    expect(onLeaveRoom).toHaveBeenCalledOnce()
+  })
+
   it('shows a recoverable unavailable state instead of a partial board', () => {
     render(
       <GameScreen
+        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={0}
@@ -747,6 +800,7 @@ function renderGame({
 } = {}) {
   return render(
     <GameScreen
+      {...navigationProps}
       roomCode="frvg7"
       player={player}
       pairRevision={0}

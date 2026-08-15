@@ -291,6 +291,18 @@ test('replays a complete shared race across browser sessions', async ({
     ).toHaveCount(0)
     await expectNoHorizontalOverflow(hostPage)
 
+    await hostPage.getByRole('button', { name: 'Room menu' }).click()
+    await hostPage
+      .getByLabel('Room actions')
+      .getByRole('button', { name: 'Home' })
+      .click()
+    await expect(hostPage).toHaveURL(/\/home$/)
+    await hostPage.goto(`/${roomCode}`)
+    await expectPlaying(hostPage, playerNames.host)
+    await expect
+      .poll(async () => await playingSnapshot(hostPage))
+      .toEqual(secondGameInitialState)
+
     await submitIncorrectClaim(hostPage, secondGameInitialState.cards)
     await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
       'Incorrect match. Try again in a moment.',
@@ -310,6 +322,30 @@ test('replays a complete shared race across browser sessions', async ({
     await expect
       .poll(async () => await playingSnapshot(lateJoinerPage))
       .toEqual(secondGameAfterScore)
+
+    await lateJoinerPage.getByRole('button', { name: 'Leave room' }).click()
+    const leaveDialog = lateJoinerPage.getByRole('dialog', {
+      name: 'Leave this room?',
+    })
+    await expect(leaveDialog).toContainText('may not be able to rejoin')
+    await leaveDialog.getByRole('button', { name: 'Leave room' }).click()
+    await expect(lateJoinerPage).toHaveURL(/\/home$/)
+    await expectPlaying(hostPage, playerNames.host)
+    expect(await playingSnapshot(hostPage)).toEqual(secondGameAfterScore)
+    await expect(
+      hostPage.getByText(playerNames.replacement, { exact: true }),
+    ).toBeVisible()
+
+    await submitSharedMatch(hostPage)
+    await expectScore(hostPage, playerNames.host, 2)
+    await expectNoHorizontalOverflow(hostPage)
+
+    await lateJoinerPage.goto(`/${roomCode}`)
+    await expect(
+      lateJoinerPage.getByRole('heading', {
+        name: 'This game has already started.',
+      }),
+    ).toBeVisible()
 
     await outsiderPage.reload()
     await expect(
