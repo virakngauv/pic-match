@@ -84,7 +84,7 @@ test('replays a complete shared race across browser sessions', async ({
     expect(
       selectedCardStyles
         ?.filter(({ id }) => id !== toggledSymbolId)
-        .every(({ filter }) => filter === 'saturate(0.42)'),
+        .every(({ filter }) => filter === 'saturate(0)'),
     ).toBe(true)
     expect(selectionStylesAfter[1]).toEqual(selectionStylesBefore[1])
     await expectUnclippedSiblingGlyphs(
