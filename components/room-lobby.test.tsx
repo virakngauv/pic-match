@@ -458,6 +458,39 @@ describe('RoomLobby', () => {
     },
   )
 
+  it('keeps the frozen playing view when the room reports full mid-leave', async () => {
+    let resolveLeave!: () => void
+    const leaveRequest = new Promise<void>((resolve) => {
+      resolveLeave = resolve
+    })
+    mocks.leaveRoom.mockReturnValue(leaveRequest)
+    mocks.roomView = playingView()
+    const { rerender } = render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Leave room',
+      }),
+    )
+
+    mocks.presenceStatus = 'room-full'
+    rerender(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.queryByRole('heading', { name: 'Sorry, this room is full.' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('main', { name: `Game for ${player.name}` }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
+
+    await act(async () => resolveLeave())
+    await waitFor(() => {
+      expect(mocks.routerPush).toHaveBeenCalledWith('/home')
+    })
+  })
+
   it('keeps gameplay and the confirmation open after a failed leave, then retries', async () => {
     mocks.roomView = playingView()
     mocks.leaveRoom

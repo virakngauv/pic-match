@@ -1,4 +1,5 @@
 import {
+  createEvent,
   fireEvent,
   render,
   screen,
@@ -105,6 +106,11 @@ describe('GameNavigation', () => {
     rerender(<GameNavigation {...props} isLeaving />)
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    const pendingDialog = screen.getByRole('dialog')
+    const tabEvent = createEvent.keyDown(pendingDialog, { key: 'Tab' })
+    fireEvent(pendingDialog, tabEvent)
+    expect(tabEvent.defaultPrevented).toBe(true)
   })
 
   it('submits once, locks the dialog, and exposes a retry after failure', async () => {

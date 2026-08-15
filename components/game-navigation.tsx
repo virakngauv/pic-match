@@ -62,7 +62,7 @@ export function GameNavigation({
       return
     }
 
-    if (event.key !== 'Tab' || isLeaving) {
+    if (event.key !== 'Tab') {
       return
     }
 
@@ -75,6 +75,7 @@ export function GameNavigation({
     const lastElement = focusableElements.at(-1)
 
     if (!firstElement || !lastElement) {
+      event.preventDefault()
       return
     }
 

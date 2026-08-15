@@ -119,7 +119,7 @@ function PresentRoomLobby({
     return <RoomEntrySkeleton />
   }
 
-  if (presenceStatus === 'room-full') {
+  if (!leavingSnapshot && presenceStatus === 'room-full') {
     return <RoomFull roomCode={displayedRoomView.roomCode} />
   }
 
