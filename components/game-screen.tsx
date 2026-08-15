@@ -31,6 +31,7 @@ export function GameScreen({
   cooldownUntil,
   isLeaving,
   leaveError,
+  onDismissError,
   onGoHome,
   onLeaveRoom,
   onSubmitClaim,
@@ -43,6 +44,7 @@ export function GameScreen({
   cooldownUntil: number | null
   isLeaving: boolean
   leaveError: string | null
+  onDismissError: () => void
   onGoHome: () => void
   onLeaveRoom: () => void
   onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
@@ -80,6 +82,7 @@ export function GameScreen({
           <GameNavigation
             isLeaving={isLeaving}
             leaveError={leaveError}
+            onDismissError={onDismissError}
             onGoHome={onGoHome}
             onLeaveRoom={onLeaveRoom}
           />

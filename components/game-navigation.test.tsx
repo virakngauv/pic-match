@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -7,10 +13,11 @@ import { GameNavigation } from './game-navigation'
 function renderNavigation({
   isLeaving = false,
   leaveError = null,
+  onDismissError = vi.fn(),
   onGoHome = vi.fn(),
   onLeaveRoom = vi.fn(),
 }: Partial<React.ComponentProps<typeof GameNavigation>> = {}) {
-  const props = { isLeaving, leaveError, onGoHome, onLeaveRoom }
+  const props = { isLeaving, leaveError, onDismissError, onGoHome, onLeaveRoom }
   const result = render(<GameNavigation {...props} />)
 
   return { ...result, props }
@@ -96,7 +103,7 @@ describe('GameNavigation', () => {
     expect(stayButton).toHaveFocus()
 
     rerender(<GameNavigation {...props} isLeaving />)
-    await user.keyboard('{Escape}')
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
@@ -143,5 +150,41 @@ describe('GameNavigation', () => {
     )
 
     expect(onLeaveRoom).toHaveBeenCalledTimes(2)
+  })
+
+  it('clears a failed leave error when the confirmation is dismissed', async () => {
+    const user = userEvent.setup()
+    const onDismissError = vi.fn()
+    const { rerender, props } = renderNavigation({ onDismissError })
+
+    await user.click(screen.getByRole('button', { name: 'Leave room' }))
+    rerender(
+      <GameNavigation
+        {...props}
+        leaveError="Unable to leave the room. Please try again."
+      />,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Unable to leave the room. Please try again.',
+    )
+
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Stay in game',
+      }),
+    )
+
+    expect(onDismissError).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    rerender(<GameNavigation {...props} />)
+    await user.click(screen.getByRole('button', { name: 'Leave room' }))
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Leave room',
+      }),
+    ).toBeInTheDocument()
   })
 })

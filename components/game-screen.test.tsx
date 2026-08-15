@@ -72,6 +72,7 @@ const scoreboard = [
 const navigationProps = {
   isLeaving: false,
   leaveError: null,
+  onDismissError: vi.fn(),
   onGoHome: vi.fn(),
   onLeaveRoom: vi.fn(),
 }

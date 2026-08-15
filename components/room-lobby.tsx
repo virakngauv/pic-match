@@ -165,6 +165,7 @@ function PresentRoomLobby({
           cooldownUntil={displayedRoomView.cooldownUntil}
           isLeaving={leavingSnapshot !== null}
           leaveError={leaveError}
+          onDismissError={() => setLeaveError(null)}
           onGoHome={handleGoHome}
           onLeaveRoom={() => handleLeaveRoom(displayedRoomView)}
           onSubmitClaim={handleSubmitMatchClaim}

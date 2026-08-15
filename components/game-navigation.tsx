@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button'
 export function GameNavigation({
   isLeaving,
   leaveError,
+  onDismissError,
   onGoHome,
   onLeaveRoom,
 }: {
   isLeaving: boolean
   leaveError: string | null
+  onDismissError: () => void
   onGoHome: () => void
   onLeaveRoom: () => void
 }) {
@@ -44,6 +46,7 @@ export function GameNavigation({
     }
 
     setIsConfirmingLeave(false)
+    onDismissError()
     queueMicrotask(() => leaveTriggerRef.current?.focus())
   }
 
