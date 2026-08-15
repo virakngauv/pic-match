@@ -1,3 +1,4 @@
+import presenceTest from '@convex-dev/presence/test'
 import { convexTest } from 'convex-test'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -365,6 +366,97 @@ describe('match claim mutation', () => {
   })
 })
 
+describe('playing room departure', () => {
+  it.each([
+    ['host', HOST_TOKEN, PLAYER_TOKEN, 0],
+    ['non-host', PLAYER_TOKEN, HOST_TOKEN, 1],
+  ] as const)(
+    'marks a %s left without changing the frozen roster or blocking the remaining player',
+    async (_role, leavingToken, remainingToken, leavingPosition) => {
+      const t = convexTest(schema, modules)
+      presenceTest.register(t)
+      const game = await seedPlayingGame(t)
+
+      await expect(
+        t.mutation(api.rooms.leave, {
+          roomCode: ROOM_CODE,
+          clientToken: leavingToken,
+        }),
+      ).resolves.toBeNull()
+      await expect(
+        t.mutation(api.rooms.leave, {
+          roomCode: ROOM_CODE,
+          clientToken: leavingToken,
+        }),
+      ).resolves.toBeNull()
+
+      const afterLeave = await readDepartureState(t, game)
+      expect(afterLeave.room).toMatchObject({
+        phase: 'playing',
+        gameId: game.gameId,
+      })
+      expect(afterLeave.members[leavingPosition]).toMatchObject({
+        status: 'left',
+      })
+      expect(afterLeave.participants).toEqual([
+        expect.objectContaining({ name: 'Host', role: 'host', score: 0 }),
+        expect.objectContaining({ name: 'Player', role: 'player', score: 0 }),
+      ])
+
+      await expect(
+        submitClaim(t, remainingToken, game.sharedSymbolId),
+      ).resolves.toEqual({ status: 'accepted' })
+
+      const afterClaim = await readDepartureState(t, game)
+      expect(afterClaim.game).toMatchObject({ pairRevision: 1 })
+      expect(
+        afterClaim.participants.reduce(
+          (total, participant) => total + (participant?.score ?? 0),
+          0,
+        ),
+      ).toBe(1)
+    },
+  )
+
+  it('serializes a leave racing with the departing participant claim', async () => {
+    const t = convexTest(schema, modules)
+    presenceTest.register(t)
+    const game = await seedPlayingGame(t)
+
+    const [leaveResult, claimResult] = await Promise.allSettled([
+      t.mutation(api.rooms.leave, {
+        roomCode: ROOM_CODE,
+        clientToken: HOST_TOKEN,
+      }),
+      submitClaim(t, HOST_TOKEN, game.sharedSymbolId),
+    ])
+
+    expect(leaveResult).toEqual(
+      expect.objectContaining({ status: 'fulfilled', value: null }),
+    )
+    const state = await readDepartureState(t, game)
+    expect(state.members[0]).toMatchObject({ status: 'left', role: 'host' })
+    expect(state.room).toMatchObject({ phase: 'playing' })
+    expect(state.participants).toHaveLength(2)
+
+    if (claimResult.status === 'fulfilled') {
+      expect(claimResult.value).toEqual({ status: 'accepted' })
+      expect(state.game).toMatchObject({ pairRevision: 1 })
+      expect(state.participants[0]).toMatchObject({ score: 1 })
+    } else {
+      expect(String(claimResult.reason)).toContain(
+        'Only active game participants can submit match claims.',
+      )
+      expect(state.game).toMatchObject({ pairRevision: 0 })
+      expect(state.participants[0]).toMatchObject({ score: 0 })
+    }
+
+    await expect(
+      submitClaim(t, HOST_TOKEN, game.sharedSymbolId),
+    ).rejects.toThrow('Only active game participants can submit match claims.')
+  })
+})
+
 type ConvexTest = ReturnType<typeof convexTest>
 
 /** Creates a playing room with two frozen participants and one outsider. */
@@ -464,6 +556,7 @@ async function seedPlayingGame(
     return {
       roomId,
       gameId,
+      memberIds: [hostMemberId, playerMemberId] as const,
       participantIds: [hostParticipantId, playerParticipantId] as const,
       cards: view.cards,
       sharedSymbolId,
@@ -471,6 +564,29 @@ async function seedPlayingGame(
       secondIncorrectSymbolId,
     }
   })
+}
+
+async function readDepartureState(
+  t: ConvexTest,
+  game: {
+    roomId: Id<'rooms'>
+    gameId: Id<'games'>
+    memberIds: readonly [Id<'roomMembers'>, Id<'roomMembers'>]
+    participantIds: readonly [Id<'gameParticipants'>, Id<'gameParticipants'>]
+  },
+) {
+  return await t.run(async (ctx) => ({
+    room: await ctx.db.get(game.roomId),
+    game: await ctx.db.get(game.gameId),
+    members: await Promise.all(
+      game.memberIds.map(async (memberId) => await ctx.db.get(memberId)),
+    ),
+    participants: await Promise.all(
+      game.participantIds.map(
+        async (participantId) => await ctx.db.get(participantId),
+      ),
+    ),
+  }))
 }
 
 /** Sends a same-symbol claim for the first seeded pair revision. */

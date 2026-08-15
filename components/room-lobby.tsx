@@ -4,7 +4,7 @@ import { useMutation, useQuery } from 'convex/react'
 import type { FunctionReturnType } from 'convex/server'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { GameScreen } from '@/components/game-screen'
 import { JoinRoomScreen } from '@/components/join-room-screen'
@@ -15,12 +15,12 @@ import type { MatchClaimPayload } from '@/lib/match-claim'
 import { useRoomPresence } from '@/lib/use-room-presence'
 
 const noopJoined = () => {}
-const noopAction = () => {}
 
 type RoomView = FunctionReturnType<typeof api.rooms.getRoomView>
 type LobbyView = Extract<RoomView, { status: 'lobby' }>
+type LeaveableView = Extract<RoomView, { status: 'lobby' | 'playing' }>
 type LeavingSnapshot = {
-  view: LobbyView
+  view: LeaveableView
 }
 
 export function RoomLobby({ roomCode }: { roomCode: string }) {
@@ -42,6 +42,7 @@ function PresentRoomLobby({
   const submitMatchClaim = useMutation(api.gameClaims.submit)
   const [leavingSnapshot, setLeavingSnapshot] =
     useState<LeavingSnapshot | null>(null)
+  const leaveRequestLockedRef = useRef(false)
   const [leaveError, setLeaveError] = useState<string | null>(null)
   const [isStarting, setIsStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
@@ -61,11 +62,12 @@ function PresentRoomLobby({
     Boolean(clientToken && hasRoomMembership),
   )
 
-  const handleLeaveRoom = async (currentView: LobbyView) => {
-    if (!clientToken) {
+  const handleLeaveRoom = async (currentView: LeaveableView) => {
+    if (!clientToken || leaveRequestLockedRef.current) {
       return
     }
 
+    leaveRequestLockedRef.current = true
     setLeavingSnapshot({ view: currentView })
     setLeaveError(null)
 
@@ -75,6 +77,13 @@ function PresentRoomLobby({
     } catch {
       setLeaveError('Unable to leave the room. Please try again.')
       setLeavingSnapshot(null)
+      leaveRequestLockedRef.current = false
+    }
+  }
+
+  const handleGoHome = () => {
+    if (!leavingSnapshot) {
+      router.push('/home')
     }
   }
 
@@ -104,80 +113,76 @@ function PresentRoomLobby({
     return await submitMatchClaim({ roomCode, clientToken, ...claim })
   }
 
-  if (leavingSnapshot) {
-    return (
-      <ConnectedRoomLobby
-        view={leavingSnapshot.view}
-        isLeaving
-        isStarting={false}
-        leaveError={null}
-        startError={null}
-        onLeave={noopAction}
-        onStart={noopAction}
-      />
-    )
-  }
+  const displayedRoomView = leavingSnapshot?.view ?? roomView
 
-  if (roomView === undefined || clientToken === undefined) {
+  if (displayedRoomView === undefined || clientToken === undefined) {
     return <RoomEntrySkeleton />
   }
 
-  if (presenceStatus === 'room-full') {
-    return <RoomFull roomCode={roomView.roomCode} />
+  if (!leavingSnapshot && presenceStatus === 'room-full') {
+    return <RoomFull roomCode={displayedRoomView.roomCode} />
   }
 
-  switch (roomView.status) {
+  switch (displayedRoomView.status) {
     case 'not_found':
-      return <RoomNotFound roomCode={roomView.roomCode} />
+      return <RoomNotFound roomCode={displayedRoomView.roomCode} />
     case 'joinable':
       return (
-        <JoinRoomScreen roomCode={roomView.roomCode} onJoined={noopJoined} />
+        <JoinRoomScreen
+          roomCode={displayedRoomView.roomCode}
+          onJoined={noopJoined}
+        />
       )
     case 'game_in_progress':
-      return <GameInProgress roomCode={roomView.roomCode} />
+      return <GameInProgress roomCode={displayedRoomView.roomCode} />
     case 'reconnecting':
       return (
         <RoomReconnecting
-          roomCode={roomView.roomCode}
-          isGame={roomView.phase !== 'lobby'}
+          roomCode={displayedRoomView.roomCode}
+          isGame={displayedRoomView.phase !== 'lobby'}
         />
       )
     case 'lobby':
       return (
         <ConnectedRoomLobby
-          view={roomView}
-          isLeaving={false}
-          isStarting={isStarting}
-          leaveError={leaveError}
-          startError={startError}
-          onLeave={() => handleLeaveRoom(roomView)}
+          view={displayedRoomView}
+          isLeaving={leavingSnapshot !== null}
+          isStarting={leavingSnapshot ? false : isStarting}
+          leaveError={leavingSnapshot ? null : leaveError}
+          startError={leavingSnapshot ? null : startError}
+          onLeave={() => handleLeaveRoom(displayedRoomView)}
           onStart={handleStartGame}
         />
       )
     case 'playing':
       return (
         <GameScreen
-          roomCode={roomView.roomCode}
-          player={roomView.player}
-          pairRevision={roomView.pairRevision}
-          cards={roomView.cards}
-          scoreboard={roomView.scoreboard}
-          cooldownUntil={roomView.cooldownUntil}
+          roomCode={displayedRoomView.roomCode}
+          player={displayedRoomView.player}
+          pairRevision={displayedRoomView.pairRevision}
+          cards={displayedRoomView.cards}
+          scoreboard={displayedRoomView.scoreboard}
+          cooldownUntil={displayedRoomView.cooldownUntil}
+          isLeaving={leavingSnapshot !== null}
+          leaveError={leaveError}
+          onDismissError={() => setLeaveError(null)}
+          onGoHome={handleGoHome}
+          onLeaveRoom={() => handleLeaveRoom(displayedRoomView)}
           onSubmitClaim={handleSubmitMatchClaim}
         />
       )
     case 'finished':
       return (
         <FinishedRoom
-          roomCode={roomView.roomCode}
+          roomCode={displayedRoomView.roomCode}
           clientToken={clientToken}
-          player={roomView.player}
-          winner={roomView.winner}
-          scoreboard={roomView.scoreboard}
+          player={displayedRoomView.player}
+          winner={displayedRoomView.winner}
+          scoreboard={displayedRoomView.scoreboard}
         />
       )
     default:
-      return assertNever(roomView)
+      return assertNever(displayedRoomView)
   }
 }
 
