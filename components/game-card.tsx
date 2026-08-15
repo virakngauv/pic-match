@@ -116,16 +116,21 @@ export function GameCard({
           >
             <span
               aria-hidden="true"
-              className="inline-block drop-shadow-[0_1px_0_rgba(255,255,255,0.75)]"
-              data-symbol-glyph=""
+              className="pointer-events-none absolute inset-0 inline-flex items-center justify-center"
+              data-symbol-filter=""
               data-desaturated={isDesaturated}
-              data-selection-rotation={selectionRotation}
               style={{
                 filter: isDesaturated ? UNSELECTED_SYMBOL_FILTER : 'none',
-                transform: glyphTransform,
               }}
             >
-              {symbol.glyph}
+              <span
+                className="inline-block drop-shadow-[0_1px_0_rgba(255,255,255,0.75)]"
+                data-symbol-glyph=""
+                data-selection-rotation={selectionRotation}
+                style={{ transform: glyphTransform }}
+              >
+                {symbol.glyph}
+              </span>
             </span>
             {isIncorrect ? (
               <span

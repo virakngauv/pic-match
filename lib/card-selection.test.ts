@@ -13,7 +13,7 @@ describe('card selection presentation', () => {
     expect(SELECTED_SYMBOL_SCALE).toBeLessThanOrEqual(1.08)
     expect(SELECTED_SYMBOL_ROTATION_DEGREES).toBeGreaterThanOrEqual(4)
     expect(SELECTED_SYMBOL_ROTATION_DEGREES).toBeLessThanOrEqual(8)
-    expect(UNSELECTED_SYMBOL_FILTER).toBe('saturate(0.42)')
+    expect(UNSELECTED_SYMBOL_FILTER).toBe('saturate(0)')
   })
 
   it('derives a stable signed rotation from card and symbol data', () => {
