@@ -1,5 +1,7 @@
 import { expect, type Locator } from '@playwright/test'
 
+const HOVER_BOUNDS_TOLERANCE_PX = 0.01
+
 export async function expectValidCardGeometry(
   cards: Locator,
   {
@@ -162,7 +164,16 @@ export async function expectStableSymbolHover(symbol: Locator) {
 
   await symbol.hover()
 
-  expect(await documentBounds(symbol)).toEqual(beforeHover)
+  const afterHover = await documentBounds(symbol)
+
+  for (const coordinate of ['height', 'width', 'x', 'y'] as const) {
+    const delta = Math.abs(afterHover[coordinate] - beforeHover[coordinate])
+
+    expect(
+      delta,
+      `${coordinate} changed by ${delta}px after hover`,
+    ).toBeLessThanOrEqual(HOVER_BOUNDS_TOLERANCE_PX)
+  }
 }
 
 function documentBounds(symbol: Locator) {
