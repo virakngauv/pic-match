@@ -104,7 +104,6 @@ NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
 
 # Arcjet security
 ARCJET_KEY=ajkey_...
-ARCJET_ENV=development
 ```
 
 Only variables prefixed with `NEXT_PUBLIC_` are exposed to browser code. Never
@@ -153,7 +152,6 @@ Copy the site key from the Arcjet dashboard into `.env.local`:
 
 ```dotenv
 ARCJET_KEY=ajkey_...
-ARCJET_ENV=development
 ```
 
 `ARCJET_KEY` is server-only. The included demo API route runs Arcjet Shield
@@ -214,6 +212,15 @@ development deployment.
 
 A production migration and retention policy must be established before the
 first public deployment.
+
+## Deployment
+
+The supported first-playtest deployment uses Vercel for the Next.js frontend
+and server routes, backed by the project's Convex production deployment. See
+the [first public playtest deployment runbook](docs/deployment/first-public-playtest.md)
+for environment ownership, fresh-clone setup, validation, publishing, health
+checks, release recording, and rollback. Publishing a first externally
+accessible URL always requires explicit confirmation.
 
 ## First public playtest
 
