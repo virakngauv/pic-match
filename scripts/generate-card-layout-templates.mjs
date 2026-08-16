@@ -66,7 +66,6 @@ for (
     throw new Error(`Unable to generate template ${templateIndex}.`)
   }
 
-  const rotationRandom = createRandom(0xbada55 + templateIndex * 773)
   const templateName = TEMPLATE_NAMES[templateIndex]
   const slots = bestCandidate.points.map((point, slotIndex) => {
     const adjustment = CURATED_ADJUSTMENTS[templateName]?.[slotIndex]
@@ -78,18 +77,16 @@ for (
       round(point.x + (adjustment?.x ?? 0)),
       round(point.y + (adjustment?.y ?? 0)),
       size,
-      Math.round(rotationRandom() * 359 - 179),
       round(COLLISION_RADII[slotIndex]),
     ]
   })
 
   const errors = validateCardLayoutTemplate({
     id: templateName,
-    slots: slots.map(([x, y, size, rotation, collisionRadius]) => ({
+    slots: slots.map(([x, y, size, collisionRadius]) => ({
       x,
       y,
       size,
-      rotation,
       collisionRadius,
     })),
   })

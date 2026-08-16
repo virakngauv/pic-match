@@ -5,6 +5,15 @@ import {
   expectValidCardGeometry,
 } from './card-layout-assertions'
 
+const shippedRotationProfiles: Record<string, readonly number[]> = {
+  compass: [0, -8, 12, -15, 42, -68, 105, -142],
+  drift: [3, -12, 18, -5, 8, -55, 96, 160],
+  tideline: [-3, 9, -17, 1, 38, -95, 128, -160],
+  meander: [0, 14, -9, 6, -19, -78, 34, 148],
+  quarry: [-6, 16, 2, -13, -38, 71, -112, 167],
+  signal: [4, -16, 10, -1, 19, 88, -130, 52],
+}
+
 test('renders every fixed card template without collisions or movement', async ({
   page,
 }) => {
@@ -22,6 +31,39 @@ test('renders every fixed card template without collisions or movement', async (
     elements.map((card) => card.getAttribute('data-layout-template')),
   )
   expect(new Set(templateIds).size).toBe(12)
+
+  const profileIds = await cards.evaluateAll((elements) =>
+    elements.map((card) => card.getAttribute('data-rotation-profile')),
+  )
+  expect(profileIds).toEqual([
+    'compass',
+    'drift',
+    'tideline',
+    'meander',
+    'quarry',
+    'signal',
+    'compass',
+    'drift',
+    'tideline',
+    'meander',
+    'quarry',
+    'signal',
+  ])
+
+  for (const [index, profileId] of profileIds.entries()) {
+    const expectedAngles = shippedRotationProfiles[profileId ?? '']
+    expect(expectedAngles, `card ${index} uses a shipped profile`).toBeDefined()
+
+    const symbolRotations = await cards
+      .nth(index)
+      .locator('button[data-symbol-id]')
+      .evaluateAll((symbols) =>
+        symbols.map((symbol) => Number(symbol.dataset.symbolRotation)),
+      )
+    expect([...symbolRotations].sort((a, b) => a - b)).toEqual(
+      [...(expectedAngles ?? [])].sort((a, b) => a - b),
+    )
+  }
 
   await expectValidCardGeometry(cards)
 

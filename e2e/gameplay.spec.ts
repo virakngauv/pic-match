@@ -463,6 +463,7 @@ async function cardLayoutSnapshot(page: Page) {
       cardElements.map((card) => ({
         templateId: card.getAttribute('data-layout-template'),
         rotation: card.getAttribute('data-template-rotation'),
+        rotationProfile: card.getAttribute('data-rotation-profile'),
         symbols: Array.from(
           card.querySelectorAll<HTMLButtonElement>('button[data-symbol-id]'),
           (symbol) => ({
