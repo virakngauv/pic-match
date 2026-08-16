@@ -1,11 +1,38 @@
 # Card layout templates
 
 Game cards use 12 fixed numerical templates from `lib/card-layout.ts`. Each
-template defines eight symbol centers, sizes, base rotations, and conservative
-collision radii in a normalized card whose center is `(0, 0)` and radius is
-`1`. The card component enforces the validator's 288px minimum rendered
-diameter; changing that responsive floor requires updating and revalidating the
-target geometry.
+template defines eight symbol centers, sizes, and conservative collision radii
+in a normalized card whose center is `(0, 0)` and radius is `1`. The card
+component enforces the validator's 288px minimum rendered diameter; changing
+that responsive floor requires updating and revalidating the target geometry.
+
+## Spatial rotation versus glyph rotation
+
+Card planning separates two independent orientation systems:
+
+- **Spatial template rotation** turns the whole template's slot centers around
+  the card center (`rotateCardLayoutSlot`). Positions move through the full
+  360°; sizes and collision radii never change.
+- **Glyph rotation profiles** (`CARD_ROTATION_PROFILES`) decide how each symbol
+  leans. A plan deterministically selects one eight-angle profile from stable
+  pair/card inputs and permutes its angles across the card's symbols. The
+  spatial rotation is never added to glyph angles, so a rotated card never ends
+  with every icon leaning in the same direction.
+
+Each curated profile keeps four or five angles mostly upright (within ±20° of
+vertical) and spends the rest on moderate (20°–60°) and strong (>60°) tilts.
+`validateRotationProfile` guards those bands, requires at least one moderate
+and two strong tilts, and rejects any ±20° window that contains six or more
+angles. The profiles are intentionally varied — different upright counts,
+angle sets, and orderings — rather than statistically uniform. The selected
+profile is exposed through the card's `data-rotation-profile` attribute and
+shown in the `/wiring-lab/card-layouts` gallery.
+
+Symbol plans apply `normalizeRotation` to profile angles, which keeps every
+rendered rotation inside `(-180, 180)` and avoids `-180` exactly, dodging a
+WebKit paint failure for transformed color emoji.
+
+## Templates
 
 Visible symbol sizes deliberately span `0.076` through `0.2` of the card
 diameter so every layout has a clear hierarchy instead of eight similarly sized
@@ -49,3 +76,8 @@ part of the reproducible output and must pass the same numerical validation.
 To replace or add a template, update the generator's stable template names and
 seeds, inspect the rendered candidates, copy the chosen numerical output, and
 run the complete test suite. Do not add runtime jitter to a validated template.
+
+To add a glyph-orientation profile, append a curated eight-angle entry to
+`CARD_ROTATION_PROFILES` that satisfies `validateRotationProfile`, confirm the
+gallery balance visually, and extend the numerical tests. Do not generate
+angles at runtime or derive them from the spatial rotation.

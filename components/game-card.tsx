@@ -51,6 +51,7 @@ export function GameCard({
       data-card-id={card.id}
       data-layout-template={layoutPlan.templateId}
       data-template-rotation={layoutPlan.templateRotation}
+      data-rotation-profile={layoutPlan.rotationProfileId}
     >
       <p className="sr-only">
         Card {cardNumber} contains {card.symbolIds.length} symbols.

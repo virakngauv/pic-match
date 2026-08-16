@@ -28,8 +28,8 @@ export function CardLayoutGallery() {
           Card layout gallery
         </h1>
         <p className="text-muted-foreground mt-3 leading-7">
-          All fixed templates rendered with their deterministic preview rotation
-          and symbol assignment.
+          All fixed templates rendered with their deterministic preview
+          rotation, glyph-orientation profile, and symbol assignment.
         </p>
       </header>
 
@@ -39,16 +39,21 @@ export function CardLayoutGallery() {
             id: `preview-${layoutTemplate.id}`,
             symbolIds: previewSymbolIds,
           }
+          const previewPlan = getCardLayoutPreviewPlan(card, templateIndex)
 
           return (
             <section key={layoutTemplate.id} className="min-w-0">
               <h2 className="mb-3 text-sm font-bold tracking-wider uppercase">
                 {layoutTemplate.id}
+                <span className="text-muted-foreground">
+                  {' '}
+                  · {previewPlan.rotationProfileId}
+                </span>
               </h2>
               <GameCard
                 card={card}
                 cardNumber={templateIndex + 1}
-                layoutPlan={getCardLayoutPreviewPlan(card, templateIndex)}
+                layoutPlan={previewPlan}
                 selectedSymbolId={null}
                 showIncorrectFeedback={false}
                 disabled={false}

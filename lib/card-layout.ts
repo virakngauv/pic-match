@@ -11,13 +11,26 @@ export type CardLayoutSlot = Readonly<{
   x: number
   y: number
   size: number
-  rotation: number
   collisionRadius: number
 }>
 
 export type CardLayoutTemplate = Readonly<{
   id: string
   slots: readonly CardLayoutSlot[]
+}>
+
+export type CardRotationProfile = Readonly<{
+  id: string
+  angles: readonly [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ]
 }>
 
 export type CardLayoutCard = Readonly<{
@@ -38,6 +51,7 @@ export type SymbolLayout = Readonly<{
 export type CardLayoutPlan = Readonly<{
   templateId: string
   templateRotation: number
+  rotationProfileId: string
   symbols: readonly SymbolLayout[]
 }>
 
@@ -47,125 +61,139 @@ export type CardLayoutPlan = Readonly<{
  */
 export const CARD_LAYOUT_TEMPLATES: readonly CardLayoutTemplate[] = [
   template('aurora', [
-    [0.357, 0.461, 0.2, -163, 0.302],
-    [-0.627, 0.008, 0.175, -69, 0.265],
-    [-0.319, 0.618, 0.155, 147, 0.234],
-    [-0.121, 0.166, 0.135, 134, 0.204],
-    [0.477, -0.392, 0.118, -86, 0.178],
-    [-0.063, -0.259, 0.102, 33, 0.17],
-    [-0.253, -0.667, 0.088, 67, 0.17],
-    [0.664, 0.033, 0.076, -82, 0.17],
+    [0.357, 0.461, 0.2, 0.302],
+    [-0.627, 0.008, 0.175, 0.265],
+    [-0.319, 0.618, 0.155, 0.234],
+    [-0.121, 0.166, 0.135, 0.204],
+    [0.477, -0.392, 0.118, 0.178],
+    [-0.063, -0.259, 0.102, 0.17],
+    [-0.253, -0.667, 0.088, 0.17],
+    [0.664, 0.033, 0.076, 0.17],
   ]),
   template('borealis', [
-    [-0.269, 0.277, 0.2, -56, 0.302],
-    [0.028, -0.285, 0.175, -28, 0.265],
-    [0.193, 0.668, 0.155, -112, 0.234],
-    [0.282, 0.173, 0.135, -5, 0.204],
-    [-0.729, 0.001, 0.118, -22, 0.178],
-    [-0.166, -0.736, 0.11, 26, 0.17],
-    [0.697, -0.258, 0.105, 136, 0.17],
-    [-0.461, -0.301, 0.095, -15, 0.17],
+    [-0.269, 0.277, 0.2, 0.302],
+    [0.028, -0.285, 0.175, 0.265],
+    [0.193, 0.668, 0.155, 0.234],
+    [0.282, 0.173, 0.135, 0.204],
+    [-0.729, 0.001, 0.118, 0.178],
+    [-0.166, -0.736, 0.11, 0.17],
+    [0.697, -0.258, 0.105, 0.17],
+    [-0.461, -0.301, 0.095, 0.17],
   ]),
   template('cascade', [
-    [-0.153, 0.075, 0.2, 52, 0.302],
-    [0.629, 0.218, 0.175, 13, 0.265],
-    [0.19, 0.558, 0.155, -12, 0.234],
-    [-0.708, 0.162, 0.135, -144, 0.204],
-    [-0.263, 0.687, 0.118, 42, 0.178],
-    [0.303, -0.697, 0.11, 19, 0.17],
-    [-0.27, -0.69, 0.105, -155, 0.17],
-    [0.202, -0.315, 0.095, 52, 0.17],
+    [-0.153, 0.075, 0.2, 0.302],
+    [0.629, 0.218, 0.175, 0.265],
+    [0.19, 0.558, 0.155, 0.234],
+    [-0.708, 0.162, 0.135, 0.204],
+    [-0.263, 0.687, 0.118, 0.178],
+    [0.303, -0.697, 0.11, 0.17],
+    [-0.27, -0.69, 0.105, 0.17],
+    [0.202, -0.315, 0.095, 0.17],
   ]),
   template('delta', [
-    [0.293, -0.029, 0.2, 159, 0.302],
-    [0.264, 0.611, 0.175, 54, 0.265],
-    [-0.284, 0.532, 0.155, 89, 0.234],
-    [-0.225, -0.248, 0.135, 77, 0.204],
-    [-0.589, -0.005, 0.118, 106, 0.178],
-    [0.691, 0.316, 0.102, 12, 0.17],
-    [-0.448, -0.614, 0.088, -86, 0.17],
-    [0.227, -0.553, 0.076, 119, 0.17],
+    [0.293, -0.029, 0.2, 0.302],
+    [0.264, 0.611, 0.175, 0.265],
+    [-0.284, 0.532, 0.155, 0.234],
+    [-0.225, -0.248, 0.135, 0.204],
+    [-0.589, -0.005, 0.118, 0.178],
+    [0.691, 0.316, 0.102, 0.17],
+    [-0.448, -0.614, 0.088, 0.17],
+    [0.227, -0.553, 0.076, 0.17],
   ]),
   template('ember', [
-    [0.097, -0.028, 0.2, -92, 0.302],
-    [0.319, 0.553, 0.175, 95, 0.265],
-    [-0.458, 0.18, 0.155, -170, 0.234],
-    [0.647, -0.139, 0.135, -62, 0.204],
-    [0.233, -0.546, 0.118, 170, 0.178],
-    [-0.222, -0.47, 0.102, 5, 0.17],
-    [-0.564, -0.271, 0.088, -17, 0.17],
-    [-0.222, 0.652, 0.076, -173, 0.17],
+    [0.097, -0.028, 0.2, 0.302],
+    [0.319, 0.553, 0.175, 0.265],
+    [-0.458, 0.18, 0.155, 0.234],
+    [0.647, -0.139, 0.135, 0.204],
+    [0.233, -0.546, 0.118, 0.178],
+    [-0.222, -0.47, 0.102, 0.17],
+    [-0.564, -0.271, 0.088, 0.17],
+    [-0.222, 0.652, 0.076, 0.17],
   ]),
   template('fjord', [
-    [0.628, 0.002, 0.2, 15, 0.302],
-    [-0.161, -0.646, 0.175, 136, 0.265],
-    [0.052, -0.134, 0.155, -70, 0.234],
-    [-0.699, -0.016, 0.135, 158, 0.204],
-    [-0.303, 0.171, 0.118, -125, 0.178],
-    [0.409, -0.505, 0.102, -2, 0.17],
-    [-0.062, 0.615, 0.088, 52, 0.17],
-    [0.234, 0.353, 0.076, -106, 0.17],
+    [0.628, 0.002, 0.2, 0.302],
+    [-0.161, -0.646, 0.175, 0.265],
+    [0.052, -0.134, 0.155, 0.234],
+    [-0.699, -0.016, 0.135, 0.204],
+    [-0.303, 0.171, 0.118, 0.178],
+    [0.409, -0.505, 0.102, 0.17],
+    [-0.062, 0.615, 0.088, 0.17],
+    [0.234, 0.353, 0.076, 0.17],
   ]),
   template('glimmer', [
-    [-0.234, -0.005, 0.2, 123, 0.302],
-    [0.352, 0.215, 0.175, 177, 0.265],
-    [-0.035, -0.695, 0.155, 31, 0.234],
-    [0.263, -0.301, 0.135, 20, 0.204],
-    [-0.42, 0.62, 0.118, -61, 0.178],
-    [-0.756, -0.073, 0.11, -9, 0.17],
-    [0.294, 0.701, 0.105, 121, 0.17],
-    [0.709, -0.12, 0.095, -39, 0.17],
+    [-0.234, -0.005, 0.2, 0.302],
+    [0.352, 0.215, 0.175, 0.265],
+    [-0.035, -0.695, 0.155, 0.234],
+    [0.263, -0.301, 0.135, 0.204],
+    [-0.42, 0.62, 0.118, 0.178],
+    [-0.756, -0.073, 0.11, 0.17],
+    [0.294, 0.701, 0.105, 0.17],
+    [0.709, -0.12, 0.095, 0.17],
   ]),
   template('harbor', [
-    [-0.216, -0.026, 0.2, -128, 0.302],
-    [0.649, -0.145, 0.175, -141, 0.265],
-    [-0.352, 0.55, 0.155, 131, 0.234],
-    [0.278, 0.599, 0.135, -119, 0.204],
-    [-0.108, -0.551, 0.118, 3, 0.178],
-    [0.274, 0.17, 0.102, -16, 0.17],
-    [0.263, -0.71, 0.088, -170, 0.17],
-    [-0.738, 0.05, 0.076, 27, 0.17],
+    [-0.216, -0.026, 0.2, 0.302],
+    [0.649, -0.145, 0.175, 0.265],
+    [-0.352, 0.55, 0.155, 0.234],
+    [0.278, 0.599, 0.135, 0.204],
+    [-0.108, -0.551, 0.118, 0.178],
+    [0.274, 0.17, 0.102, 0.17],
+    [0.263, -0.71, 0.088, 0.17],
+    [-0.738, 0.05, 0.076, 0.17],
   ]),
   template('isotope', [
-    [0.17, 0.123, 0.2, -21, 0.302],
-    [-0.172, 0.643, 0.175, -100, 0.265],
-    [-0.38, -0.59, 0.155, -127, 0.234],
-    [0.569, -0.272, 0.135, 101, 0.204],
-    [0.38, 0.616, 0.118, 67, 0.178],
-    [-0.749, 0.127, 0.11, -23, 0.17],
-    [0.381, -0.658, 0.105, -101, 0.17],
-    [-0.356, 0.164, 0.095, 94, 0.17],
+    [0.17, 0.123, 0.2, 0.302],
+    [-0.172, 0.643, 0.175, 0.265],
+    [-0.38, -0.59, 0.155, 0.234],
+    [0.569, -0.272, 0.135, 0.204],
+    [0.38, 0.616, 0.118, 0.178],
+    [-0.749, 0.127, 0.11, 0.17],
+    [0.381, -0.658, 0.105, 0.17],
+    [-0.356, 0.164, 0.095, 0.17],
   ]),
   template('juno', [
-    [-0.615, 0.027, 0.2, 87, 0.302],
-    [0.145, -0.518, 0.175, -59, 0.265],
-    [0.633, -0.216, 0.155, -27, 0.234],
-    [-0.056, -0.025, 0.135, -38, 0.204],
-    [0.177, 0.73, 0.118, 131, 0.178],
-    [-0.348, -0.523, 0.102, -30, 0.17],
-    [-0.093, 0.431, 0.088, -32, 0.17],
-    [0.272, 0.252, 0.076, 161, 0.17],
+    [-0.615, 0.027, 0.2, 0.302],
+    [0.145, -0.518, 0.175, 0.265],
+    [0.633, -0.216, 0.155, 0.234],
+    [-0.056, -0.025, 0.135, 0.204],
+    [0.177, 0.73, 0.118, 0.178],
+    [-0.348, -0.523, 0.102, 0.17],
+    [-0.093, 0.431, 0.088, 0.17],
+    [0.272, 0.252, 0.076, 0.17],
   ]),
   template('kestrel', [
-    [0.064, 0.235, 0.2, -165, 0.302],
-    [-0.538, 0.392, 0.175, -18, 0.265],
-    [-0.426, -0.55, 0.155, 73, 0.234],
-    [0.418, -0.202, 0.135, -176, 0.204],
-    [0.174, -0.565, 0.118, -163, 0.178],
-    [-0.498, -0.096, 0.102, -37, 0.17],
-    [0.727, 0.198, 0.088, 37, 0.17],
-    [-0.086, 0.755, 0.076, -131, 0.17],
+    [0.064, 0.235, 0.2, 0.302],
+    [-0.538, 0.392, 0.175, 0.265],
+    [-0.426, -0.55, 0.155, 0.234],
+    [0.418, -0.202, 0.135, 0.204],
+    [0.174, -0.565, 0.118, 0.178],
+    [-0.498, -0.096, 0.102, 0.17],
+    [0.727, 0.198, 0.088, 0.17],
+    [-0.086, 0.755, 0.076, 0.17],
   ]),
   template('lagoon', [
-    [0.379, 0.049, 0.2, -57, 0.302],
-    [0.164, -0.645, 0.175, 23, 0.265],
-    [-0.368, 0.027, 0.155, 174, 0.234],
-    [-0.195, 0.49, 0.135, 44, 0.204],
-    [0.615, -0.433, 0.118, -99, 0.178],
-    [0.288, 0.568, 0.102, -44, 0.17],
-    [-0.629, 0.427, 0.088, 106, 0.17],
-    [-0.272, -0.422, 0.076, -64, 0.17],
+    [0.379, 0.049, 0.2, 0.302],
+    [0.164, -0.645, 0.175, 0.265],
+    [-0.368, 0.027, 0.155, 0.234],
+    [-0.195, 0.49, 0.135, 0.204],
+    [0.615, -0.433, 0.118, 0.178],
+    [0.288, 0.568, 0.102, 0.17],
+    [-0.629, 0.427, 0.088, 0.17],
+    [-0.272, -0.422, 0.076, 0.17],
   ]),
+]
+
+/**
+ * Curated glyph-orientation palettes, independent of the spatial templates.
+ * Each profile assigns one angle per symbol; roughly four or five angles stay
+ * mostly upright while the rest spread across moderate and strong tilts.
+ */
+export const CARD_ROTATION_PROFILES: readonly CardRotationProfile[] = [
+  profile('compass', [0, -8, 12, -15, 42, -68, 105, -142]),
+  profile('drift', [3, -12, 18, -5, 8, -55, 96, 160]),
+  profile('tideline', [-3, 9, -17, 1, 38, -95, 128, -160]),
+  profile('meander', [0, 14, -9, 6, -19, -78, 34, 148]),
+  profile('quarry', [-6, 16, 2, -13, -38, 71, -112, 167]),
+  profile('signal', [4, -16, 10, -1, 19, 88, -130, 52]),
 ]
 
 /** Builds stable, distinct template plans for the two currently displayed cards. */
@@ -209,7 +237,12 @@ export function getCardLayoutPreviewPlan(
     throw new Error('A whole-number template index is required.')
   }
 
-  return buildCardLayoutPlan(card, `preview:${templateIndex}`, templateIndex)
+  return buildCardLayoutPlan(
+    card,
+    `preview:${templateIndex}`,
+    templateIndex,
+    templateIndex % CARD_ROTATION_PROFILES.length,
+  )
 }
 
 /** Returns every geometry problem found in a normalized template. */
@@ -224,9 +257,7 @@ export function validateCardLayoutTemplate(
 
   layoutTemplate.slots.forEach((slot, index) => {
     if (
-      ![slot.x, slot.y, slot.size, slot.rotation, slot.collisionRadius].every(
-        Number.isFinite,
-      )
+      ![slot.x, slot.y, slot.size, slot.collisionRadius].every(Number.isFinite)
     ) {
       errors.push(
         `${layoutTemplate.id} slot ${index} contains non-finite data.`,
@@ -290,7 +321,7 @@ export function validateCardLayoutTemplate(
   return errors
 }
 
-/** Rotates a normalized slot without changing its collision geometry. */
+/** Rotates a normalized slot's position without touching glyph orientation. */
 export function rotateCardLayoutSlot(
   slot: CardLayoutSlot,
   rotation: number,
@@ -303,14 +334,101 @@ export function rotateCardLayoutSlot(
     ...slot,
     x: slot.x * cosine - slot.y * sine,
     y: slot.x * sine + slot.y * cosine,
-    rotation: normalizeRotation(slot.rotation + rotation),
   }
+}
+
+/** Angular bands used to review curated glyph-orientation profiles. */
+export const UPRIGHT_ROTATION_LIMIT = 20
+export const MODERATE_ROTATION_LIMIT = 60
+const CLUSTER_WINDOW_DEGREES = 20
+const MAX_ANGLES_PER_CLUSTER_WINDOW = 5
+const MIN_UPRIGHT_ANGLES = 4
+const MAX_UPRIGHT_ANGLES = 5
+const MIN_MODERATE_ANGLES = 1
+const MIN_STRONG_ANGLES = 2
+
+/** Returns every orientation-balance problem found in a rotation profile. */
+export function validateRotationProfile(
+  rotationProfile: CardRotationProfile,
+): string[] {
+  const errors: string[] = []
+  const angles = rotationProfile.angles
+
+  if (angles.length !== 8) {
+    errors.push(`${rotationProfile.id} must contain exactly eight angles.`)
+    return errors
+  }
+
+  angles.forEach((angle, index) => {
+    if (!Number.isFinite(angle)) {
+      errors.push(`${rotationProfile.id} angle ${index} is non-finite.`)
+    } else if (angle <= -180 || angle >= 180) {
+      errors.push(
+        `${rotationProfile.id} angle ${index} is outside (-180, 180).`,
+      )
+    }
+  })
+
+  if (errors.length > 0) {
+    return errors
+  }
+
+  const upright = angles.filter(
+    (angle) => Math.abs(angle) <= UPRIGHT_ROTATION_LIMIT,
+  )
+  const moderate = angles.filter(
+    (angle) =>
+      Math.abs(angle) > UPRIGHT_ROTATION_LIMIT &&
+      Math.abs(angle) <= MODERATE_ROTATION_LIMIT,
+  )
+  const strong = angles.filter(
+    (angle) => Math.abs(angle) > MODERATE_ROTATION_LIMIT,
+  )
+
+  if (
+    upright.length < MIN_UPRIGHT_ANGLES ||
+    upright.length > MAX_UPRIGHT_ANGLES
+  ) {
+    errors.push(
+      `${rotationProfile.id} keeps ${upright.length} angles mostly upright; expected four or five.`,
+    )
+  }
+
+  if (moderate.length < MIN_MODERATE_ANGLES) {
+    errors.push(
+      `${rotationProfile.id} needs at least one moderate tilt beyond ±${UPRIGHT_ROTATION_LIMIT}°.`,
+    )
+  }
+
+  if (strong.length < MIN_STRONG_ANGLES) {
+    errors.push(
+      `${rotationProfile.id} needs at least two strong tilts beyond ±${MODERATE_ROTATION_LIMIT}°.`,
+    )
+  }
+
+  for (const center of angles) {
+    const clustered = angles.filter(
+      (angle) =>
+        Math.abs(angle - center) <= CLUSTER_WINDOW_DEGREES ||
+        Math.abs(angle - center) >= 360 - CLUSTER_WINDOW_DEGREES,
+    )
+
+    if (clustered.length > MAX_ANGLES_PER_CLUSTER_WINDOW) {
+      errors.push(
+        `${rotationProfile.id} clusters ${clustered.length} angles within ±${CLUSTER_WINDOW_DEGREES}° of ${center}°.`,
+      )
+      break
+    }
+  }
+
+  return errors
 }
 
 function buildCardLayoutPlan(
   card: CardLayoutCard,
   pairSeed: string,
   templateIndex: number,
+  previewProfileIndex?: number,
 ): CardLayoutPlan {
   if (card.symbolIds.length !== 8) {
     throw new Error('Exactly eight symbols are required to plan a card.')
@@ -323,26 +441,53 @@ function buildCardLayoutPlan(
   }
 
   const templateRotation = hashText(`${pairSeed}:${card.id}:rotation`) % 360
+  const rotationProfile =
+    previewProfileIndex === undefined
+      ? CARD_ROTATION_PROFILES[
+          hashText(`${pairSeed}:${card.id}:rotation-profile`) %
+            CARD_ROTATION_PROFILES.length
+        ]
+      : CARD_ROTATION_PROFILES[previewProfileIndex]
+
+  if (!rotationProfile) {
+    throw new Error('Unable to resolve the selected rotation profile.')
+  }
+
   const slotIndexes = shuffleIndexes(
     selectedTemplate.slots.length,
     `${pairSeed}:${card.id}:symbols`,
+  )
+  const angleIndexes = shuffleIndexes(
+    rotationProfile.angles.length,
+    `${pairSeed}:${card.id}:glyph-rotations`,
   )
 
   return {
     templateId: selectedTemplate.id,
     templateRotation,
+    rotationProfileId: rotationProfile.id,
     symbols: card.symbolIds.map((symbolId, symbolIndex) => {
       const slotIndex = slotIndexes[symbolIndex]
       const slot =
         slotIndex === undefined ? undefined : selectedTemplate.slots[slotIndex]
+      const angleIndex = angleIndexes[symbolIndex]
+      const angle =
+        angleIndex === undefined
+          ? undefined
+          : rotationProfile.angles[angleIndex]
 
       if (slotIndex === undefined || !slot) {
         throw new Error('Unable to assign a symbol to a layout slot.')
       }
 
+      if (angleIndex === undefined || angle === undefined) {
+        throw new Error('Unable to assign a glyph rotation to a symbol.')
+      }
+
       return {
         symbolId,
         slotIndex,
+        rotation: normalizeRotation(angle),
         ...rotateCardLayoutSlot(slot, templateRotation),
       }
     }),
@@ -396,23 +541,32 @@ function hashText(value: string): number {
 function template(
   id: string,
   slots: ReadonlyArray<
-    readonly [
-      x: number,
-      y: number,
-      size: number,
-      rotation: number,
-      collisionRadius: number,
-    ]
+    readonly [x: number, y: number, size: number, collisionRadius: number]
   >,
 ): CardLayoutTemplate {
   return {
     id,
-    slots: slots.map(([x, y, size, rotation, collisionRadius]) => ({
+    slots: slots.map(([x, y, size, collisionRadius]) => ({
       x,
       y,
       size,
-      rotation,
       collisionRadius,
     })),
   }
+}
+
+function profile(
+  id: string,
+  angles: readonly [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ],
+): CardRotationProfile {
+  return { id, angles }
 }
