@@ -177,10 +177,30 @@ test('replays a complete shared race across browser sessions', async ({
     ).toHaveCount(0)
 
     await beginDisabledCursorObservation(hostPage)
-    await submitSharedMatch(hostPage)
+    const firstAcceptedSymbolId = findSharedSymbol(beforeIncorrectClaim.cards)
+    await selectSharedMatch(hostPage, beforeIncorrectClaim.cards)
     await expectScore(hostPage, playerNames.host, 1)
     await expectScore(guestPage, playerNames.host, 1)
     expect(await endDisabledCursorObservation(hostPage)).toEqual(['default'])
+    await expect(
+      hostPage.getByRole('article', { name: 'Card 1' }),
+    ).toHaveAttribute('data-card-id', beforeIncorrectClaim.cards[0]?.id ?? '')
+
+    const hostReveal = scoreRevealLocator(hostPage, firstAcceptedSymbolId)
+    const guestReveal = scoreRevealLocator(guestPage, firstAcceptedSymbolId)
+
+    await Promise.all([
+      expect(hostReveal).toHaveCount(2),
+      expect(guestReveal).toHaveCount(2),
+    ])
+    await expect(hostReveal.first()).toHaveText(playerNames.host)
+    await expect(guestReveal.first()).toHaveText(playerNames.host)
+    await expect(hostPage.getByLabel('Score reveal')).toContainText(`matched`)
+    await expect(guestPage.getByLabel('Score reveal')).toContainText(
+      `${playerNames.host} matched`,
+    )
+    await expectNoScoreReveal(hostPage)
+    await expectNoScoreReveal(guestPage)
     const afterAcceptedClaim = await playingSnapshot(hostPage)
     expect(afterAcceptedClaim.cards).not.toEqual(beforeIncorrectClaim.cards)
     await expect
@@ -199,6 +219,8 @@ test('replays a complete shared race across browser sessions', async ({
     await expect
       .poll(async () => totalScore(await playingSnapshot(hostPage)))
       .toBe(totalScore(beforeCompetingClaims) + 1)
+    await expectNoScoreReveal(hostPage)
+    await expectNoScoreReveal(guestPage)
     const afterCompetingClaims = await playingSnapshot(hostPage)
     expect(afterCompetingClaims.cards).not.toEqual(beforeCompetingClaims.cards)
     await expect
@@ -616,7 +638,37 @@ async function submitIncorrectClaim(page: Page, cards: CardSnapshot[]) {
 }
 
 async function submitSharedMatch(page: Page) {
+  await expectNoScoreReveal(page)
   await selectSharedMatch(page, (await playingSnapshot(page)).cards)
+  await waitForRoundToSettle(page)
+}
+
+function scoreRevealLocator(page: Page, symbolId: string) {
+  return page.locator(
+    `button[data-symbol-id="${symbolId}"] [data-score-reveal]`,
+  )
+}
+
+async function expectNoScoreReveal(page: Page) {
+  await expect(page.locator('[data-score-reveal]')).toHaveCount(0, {
+    timeout: 5_000,
+  })
+}
+
+/** Waits out the score reveal or the finished screen after a scored claim. */
+async function waitForRoundToSettle(page: Page) {
+  const reveal = page.locator('[data-score-reveal]')
+  const finished = page.getByRole('heading', { name: 'Game finished.' })
+
+  await expect
+    .poll(
+      async () => (await reveal.count()) > 0 || (await finished.count()) > 0,
+    )
+    .toBe(true)
+
+  if ((await reveal.count()) > 0) {
+    await expect(reveal).toHaveCount(0, { timeout: 5_000 })
+  }
 }
 
 async function selectSharedMatch(page: Page, cards: CardSnapshot[]) {

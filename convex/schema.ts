@@ -5,6 +5,13 @@ import { FIRST_PLAYABLE_CONFIGURATION_ID } from '../lib/spot-it'
 import { roomPhase } from './roomLifecycle'
 import { roomMemberRole, roomMemberStatus } from './roomMembers'
 
+export const lastAcceptedClaimState = v.object({
+  scorerRoomMemberId: v.id('roomMembers'),
+  symbolId: v.string(),
+  pairRevision: v.number(),
+  scoredAt: v.number(),
+})
+
 export default defineSchema({
   rooms: defineTable({
     code: v.string(),
@@ -35,6 +42,7 @@ export default defineSchema({
     configurationId: v.literal(FIRST_PLAYABLE_CONFIGURATION_ID),
     seed: v.string(),
     pairRevision: v.number(),
+    lastAcceptedClaim: v.optional(lastAcceptedClaimState),
     winnerRoomMemberId: v.optional(v.id('roomMembers')),
   }).index('by_room_id', ['roomId']),
   gameParticipants: defineTable({

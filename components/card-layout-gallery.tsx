@@ -55,6 +55,7 @@ export function CardLayoutGallery() {
                 cardNumber={templateIndex + 1}
                 layoutPlan={previewPlan}
                 selectedSymbolId={null}
+                revealedMatch={null}
                 showIncorrectFeedback={false}
                 disabled={false}
                 onSelectSymbol={() => undefined}

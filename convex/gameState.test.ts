@@ -103,6 +103,60 @@ describe('persisted game state', () => {
     expect(afterReconnect.scoreboard.map(({ score }) => score)).toEqual([3, 7])
   })
 
+  it('presents the persisted last accepted claim with its frozen roster name', () => {
+    const participants = [
+      participant({ id: 'member-1', name: 'First', position: 0 }),
+      participant({ id: 'member-2', name: 'Second', position: 1 }),
+    ]
+    const game = {
+      ...createInitialGameState('room-1' as Id<'rooms'>, 123),
+      pairRevision: 5,
+      lastAcceptedClaim: {
+        scorerRoomMemberId: 'member-2' as Id<'roomMembers'>,
+        symbolId: 'cat',
+        pairRevision: 4,
+        scoredAt: 456,
+      },
+    }
+
+    expect(
+      presentPlayingGameState(game, participants).lastAcceptedClaim,
+    ).toEqual({
+      scorerId: 'member-2',
+      scorerName: 'Second',
+      symbolId: 'cat',
+      pairRevision: 4,
+    })
+  })
+
+  it('omits the claim view without a persisted claim or a known scorer', () => {
+    const participants = [
+      participant({ id: 'member-1', name: 'First', position: 0 }),
+    ]
+    const game = {
+      ...createInitialGameState('room-1' as Id<'rooms'>, 123),
+      pairRevision: 5,
+    }
+
+    expect(presentPlayingGameState(game, participants).lastAcceptedClaim).toBe(
+      null,
+    )
+    expect(
+      presentPlayingGameState(
+        {
+          ...game,
+          lastAcceptedClaim: {
+            scorerRoomMemberId: 'member-9' as Id<'roomMembers'>,
+            symbolId: 'cat',
+            pairRevision: 4,
+            scoredAt: 456,
+          },
+        },
+        participants,
+      ).lastAcceptedClaim,
+    ).toBe(null)
+  })
+
   it('reconstructs the persisted winner and final scores after reconnecting', () => {
     const winner = {
       ...participant({ id: 'member-2', name: 'Second', position: 1 }),

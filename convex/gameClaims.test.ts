@@ -129,6 +129,12 @@ describe('match claim mutation', () => {
       expect.objectContaining({ name: 'Host', score: 1 }),
       expect.objectContaining({ name: 'Player', score: 0 }),
     ])
+    expect(view.lastAcceptedClaim).toEqual({
+      scorerId: game.memberIds[0],
+      scorerName: 'Host',
+      symbolId: game.sharedSymbolId,
+      pairRevision: 0,
+    })
     expect(host?.incorrectClaimCooldownUntil).toBeUndefined()
   })
 
@@ -302,6 +308,11 @@ describe('match claim mutation', () => {
     ])
     expect(view.pairRevision).toBe(1)
     expect(view.scoreboard.map(({ score }) => score).sort()).toEqual([0, 1])
+    expect(view.lastAcceptedClaim).not.toBeNull()
+    expect([game.memberIds[0], game.memberIds[1]]).toContain(
+      view.lastAcceptedClaim?.scorerId,
+    )
+    expect(view.lastAcceptedClaim?.pairRevision).toBe(0)
   })
 
   it('records the winner and finishes instead of advancing on point 12', async () => {

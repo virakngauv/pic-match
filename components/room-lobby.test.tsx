@@ -27,6 +27,13 @@ type ScoreboardEntry = Omit<Player, 'position'> & {
   score: number
 }
 
+type LastAcceptedClaim = {
+  scorerId: string
+  scorerName: string
+  symbolId: string
+  pairRevision: number
+}
+
 type RoomView =
   | { status: 'not_found'; roomCode: string }
   | { status: 'joinable'; roomCode: string }
@@ -50,6 +57,7 @@ type RoomView =
       pairRevision: number
       cards: GameCard[]
       scoreboard: ScoreboardEntry[]
+      lastAcceptedClaim: LastAcceptedClaim | null
     }
   | {
       status: 'finished'
@@ -128,6 +136,7 @@ function playingView(
     pairRevision: 0,
     cards: gameCards,
     scoreboard: gameScoreboard,
+    lastAcceptedClaim: null,
   }
 }
 

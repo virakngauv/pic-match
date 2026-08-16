@@ -162,6 +162,7 @@ function PresentRoomLobby({
           pairRevision={displayedRoomView.pairRevision}
           cards={displayedRoomView.cards}
           scoreboard={displayedRoomView.scoreboard}
+          lastAcceptedClaim={displayedRoomView.lastAcceptedClaim ?? null}
           cooldownUntil={displayedRoomView.cooldownUntil}
           isLeaving={leavingSnapshot !== null}
           leaveError={leaveError}
