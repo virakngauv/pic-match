@@ -1,4 +1,10 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { PNG } from 'pngjs'
+
+import {
+  expectStableSymbolHover,
+  expectValidCardGeometry,
+} from './card-layout-assertions'
 
 const roomCodePattern = /^[bcdfghkpqrstvz]{4}[2-9y]$/
 const playerNames = {
@@ -19,6 +25,7 @@ type PlayingSnapshot = {
 
 test('replays a complete shared race across browser sessions', async ({
   browser,
+  browserName,
   baseURL,
 }) => {
   test.setTimeout(180_000)
@@ -47,6 +54,59 @@ test('replays a complete shared race across browser sessions', async ({
     await expect
       .poll(async () => await playingSnapshot(guestPage))
       .toEqual(initialState)
+    const initialLayout = await cardLayoutSnapshot(hostPage)
+    expect(initialLayout[0]?.templateId).not.toBe(initialLayout[1]?.templateId)
+    await expect
+      .poll(async () => await cardLayoutSnapshot(guestPage))
+      .toEqual(initialLayout)
+    await expectValidCardGeometry(
+      hostPage.getByLabel('Shared game board').locator('article[data-card-id]'),
+    )
+    await expectStableSymbolHover(firstSymbolControl(hostPage))
+    await expectComputedCursor(firstSymbolControl(hostPage), 'pointer')
+
+    const initialViewport = hostPage.viewportSize()
+    await hostPage.setViewportSize({ width: 390, height: 844 })
+    const toggledSymbol = firstSymbolControl(hostPage)
+    const toggledSymbolId = await toggledSymbol.getAttribute('data-symbol-id')
+    const selectionStylesBefore = await cardSelectionStyleSnapshot(hostPage)
+    const paintCoverageBefore = await cardGlyphPaintCoverage(
+      hostPage.getByLabel('Card 1'),
+    )
+    await toggledSymbol.click()
+    await expect(toggledSymbol).toHaveAttribute('aria-pressed', 'true')
+    const selectionStylesAfter = await cardSelectionStyleSnapshot(hostPage)
+    const selectedCardStyles = selectionStylesAfter[0]
+
+    expect(
+      selectedCardStyles?.find(({ id }) => id === toggledSymbolId)?.filter,
+    ).toBe('none')
+    expect(
+      selectedCardStyles
+        ?.filter(({ id }) => id !== toggledSymbolId)
+        .every(({ filter }) => filter === 'saturate(0)'),
+    ).toBe(true)
+    expect(selectionStylesAfter[1]).toEqual(selectionStylesBefore[1])
+    await expectUnclippedSiblingGlyphs(
+      hostPage.getByLabel('Card 1'),
+      paintCoverageBefore,
+      toggledSymbolId,
+    )
+    await expectValidCardGeometry(
+      hostPage.getByLabel('Shared game board').locator('article[data-card-id]'),
+    )
+    await toggledSymbol.click()
+    if (browserName !== 'webkit') {
+      await expect(toggledSymbol).toBeFocused()
+    }
+    await expect(toggledSymbol).toHaveAttribute('aria-pressed', 'false')
+    expect(await cardSelectionStyleSnapshot(hostPage)).toEqual(
+      selectionStylesBefore,
+    )
+    expect(await playingSnapshot(hostPage)).toEqual(initialState)
+    if (initialViewport) {
+      await hostPage.setViewportSize(initialViewport)
+    }
 
     await outsiderPage.goto(`/${roomCode}`)
     await expect(
@@ -79,29 +139,48 @@ test('replays a complete shared race across browser sessions', async ({
     const secondIncorrectSymbol = hostPage
       .getByLabel('Card 2')
       .locator(`button[data-symbol-id="${incorrectSelection.secondSymbolId}"]`)
-    await expect(firstIncorrectSymbol).toHaveAttribute('data-shaking', 'true')
-    await expect(secondIncorrectSymbol).toHaveAttribute('data-shaking', 'true')
+    await expect(firstIncorrectSymbol).toHaveAttribute('data-incorrect', 'true')
+    await expect(secondIncorrectSymbol).toHaveAttribute(
+      'data-incorrect',
+      'true',
+    )
+    await expectComputedCursor(firstIncorrectSymbol, 'default')
+    await expectComputedCursor(secondIncorrectSymbol, 'default')
+    await expect(
+      firstIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+    ).toBeVisible()
+    await expect(
+      secondIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+    ).toBeVisible()
     expect(await playingSnapshot(hostPage)).toEqual(beforeIncorrectClaim)
     await expect
       .poll(async () => await playingSnapshot(guestPage))
       .toEqual(beforeIncorrectClaim)
-    await expect(
-      hostPage.getByRole('button', { name: 'Submit match' }),
-    ).toBeDisabled()
-    await expect(
-      guestPage.getByRole('button', { name: 'Submit match' }),
-    ).toBeEnabled()
-    await expect(
-      hostPage.getByRole('button', { name: 'Submit match' }),
-    ).toBeEnabled({ timeout: 2_000 })
+    await expect(firstSymbolControl(hostPage)).toBeDisabled()
+    await expect(firstSymbolControl(guestPage)).toBeEnabled()
+    await expect(firstSymbolControl(hostPage)).toBeEnabled({ timeout: 2_000 })
     await expect(firstIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
     await expect(secondIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
-    await expect(firstIncorrectSymbol).toHaveAttribute('data-shaking', 'false')
-    await expect(secondIncorrectSymbol).toHaveAttribute('data-shaking', 'false')
+    await expect(firstIncorrectSymbol).toHaveAttribute(
+      'data-incorrect',
+      'false',
+    )
+    await expect(secondIncorrectSymbol).toHaveAttribute(
+      'data-incorrect',
+      'false',
+    )
+    await expect(
+      firstIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+    ).toHaveCount(0)
+    await expect(
+      secondIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+    ).toHaveCount(0)
 
+    await beginDisabledCursorObservation(hostPage)
     await submitSharedMatch(hostPage)
     await expectScore(hostPage, playerNames.host, 1)
     await expectScore(guestPage, playerNames.host, 1)
+    expect(await endDisabledCursorObservation(hostPage)).toEqual(['default'])
     const afterAcceptedClaim = await playingSnapshot(hostPage)
     expect(afterAcceptedClaim.cards).not.toEqual(beforeIncorrectClaim.cards)
     await expect
@@ -109,11 +188,12 @@ test('replays a complete shared race across browser sessions', async ({
       .toEqual(afterAcceptedClaim)
 
     const beforeCompetingClaims = afterAcceptedClaim
-    await selectSharedMatch(hostPage, beforeCompetingClaims.cards)
-    await selectSharedMatch(guestPage, beforeCompetingClaims.cards)
+    const competingSymbolId = findSharedSymbol(beforeCompetingClaims.cards)
+    await selectCardSymbol(hostPage, 1, competingSymbolId)
+    await selectCardSymbol(guestPage, 1, competingSymbolId)
     await Promise.all([
-      hostPage.getByRole('button', { name: 'Submit match' }).click(),
-      guestPage.getByRole('button', { name: 'Submit match' }).click(),
+      selectCardSymbol(hostPage, 2, competingSymbolId),
+      selectCardSymbol(guestPage, 2, competingSymbolId),
     ])
 
     await expect
@@ -197,8 +277,8 @@ test('replays a complete shared race across browser sessions', async ({
     await expectPlaying(hostPage, playerNames.host)
     await expectPlaying(lateJoinerPage, playerNames.replacement)
     await expect(
-      hostPage.getByText(`Room ${roomCode} · Round 1`, { exact: true }),
-    ).toBeVisible()
+      hostPage.getByText(`Room ${roomCode}, round 1`, { exact: true }),
+    ).toBeAttached()
 
     const secondGameInitialState = await playingSnapshot(hostPage)
     expect(secondGameInitialState.scores).toEqual({ Ada: 0, Linus: 0 })
@@ -209,15 +289,30 @@ test('replays a complete shared race across browser sessions', async ({
     await expect(
       hostPage.locator('button[data-symbol-id][aria-pressed="true"]'),
     ).toHaveCount(0)
+    await expectNoHorizontalOverflow(hostPage)
+
+    await hostPage.getByRole('button', { name: 'Room menu' }).click()
+    await hostPage
+      .getByLabel('Room actions')
+      .getByRole('button', { name: 'Home' })
+      .click()
+    await expect(hostPage).toHaveURL(/\/home$/)
+    await hostPage.goto(`/${roomCode}`)
+    await expectPlaying(hostPage, playerNames.host)
+    await expect
+      .poll(async () => await playingSnapshot(hostPage))
+      .toEqual(secondGameInitialState)
 
     await submitIncorrectClaim(hostPage, secondGameInitialState.cards)
     await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
       'Incorrect match. Try again in a moment.',
     )
+    const staticErrorMark = hostPage
+      .locator('button[data-incorrect="true"] .spot-it-incorrect-mark')
+      .first()
+    await expect(staticErrorMark).toBeVisible()
     expect(await playingSnapshot(hostPage)).toEqual(secondGameInitialState)
-    await expect(
-      hostPage.getByRole('button', { name: 'Submit match' }),
-    ).toBeEnabled({ timeout: 2_000 })
+    await expect(firstSymbolControl(hostPage)).toBeEnabled({ timeout: 2_000 })
 
     await submitSharedMatch(hostPage)
     await expectScore(hostPage, playerNames.host, 1)
@@ -227,6 +322,30 @@ test('replays a complete shared race across browser sessions', async ({
     await expect
       .poll(async () => await playingSnapshot(lateJoinerPage))
       .toEqual(secondGameAfterScore)
+
+    await lateJoinerPage.getByRole('button', { name: 'Leave room' }).click()
+    const leaveDialog = lateJoinerPage.getByRole('dialog', {
+      name: 'Leave this room?',
+    })
+    await expect(leaveDialog).toContainText('may not be able to rejoin')
+    await leaveDialog.getByRole('button', { name: 'Leave room' }).click()
+    await expect(lateJoinerPage).toHaveURL(/\/home$/)
+    await expectPlaying(hostPage, playerNames.host)
+    expect(await playingSnapshot(hostPage)).toEqual(secondGameAfterScore)
+    await expect(
+      hostPage.getByText(playerNames.replacement, { exact: true }),
+    ).toBeVisible()
+
+    await submitSharedMatch(hostPage)
+    await expectScore(hostPage, playerNames.host, 2)
+    await expectNoHorizontalOverflow(hostPage)
+
+    await lateJoinerPage.goto(`/${roomCode}`)
+    await expect(
+      lateJoinerPage.getByRole('heading', {
+        name: 'This game has already started.',
+      }),
+    ).toBeVisible()
 
     await outsiderPage.reload()
     await expect(
@@ -336,6 +455,147 @@ async function playingSnapshot(page: Page): Promise<PlayingSnapshot> {
   return { cards, scores }
 }
 
+async function cardLayoutSnapshot(page: Page) {
+  return page
+    .getByLabel('Shared game board')
+    .locator('article[data-card-id]')
+    .evaluateAll((cardElements) =>
+      cardElements.map((card) => ({
+        templateId: card.getAttribute('data-layout-template'),
+        rotation: card.getAttribute('data-template-rotation'),
+        rotationProfile: card.getAttribute('data-rotation-profile'),
+        symbols: Array.from(
+          card.querySelectorAll<HTMLButtonElement>('button[data-symbol-id]'),
+          (symbol) => ({
+            id: symbol.dataset.symbolId,
+            slot: symbol.dataset.layoutSlot,
+            size: symbol.dataset.symbolSize,
+            rotation: symbol.dataset.symbolRotation,
+            x: symbol.dataset.symbolX,
+            y: symbol.dataset.symbolY,
+          }),
+        ),
+      })),
+    )
+}
+
+async function cardSelectionStyleSnapshot(page: Page) {
+  return page
+    .getByLabel('Shared game board')
+    .locator('article[data-card-id]')
+    .evaluateAll((cardElements) =>
+      cardElements.map((card) =>
+        Array.from(
+          card.querySelectorAll<HTMLButtonElement>('button[data-symbol-id]'),
+          (symbol) => {
+            const glyph = symbol.querySelector<HTMLElement>(
+              '[data-symbol-glyph]',
+            )
+
+            if (!glyph) {
+              throw new Error('Missing a symbol glyph wrapper.')
+            }
+
+            const filter = symbol.querySelector<HTMLElement>(
+              '[data-symbol-filter]',
+            )
+
+            if (!filter) {
+              throw new Error('Missing a symbol filter wrapper.')
+            }
+
+            const glyphStyles = getComputedStyle(glyph)
+
+            return {
+              id: symbol.dataset.symbolId ?? '',
+              filter: getComputedStyle(filter).filter,
+              transform: glyphStyles.transform,
+            }
+          },
+        ),
+      ),
+    )
+}
+
+async function cardGlyphPaintCoverage(card: Locator) {
+  const symbols = await card.locator('button[data-symbol-id]').all()
+  const coverage = await Promise.all(
+    symbols.map(async (symbol) => {
+      const symbolId = await symbol.getAttribute('data-symbol-id')
+
+      if (!symbolId) {
+        throw new Error('Missing a symbol ID for paint coverage.')
+      }
+
+      const screenshot = await symbol
+        .locator('[data-symbol-glyph]')
+        .screenshot({ animations: 'disabled' })
+
+      return [symbolId, countPaintedPixels(screenshot)] as const
+    }),
+  )
+
+  return new Map(coverage)
+}
+
+async function expectUnclippedSiblingGlyphs(
+  card: Locator,
+  coverageBefore: Map<string, number>,
+  selectedSymbolId: string | null,
+) {
+  const coverageAfter = await cardGlyphPaintCoverage(card)
+
+  for (const [symbolId, before] of coverageBefore) {
+    if (symbolId === selectedSymbolId) {
+      continue
+    }
+
+    const after = coverageAfter.get(symbolId)
+
+    expect(after, `${symbolId} should retain its painted area`).toBeDefined()
+    expect(
+      (after ?? 0) / before,
+      `${symbolId} is visually clipped`,
+    ).toBeGreaterThan(0.7)
+  }
+}
+
+function countPaintedPixels(buffer: Buffer): number {
+  const image = PNG.sync.read(buffer)
+  const cornerOffsets = [
+    0,
+    (image.width - 1) * 4,
+    image.width * (image.height - 1) * 4,
+    (image.width * image.height - 1) * 4,
+  ]
+  const background = [0, 1, 2].map((channel) =>
+    Math.round(
+      cornerOffsets.reduce(
+        (total, offset) => total + (image.data[offset + channel] ?? 0),
+        0,
+      ) / cornerOffsets.length,
+    ),
+  )
+  let paintedPixels = 0
+
+  for (let offset = 0; offset < image.data.length; offset += 4) {
+    const distance = [0, 1, 2].reduce(
+      (total, channel) =>
+        total +
+        Math.abs(
+          (image.data[offset + channel] ?? 0) - (background[channel] ?? 0),
+        ),
+      0,
+    )
+
+    if (distance > 30) {
+      paintedPixels += 1
+    }
+  }
+
+  return paintedPixels
+}
+
 async function submitIncorrectClaim(page: Page, cards: CardSnapshot[]) {
   const [firstCard, secondCard] = requireTwoCards(cards)
   const sharedSymbolId = findSharedSymbol(cards)
@@ -351,14 +611,12 @@ async function submitIncorrectClaim(page: Page, cards: CardSnapshot[]) {
   }
 
   await selectMatch(page, firstSymbolId, secondSymbolId)
-  await page.getByRole('button', { name: 'Submit match' }).click()
 
   return { firstSymbolId, secondSymbolId }
 }
 
 async function submitSharedMatch(page: Page) {
   await selectSharedMatch(page, (await playingSnapshot(page)).cards)
-  await page.getByRole('button', { name: 'Submit match' }).click()
 }
 
 async function selectSharedMatch(page: Page, cards: CardSnapshot[]) {
@@ -371,14 +629,87 @@ async function selectMatch(
   firstSymbolId: string,
   secondSymbolId: string,
 ) {
+  await selectCardSymbol(page, 1, firstSymbolId)
+  await selectCardSymbol(page, 2, secondSymbolId)
+}
+
+async function selectCardSymbol(
+  page: Page,
+  cardNumber: 1 | 2,
+  symbolId: string,
+) {
   await page
-    .getByLabel('Card 1')
-    .locator(`button[data-symbol-id="${firstSymbolId}"]`)
+    .getByLabel(`Card ${cardNumber}`)
+    .locator(`button[data-symbol-id="${symbolId}"]`)
     .click()
-  await page
-    .getByLabel('Card 2')
-    .locator(`button[data-symbol-id="${secondSymbolId}"]`)
-    .click()
+}
+
+function firstSymbolControl(page: Page) {
+  return page.getByLabel('Card 1').locator('button[data-symbol-id]').first()
+}
+
+async function expectComputedCursor(locator: Locator, expected: string) {
+  await expect
+    .poll(async () =>
+      locator.evaluate((element) => getComputedStyle(element).cursor),
+    )
+    .toBe(expected)
+}
+
+type CursorObservationWindow = Window & {
+  __disabledCursorObservation?: {
+    cursors: string[]
+    observer: MutationObserver
+  }
+}
+
+async function beginDisabledCursorObservation(page: Page) {
+  await page.evaluate(() => {
+    const board = document.querySelector('[aria-label="Shared game board"]')
+
+    if (!board) {
+      throw new Error('Missing the shared game board.')
+    }
+
+    const cursors: string[] = []
+    const collectDisabledCursors = () => {
+      for (const button of board.querySelectorAll<HTMLButtonElement>(
+        'button[data-symbol-id]:disabled',
+      )) {
+        cursors.push(getComputedStyle(button).cursor)
+      }
+    }
+    const observer = new MutationObserver(collectDisabledCursors)
+
+    observer.observe(board, {
+      attributeFilter: ['disabled'],
+      attributes: true,
+      subtree: true,
+    })
+    ;(window as CursorObservationWindow).__disabledCursorObservation = {
+      cursors,
+      observer,
+    }
+  })
+}
+
+async function endDisabledCursorObservation(page: Page) {
+  const observedCursors = await page.evaluate(() => {
+    const testWindow = window as CursorObservationWindow
+    const observation = testWindow.__disabledCursorObservation
+
+    if (!observation) {
+      throw new Error('Missing the disabled cursor observation.')
+    }
+
+    observation.observer.disconnect()
+    delete testWindow.__disabledCursorObservation
+
+    return observation.cursors
+  })
+
+  expect(observedCursors.length).toBeGreaterThan(0)
+  return [...new Set(observedCursors)]
 }
 
 function findSharedSymbol(cards: CardSnapshot[]) {

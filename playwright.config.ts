@@ -6,13 +6,18 @@ const baseURL = remoteBaseURL ?? 'http://127.0.0.1:3100'
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  workers: 3,
   retries: process.env.CI ? 2 : 0,
   reporter: 'html',
   use: {
     baseURL,
     trace: 'on-first-retry',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+  ],
   webServer: remoteBaseURL
     ? undefined
     : {

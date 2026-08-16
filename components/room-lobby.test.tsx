@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RoomLobby } from './room-lobby'
@@ -353,10 +360,10 @@ describe('RoomLobby', () => {
     expect(screen.getByLabelText("Chrome player's score")).toHaveTextContent(
       '0',
     )
-    expect(screen.getByRole('button', { name: 'Submit match' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeDisabled()
     expect(
       screen.getByRole('button', { name: 'Cat on card 1' }),
-    ).toHaveAttribute('data-shaking', 'false')
+    ).toHaveAttribute('data-incorrect', 'false')
     expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
       'Please wait a moment before selecting again.',
     )
@@ -369,7 +376,6 @@ describe('RoomLobby', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Cat on card 1' }))
     fireEvent.click(screen.getByRole('button', { name: 'Cat on card 2' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Submit match' }))
 
     await waitFor(() => {
       expect(mocks.submitMatchClaim).toHaveBeenCalledWith({
@@ -379,6 +385,141 @@ describe('RoomLobby', () => {
         firstSymbolId: 'cat',
         secondSymbolId: 'cat',
       })
+    })
+  })
+
+  it.each([
+    ['host', { ...host, position: 0 }],
+    ['non-host', player],
+  ] as const)(
+    'lets a %s go Home without explicitly leaving',
+    async (_role, requestingPlayer) => {
+      mocks.roomView = playingView(requestingPlayer)
+      render(<RoomLobby roomCode="frvg7" />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Home' }))
+
+      expect(mocks.routerPush).toHaveBeenCalledWith('/home')
+      expect(mocks.leaveRoom).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    ['host', { ...host, position: 0 }],
+    ['non-host', player],
+  ] as const)(
+    'confirms and submits one explicit leave for a %s while preserving the board',
+    async (_role, requestingPlayer) => {
+      let resolveLeave!: () => void
+      const leaveRequest = new Promise<void>((resolve) => {
+        resolveLeave = resolve
+      })
+      mocks.leaveRoom.mockReturnValue(leaveRequest)
+      mocks.roomView = playingView(requestingPlayer)
+      const { rerender } = render(<RoomLobby roomCode="frvg7" />)
+
+      fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
+      const dialog = screen.getByRole('dialog', { name: 'Leave this room?' })
+      const confirmButton = within(dialog).getByRole('button', {
+        name: 'Leave room',
+      })
+      fireEvent.click(confirmButton)
+      fireEvent.click(confirmButton)
+
+      expect(mocks.leaveRoom).toHaveBeenCalledOnce()
+      expect(mocks.leaveRoom).toHaveBeenCalledWith({
+        roomCode: 'frvg7',
+        clientToken: 'a'.repeat(32),
+      })
+      expect(
+        screen.getByRole('main', {
+          name: `Game for ${requestingPlayer.name}`,
+        }),
+      ).toBeInTheDocument()
+      expect(screen.getByLabelText('Shared game board')).toBeVisible()
+      expect(
+        screen.getByRole('button', { name: 'Cat on card 1' }),
+      ).toBeDisabled()
+      expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
+
+      mocks.roomView = { status: 'game_in_progress', roomCode: 'frvg7' }
+      rerender(<RoomLobby roomCode="frvg7" />)
+      expect(
+        screen.getByRole('main', {
+          name: `Game for ${requestingPlayer.name}`,
+        }),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
+
+      await act(async () => resolveLeave())
+      await waitFor(() => {
+        expect(mocks.routerPush).toHaveBeenCalledWith('/home')
+      })
+    },
+  )
+
+  it('keeps the frozen playing view when the room reports full mid-leave', async () => {
+    let resolveLeave!: () => void
+    const leaveRequest = new Promise<void>((resolve) => {
+      resolveLeave = resolve
+    })
+    mocks.leaveRoom.mockReturnValue(leaveRequest)
+    mocks.roomView = playingView()
+    const { rerender } = render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Leave room',
+      }),
+    )
+
+    mocks.presenceStatus = 'room-full'
+    rerender(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.queryByRole('heading', { name: 'Sorry, this room is full.' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('main', { name: `Game for ${player.name}` }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
+
+    await act(async () => resolveLeave())
+    await waitFor(() => {
+      expect(mocks.routerPush).toHaveBeenCalledWith('/home')
+    })
+  })
+
+  it('keeps gameplay and the confirmation open after a failed leave, then retries', async () => {
+    mocks.roomView = playingView()
+    mocks.leaveRoom
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockResolvedValueOnce(undefined)
+    render(<RoomLobby roomCode="frvg7" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Leave room' }))
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Leave room',
+      }),
+    )
+
+    expect(
+      await screen.findByText('Unable to leave the room. Please try again.'),
+    ).toHaveAttribute('role', 'alert')
+    expect(screen.getByLabelText('Shared game board')).toBeVisible()
+    expect(mocks.routerPush).not.toHaveBeenCalled()
+
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Try leaving again',
+      }),
+    )
+
+    await waitFor(() => {
+      expect(mocks.leaveRoom).toHaveBeenCalledTimes(2)
+      expect(mocks.routerPush).toHaveBeenCalledWith('/home')
     })
   })
 

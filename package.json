@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "card-layout:generate": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-card-layout-templates.mjs",
     "deploy:build": "pnpm deploy:check-env && convex deploy --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL --cmd 'pnpm build'",
     "deploy:check-env": "node scripts/check-deployment-env.mjs",
     "deploy:smoke": "node scripts/check-deployment.mjs",
@@ -15,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=chromium && playwright test --project=firefox && playwright test --project=webkit",
     "convex:dev": "convex dev"
   },
   "dependencies": {
@@ -39,6 +40,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^26.1.1",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
@@ -47,6 +49,7 @@
     "eslint": "^9.39.1",
     "eslint-config-next": "^16.2.10",
     "jsdom": "^29.1.1",
+    "pngjs": "^7.0.0",
     "prettier": "^3.9.5",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4.3.3",
