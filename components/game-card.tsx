@@ -14,6 +14,11 @@ export type GameCardModel = {
   symbolIds: readonly string[]
 }
 
+export type RevealedMatch = {
+  symbolId: string
+  scorerName: string
+}
+
 const SYMBOL_COLORS = [
   'oklch(0.51 0.19 28)',
   'oklch(0.48 0.16 145)',
@@ -27,6 +32,7 @@ export function GameCard({
   cardNumber,
   layoutPlan,
   selectedSymbolId,
+  revealedMatch,
   showIncorrectFeedback,
   disabled,
   onSelectSymbol,
@@ -35,6 +41,7 @@ export function GameCard({
   cardNumber: number
   layoutPlan: CardLayoutPlan
   selectedSymbolId: string | null
+  revealedMatch: RevealedMatch | null
   showIncorrectFeedback: boolean
   disabled: boolean
   onSelectSymbol: (symbolId: string) => void
@@ -61,7 +68,10 @@ export function GameCard({
         const layout = symbolLayouts.get(symbolId)
         const isSelected = selectedSymbolId === symbolId
         const isIncorrect = isSelected && showIncorrectFeedback
-        const isDesaturated = hasSelection && !isSelected
+        const isRevealed = revealedMatch?.symbolId === symbolId
+        const isDesaturated =
+          (hasSelection && !isSelected) ||
+          (revealedMatch !== null && !isRevealed)
 
         if (!layout) {
           throw new Error(`Missing layout for symbol ${symbolId}.`)
@@ -91,13 +101,16 @@ export function GameCard({
               'focus-visible:ring-ring/70 absolute inline-flex [height:max(var(--symbol-min-target-size,3rem),var(--symbol-target-size))] [width:max(var(--symbol-min-target-size,3rem),var(--symbol-target-size))] cursor-pointer items-center justify-center overflow-visible rounded-full border-0 p-0 [font-size:clamp(1.5rem,var(--symbol-font-size),5rem)] leading-none focus-visible:z-10 focus-visible:ring-4 focus-visible:outline-none disabled:cursor-default',
               isIncorrect
                 ? 'z-[1] border-2 border-red-700/70 bg-red-100/80 ring-4 ring-red-500/50'
-                : isSelected
-                  ? 'z-[1]'
-                  : 'hover:brightness-110',
+                : isRevealed
+                  ? 'z-[1] border-2 border-emerald-700/70 bg-emerald-100/80 ring-4 ring-emerald-500/50'
+                  : isSelected
+                    ? 'z-[1]'
+                    : 'hover:brightness-110',
             )}
             data-symbol-id={symbolId}
             data-selected={isSelected}
             data-incorrect={isIncorrect}
+            data-revealed={isRevealed}
             data-layout-slot={layout.slotIndex}
             data-symbol-size={layout.size}
             data-symbol-rotation={layout.rotation}
@@ -139,6 +152,17 @@ export function GameCard({
                 className="spot-it-incorrect-mark pointer-events-none absolute inset-0 z-10 inline-flex items-center justify-center text-5xl font-black text-red-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]"
               >
                 ×
+              </span>
+            ) : null}
+            {isRevealed && revealedMatch ? (
+              <span
+                aria-hidden="true"
+                data-score-reveal=""
+                className="spot-it-score-reveal pointer-events-none absolute inset-0 z-10 inline-flex items-center justify-center overflow-hidden p-[6%]"
+              >
+                <span className="line-clamp-2 max-w-full rounded-lg bg-white/95 px-[0.25em] py-[0.125em] text-center text-[clamp(0.55rem,0.3em,1.1rem)] leading-[1.15] font-bold break-words hyphens-auto text-emerald-900 shadow-sm ring-1 ring-emerald-700/30">
+                  {revealedMatch.scorerName}
+                </span>
               </span>
             ) : null}
           </button>

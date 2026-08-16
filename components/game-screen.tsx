@@ -2,13 +2,26 @@
 
 import { useEffect, useRef, useState } from 'react'
 
-import { GameCard, type GameCardModel } from '@/components/game-card'
+import {
+  GameCard,
+  type GameCardModel,
+  type RevealedMatch,
+} from '@/components/game-card'
 import { GameNavigation } from '@/components/game-navigation'
 import { getPairLayoutPlans } from '@/lib/card-layout'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
+import { getSpotItSymbolPresentation } from '@/lib/spot-it-symbols'
 import { cn } from '@/lib/utils'
 
 const INCORRECT_FEEDBACK_MS = 1_000
+const SCORE_REVEAL_MS = 1_500
+
+export type ScoredClaim = {
+  scorerId: string
+  scorerName: string
+  symbolId: string
+  pairRevision: number
+}
 
 type GamePlayer = {
   playerId: string
@@ -28,6 +41,7 @@ export function GameScreen({
   pairRevision,
   cards,
   scoreboard,
+  lastAcceptedClaim,
   cooldownUntil,
   isLeaving,
   leaveError,
@@ -41,6 +55,7 @@ export function GameScreen({
   pairRevision: number
   cards: readonly GameCardModel[]
   scoreboard: readonly ScoreboardEntry[]
+  lastAcceptedClaim: ScoredClaim | null
   cooldownUntil: number | null
   isLeaving: boolean
   leaveError: string | null
@@ -49,6 +64,18 @@ export function GameScreen({
   onLeaveRoom: () => void
   onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
 }) {
+  const displayedRound = useDisplayedRound({
+    pairRevision,
+    cards,
+    lastAcceptedClaim: lastAcceptedClaim ?? null,
+  })
+  const revealedMatch: RevealedMatch | null = displayedRound.reveal
+    ? {
+        symbolId: displayedRound.reveal.symbolId,
+        scorerName: displayedRound.reveal.scorerName,
+      }
+    : null
+
   return (
     <main
       className="game-surface"
@@ -60,13 +87,13 @@ export function GameScreen({
           <div className="game-header-copy flex min-w-0 flex-1 items-baseline justify-between gap-3 lg:block">
             <p className="text-accent shrink-0 text-[0.65rem] font-bold tracking-[0.14em] uppercase sm:text-xs lg:tracking-[0.18em]">
               <span className="sr-only">
-                Room {roomCode}, round {pairRevision + 1}
+                Room {roomCode}, round {displayedRound.pairRevision + 1}
               </span>
               <span className="sm:hidden" aria-hidden="true">
-                {roomCode} · R{pairRevision + 1}
+                {roomCode} · R{displayedRound.pairRevision + 1}
               </span>
               <span className="hidden sm:inline" aria-hidden="true">
-                Room {roomCode} · Round {pairRevision + 1}
+                Room {roomCode} · Round {displayedRound.pairRevision + 1}
               </span>
             </p>
             <h1
@@ -87,19 +114,106 @@ export function GameScreen({
             onLeaveRoom={onLeaveRoom}
           />
         </header>
+        {displayedRound.reveal ? (
+          <p
+            role="status"
+            aria-live="polite"
+            aria-label="Score reveal"
+            className="sr-only"
+          >
+            {getScoreRevealMessage(displayedRound.reveal, player.playerId)}
+          </p>
+        ) : null}
         <GameRound
-          key={pairRevision}
+          key={displayedRound.pairRevision}
           player={player}
-          pairRevision={pairRevision}
-          cards={cards}
+          pairRevision={displayedRound.pairRevision}
+          cards={displayedRound.cards}
           scoreboard={scoreboard}
+          revealedMatch={revealedMatch}
+          revealScorerId={displayedRound.reveal?.scorerId ?? null}
           cooldownUntil={cooldownUntil}
-          interactionDisabled={isLeaving}
+          interactionDisabled={isLeaving || revealedMatch !== null}
           onSubmitClaim={onSubmitClaim}
         />
       </div>
     </main>
   )
+}
+
+type DisplayedRound = {
+  pairRevision: number
+  cards: readonly GameCardModel[]
+  reveal: ScoredClaim | null
+}
+
+/**
+ * Holds the previously displayed pair while a server-confirmed score reveal
+ * plays, then advances to the latest server revision.
+ */
+function useDisplayedRound({
+  pairRevision,
+  cards,
+  lastAcceptedClaim,
+}: {
+  pairRevision: number
+  cards: readonly GameCardModel[]
+  lastAcceptedClaim: ScoredClaim | null
+}): DisplayedRound {
+  const [displayedRound, setDisplayedRound] = useState<DisplayedRound>(() => ({
+    pairRevision,
+    cards,
+    reveal: null,
+  }))
+  const [previousPairRevision, setPreviousPairRevision] = useState(pairRevision)
+
+  if (previousPairRevision !== pairRevision) {
+    setPreviousPairRevision(pairRevision)
+    setDisplayedRound((current) => {
+      if (current.pairRevision === pairRevision) {
+        return current.cards === cards ? current : { ...current, cards }
+      }
+
+      const shouldHoldForReveal =
+        current.reveal === null &&
+        lastAcceptedClaim !== null &&
+        lastAcceptedClaim.pairRevision === current.pairRevision &&
+        pairRevision === current.pairRevision + 1
+
+      return shouldHoldForReveal && lastAcceptedClaim !== null
+        ? { ...current, reveal: lastAcceptedClaim }
+        : { pairRevision, cards, reveal: null }
+    })
+  }
+
+  useEffect(() => {
+    if (displayedRound.reveal === null) {
+      return
+    }
+
+    const timeout = window.setTimeout(() => {
+      setDisplayedRound((current) => {
+        if (current.reveal === null) {
+          return current
+        }
+
+        return { pairRevision, cards, reveal: null }
+      })
+    }, SCORE_REVEAL_MS)
+
+    return () => window.clearTimeout(timeout)
+  }, [displayedRound.reveal, pairRevision, cards])
+
+  return displayedRound
+}
+
+/** Builds the polite screen-reader announcement for an accepted claim. */
+function getScoreRevealMessage(claim: ScoredClaim, localPlayerId: string) {
+  const symbolLabel = getSpotItSymbolPresentation(claim.symbolId).label
+
+  return claim.scorerId === localPlayerId
+    ? `You matched ${symbolLabel} for a point.`
+    : `${claim.scorerName} matched ${symbolLabel} for a point.`
 }
 
 type ClaimFeedback =
@@ -111,6 +225,8 @@ function GameRound({
   pairRevision,
   cards,
   scoreboard,
+  revealedMatch,
+  revealScorerId,
   cooldownUntil,
   interactionDisabled,
   onSubmitClaim,
@@ -119,6 +235,8 @@ function GameRound({
   pairRevision: number
   cards: readonly GameCardModel[]
   scoreboard: readonly ScoreboardEntry[]
+  revealedMatch: RevealedMatch | null
+  revealScorerId: string | null
   cooldownUntil: number | null
   interactionDisabled: boolean
   onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
@@ -259,6 +377,7 @@ function GameRound({
         <ol className="game-score-list">
           {orderedScoreboard.map((entry) => {
             const isLocalPlayer = entry.playerId === player.playerId
+            const isRevealScorer = entry.playerId === revealScorerId
 
             return (
               <li
@@ -271,6 +390,7 @@ function GameRound({
                 )}
                 aria-current={isLocalPlayer ? 'true' : undefined}
                 data-player-position={entry.position}
+                data-scored={isRevealScorer ? 'true' : undefined}
               >
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold lg:text-base">
@@ -314,6 +434,7 @@ function GameRound({
                   cardNumber={index + 1}
                   layoutPlan={layoutPlan}
                   selectedSymbolId={selectedSymbols[index] ?? null}
+                  revealedMatch={revealedMatch}
                   showIncorrectFeedback={isIncorrectFeedbackActive}
                   disabled={controlsDisabled}
                   onSelectSymbol={(symbolId) => selectSymbol(index, symbolId)}

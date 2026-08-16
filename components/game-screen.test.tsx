@@ -69,6 +69,42 @@ const scoreboard = [
   },
 ]
 
+const nextCards = [
+  {
+    id: 'card-77',
+    symbolIds: [
+      'sun',
+      'moon',
+      'star',
+      'heart',
+      'dog',
+      'rocket',
+      'book',
+      'anchor',
+    ],
+  },
+  {
+    id: 'card-88',
+    symbolIds: [
+      'dog',
+      'flower',
+      'apple',
+      'bee',
+      'turtle',
+      'camera',
+      'gift',
+      'dice',
+    ],
+  },
+] as const
+
+const acceptedClaim = {
+  scorerId: 'member-1',
+  scorerName: 'Firefox host',
+  symbolId: 'cat',
+  pairRevision: 0,
+}
+
 const navigationProps = {
   isLeaving: false,
   leaveError: null,
@@ -139,6 +175,7 @@ describe('GameScreen', () => {
         pairRevision={0}
         cards={cards}
         scoreboard={scoreboard}
+        lastAcceptedClaim={null}
         cooldownUntil={null}
         onSubmitClaim={vi.fn()}
       />,
@@ -369,6 +406,7 @@ describe('GameScreen', () => {
         pairRevision={0}
         cards={cards}
         scoreboard={scoreboard}
+        lastAcceptedClaim={null}
         cooldownUntil={null}
         onSubmitClaim={onSubmitClaim}
       />,
@@ -708,6 +746,7 @@ describe('GameScreen', () => {
         scoreboard={scoreboard.map((entry) =>
           entry.playerId === player.playerId ? { ...entry, score: 1 } : entry,
         )}
+        lastAcceptedClaim={null}
         cooldownUntil={null}
         onSubmitClaim={vi.fn()}
       />,
@@ -738,6 +777,7 @@ describe('GameScreen', () => {
         pairRevision={0}
         cards={cards}
         scoreboard={scoreboard}
+        lastAcceptedClaim={null}
         cooldownUntil={null}
         onLeaveRoom={onLeaveRoom}
         onSubmitClaim={vi.fn()}
@@ -755,6 +795,7 @@ describe('GameScreen', () => {
         pairRevision={1}
         cards={cards}
         scoreboard={scoreboard}
+        lastAcceptedClaim={null}
         cooldownUntil={null}
         onLeaveRoom={onLeaveRoom}
         onSubmitClaim={vi.fn()}
@@ -778,6 +819,7 @@ describe('GameScreen', () => {
         pairRevision={0}
         cards={[cards[0]]}
         scoreboard={scoreboard}
+        lastAcceptedClaim={null}
         cooldownUntil={null}
         onSubmitClaim={vi.fn()}
       />,
@@ -789,6 +831,263 @@ describe('GameScreen', () => {
       }),
     ).toHaveTextContent('The cards are temporarily unavailable.')
     expect(screen.queryByLabelText('Shared game board')).not.toBeInTheDocument()
+  })
+})
+
+describe('GameScreen score reveal', () => {
+  it('overlays the server-confirmed scorer on the matched pair before advancing', () => {
+    vi.useFakeTimers()
+    const { rerender } = renderGame()
+
+    rerender(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={1}
+        cards={nextCards}
+        scoreboard={scoreboard.map((entry) =>
+          entry.playerId === 'member-1' ? { ...entry, score: 3 } : entry,
+        )}
+        lastAcceptedClaim={acceptedClaim}
+        cooldownUntil={null}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
+      'data-card-id',
+      'card-13',
+    )
+    expect(screen.getByRole('article', { name: 'Card 2' })).toHaveAttribute(
+      'data-card-id',
+      'card-52',
+    )
+
+    const firstCat = screen.getByRole('button', { name: 'Cat on card 1' })
+    const secondCat = screen.getByRole('button', { name: 'Cat on card 2' })
+    const firstBadge = firstCat.querySelector('[data-score-reveal]')
+    const secondBadge = secondCat.querySelector('[data-score-reveal]')
+
+    expect(firstCat).toHaveAttribute('data-revealed', 'true')
+    expect(secondCat).toHaveAttribute('data-revealed', 'true')
+    expect(firstBadge).toHaveTextContent('Firefox host')
+    expect(firstBadge).toHaveClass('spot-it-score-reveal')
+    expect(firstBadge?.firstElementChild).toHaveClass(
+      'line-clamp-2',
+      'break-words',
+    )
+    expect(secondBadge).toHaveTextContent('Firefox host')
+    const board = screen.getByLabelText('Shared game board')
+
+    within(board)
+      .getAllByRole('button')
+      .forEach((button) => expect(button).toBeDisabled())
+    expect(screen.getByLabelText('Score reveal')).toHaveTextContent(
+      'Firefox host matched Cat for a point.',
+    )
+    expect(
+      screen
+        .getAllByRole('listitem')
+        .find((entry) => entry.textContent?.includes('Firefox host')),
+    ).toHaveAttribute('data-scored', 'true')
+    expect(
+      screen.getByText('Room frvg7, round 1', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
+
+    act(() => vi.advanceTimersByTime(1_510))
+
+    expect(
+      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
+      'data-card-id',
+      'card-77',
+    )
+    expect(screen.getByRole('article', { name: 'Card 2' })).toHaveAttribute(
+      'data-card-id',
+      'card-88',
+    )
+    expect(
+      within(screen.getByLabelText('Shared game board')).queryAllByText(
+        'Firefox host',
+      ),
+    ).toHaveLength(0)
+    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dog on card 1' })).toBeEnabled()
+    expect(
+      screen.getByRole('button', { name: 'Dog on card 1' }),
+    ).toHaveAttribute('data-revealed', 'false')
+
+    vi.useRealTimers()
+  })
+
+  it('announces the reveal as the local player for their own accepted claim', () => {
+    vi.useFakeTimers()
+    const { rerender } = renderGame()
+
+    rerender(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={1}
+        cards={nextCards}
+        scoreboard={scoreboard}
+        lastAcceptedClaim={{
+          ...acceptedClaim,
+          scorerId: 'member-2',
+          scorerName: 'Chrome player',
+        }}
+        cooldownUntil={null}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText('Score reveal')).toHaveTextContent(
+      'You matched Cat for a point.',
+    )
+    expect(
+      screen
+        .getByRole('button', { name: 'Cat on card 1' })
+        .querySelector('[data-score-reveal]'),
+    ).toHaveTextContent('Chrome player')
+
+    vi.useRealTimers()
+  })
+
+  it('advances immediately without a reveal when no claim is published', () => {
+    vi.useFakeTimers()
+    const { rerender } = renderGame()
+
+    rerender(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={1}
+        cards={nextCards}
+        scoreboard={scoreboard}
+        lastAcceptedClaim={null}
+        cooldownUntil={null}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
+      'data-card-id',
+      'card-77',
+    )
+    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+
+    vi.useRealTimers()
+  })
+
+  it('skips the reveal when mounting directly onto an already-resolved pair', () => {
+    vi.useFakeTimers()
+    render(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={1}
+        cards={nextCards}
+        scoreboard={scoreboard}
+        lastAcceptedClaim={acceptedClaim}
+        cooldownUntil={null}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
+      'data-card-id',
+      'card-77',
+    )
+    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Sun on card 1' }),
+    ).toHaveAttribute('data-revealed', 'false')
+
+    vi.useRealTimers()
+  })
+
+  it('skips the reveal when the displayed revision was never the resolved one', () => {
+    vi.useFakeTimers()
+    const { rerender } = renderGame()
+
+    rerender(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={2}
+        cards={nextCards}
+        scoreboard={scoreboard}
+        lastAcceptedClaim={acceptedClaim}
+        cooldownUntil={null}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.getByText('Room frvg7, round 3', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
+      'data-card-id',
+      'card-77',
+    )
+    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+
+    vi.useRealTimers()
+  })
+
+  it('cuts an active reveal short when a further revision arrives', () => {
+    vi.useFakeTimers()
+    const { rerender } = renderGame()
+
+    rerender(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={1}
+        cards={nextCards}
+        scoreboard={scoreboard}
+        lastAcceptedClaim={acceptedClaim}
+        cooldownUntil={null}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText('Score reveal')).toBeInTheDocument()
+
+    act(() => vi.advanceTimersByTime(500))
+    rerender(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={2}
+        cards={nextCards.map((card) => ({ ...card }))}
+        scoreboard={scoreboard}
+        lastAcceptedClaim={{ ...acceptedClaim, pairRevision: 1 }}
+        cooldownUntil={null}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Room frvg7, round 3', { selector: 'span.sr-only' }),
+    ).toBeInTheDocument()
+
+    vi.useRealTimers()
   })
 })
 
@@ -807,6 +1106,7 @@ function renderGame({
       pairRevision={0}
       cards={cards}
       scoreboard={scoreboard}
+      lastAcceptedClaim={null}
       cooldownUntil={cooldownUntil}
       onSubmitClaim={onSubmitClaim}
     />,

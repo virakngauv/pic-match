@@ -21,10 +21,18 @@ export const gameScoreboardEntryView = v.object({
   score: v.number(),
 })
 
+export const lastAcceptedClaimView = v.object({
+  scorerId: v.id('roomMembers'),
+  scorerName: v.string(),
+  symbolId: v.string(),
+  pairRevision: v.number(),
+})
+
 export const playingGameStateView = {
   pairRevision: v.number(),
   cards: v.array(gameCardView),
   scoreboard: v.array(gameScoreboardEntryView),
+  lastAcceptedClaim: v.union(v.null(), lastAcceptedClaimView),
 }
 
 export const finishedGameStateView = {
@@ -35,7 +43,9 @@ export const finishedGameStateView = {
 type StoredGameState = Pick<
   Doc<'games'>,
   'configurationId' | 'seed' | 'pairRevision'
->
+> & {
+  lastAcceptedClaim?: Doc<'games'>['lastAcceptedClaim']
+}
 
 type StoredGameScore = Pick<
   Doc<'gameParticipants'>,
@@ -60,6 +70,34 @@ export function presentPlayingGameState(
     pairRevision: game.pairRevision,
     cards,
     scoreboard: presentScoreboard(participants),
+    lastAcceptedClaim: presentLastAcceptedClaim(game, participants),
+  }
+}
+
+/** Maps the persisted last accepted claim to its public reveal view. */
+function presentLastAcceptedClaim(
+  game: StoredGameState,
+  participants: readonly StoredGameScore[],
+) {
+  const claim = game.lastAcceptedClaim
+
+  if (!claim) {
+    return null
+  }
+
+  const scorer = participants.find(
+    (participant) => participant.roomMemberId === claim.scorerRoomMemberId,
+  )
+
+  if (!scorer) {
+    return null
+  }
+
+  return {
+    scorerId: claim.scorerRoomMemberId,
+    scorerName: scorer.name,
+    symbolId: claim.symbolId,
+    pairRevision: claim.pairRevision,
   }
 }
 

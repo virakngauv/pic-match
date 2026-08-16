@@ -165,13 +165,24 @@ export const submit = mutation({
       incorrectClaimCooldownUntil: undefined,
     })
 
+    const lastAcceptedClaim = {
+      scorerRoomMemberId: participant.roomMemberId,
+      symbolId: firstSymbolId,
+      pairRevision: game.pairRevision,
+      scoredAt: now,
+    }
+
     if (nextScore >= FIRST_PLAYABLE_CONFIGURATION.winningScore) {
       await ctx.db.patch(game._id, {
         winnerRoomMemberId: participant.roomMemberId,
+        lastAcceptedClaim,
       })
       await ctx.db.patch(room._id, { phase: 'finished' })
     } else {
-      await ctx.db.patch(game._id, { pairRevision: game.pairRevision + 1 })
+      await ctx.db.patch(game._id, {
+        pairRevision: game.pairRevision + 1,
+        lastAcceptedClaim,
+      })
     }
 
     return { status: 'accepted' }
