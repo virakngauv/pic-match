@@ -114,16 +114,16 @@ export function GameScreen({
             onLeaveRoom={onLeaveRoom}
           />
         </header>
-        {displayedRound.reveal ? (
-          <p
-            role="status"
-            aria-live="polite"
-            aria-label="Score reveal"
-            className="sr-only"
-          >
-            {getScoreRevealMessage(displayedRound.reveal, player.playerId)}
-          </p>
-        ) : null}
+        <p
+          role="status"
+          aria-live="polite"
+          aria-label="Score reveal"
+          className="sr-only"
+        >
+          {displayedRound.reveal
+            ? getScoreRevealMessage(displayedRound.reveal, player.playerId)
+            : ''}
+        </p>
         <GameRound
           key={displayedRound.pairRevision}
           player={player}

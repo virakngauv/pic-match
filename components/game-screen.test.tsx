@@ -917,7 +917,7 @@ describe('GameScreen score reveal', () => {
         'Firefox host',
       ),
     ).toHaveLength(0)
-    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Score reveal')).toHaveTextContent('')
     expect(screen.getByRole('button', { name: 'Dog on card 1' })).toBeEnabled()
     expect(
       screen.getByRole('button', { name: 'Dog on card 1' }),
@@ -981,7 +981,7 @@ describe('GameScreen score reveal', () => {
       'data-card-id',
       'card-77',
     )
-    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Score reveal')).toHaveTextContent('')
   })
 
   it('skips the reveal when mounting directly onto an already-resolved pair', () => {
@@ -1007,7 +1007,7 @@ describe('GameScreen score reveal', () => {
       'data-card-id',
       'card-77',
     )
-    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Score reveal')).toHaveTextContent('')
     expect(
       screen.getByRole('button', { name: 'Sun on card 1' }),
     ).toHaveAttribute('data-revealed', 'false')
@@ -1038,7 +1038,7 @@ describe('GameScreen score reveal', () => {
       'data-card-id',
       'card-77',
     )
-    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Score reveal')).toHaveTextContent('')
   })
 
   it('cuts an active reveal short when a further revision arrives', () => {
@@ -1076,7 +1076,7 @@ describe('GameScreen score reveal', () => {
       />,
     )
 
-    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Score reveal')).toHaveTextContent('')
     expect(
       screen.getByText('Room frvg7, round 3', { selector: 'span.sr-only' }),
     ).toBeInTheDocument()
@@ -1121,7 +1121,7 @@ describe('GameScreen score reveal', () => {
 
     act(() => vi.advanceTimersByTime(510))
 
-    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Score reveal')).toHaveTextContent('')
     expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
       'data-card-id',
       'card-77',

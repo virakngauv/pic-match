@@ -220,6 +220,7 @@ test('replays a complete shared race across browser sessions', async ({
       .poll(async () => totalScore(await playingSnapshot(hostPage)))
       .toBe(totalScore(beforeCompetingClaims) + 1)
     await expectNoScoreReveal(hostPage)
+    await expectNoScoreReveal(guestPage)
     const afterCompetingClaims = await playingSnapshot(hostPage)
     expect(afterCompetingClaims.cards).not.toEqual(beforeCompetingClaims.cards)
     await expect
