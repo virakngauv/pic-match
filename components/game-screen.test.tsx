@@ -1122,9 +1122,10 @@ describe('GameScreen score reveal', () => {
     act(() => vi.advanceTimersByTime(510))
 
     expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('article', { name: 'Card 1' }),
-    ).toHaveAttribute('data-card-id', 'card-77')
+    expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
+      'data-card-id',
+      'card-77',
+    )
   })
 })
 
