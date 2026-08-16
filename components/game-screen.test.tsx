@@ -7,7 +7,7 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   SELECTED_SYMBOL_SCALE,
@@ -835,6 +835,10 @@ describe('GameScreen', () => {
 })
 
 describe('GameScreen score reveal', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('overlays the server-confirmed scorer on the matched pair before advancing', () => {
     vi.useFakeTimers()
     const { rerender } = renderGame()
@@ -918,8 +922,6 @@ describe('GameScreen score reveal', () => {
     expect(
       screen.getByRole('button', { name: 'Dog on card 1' }),
     ).toHaveAttribute('data-revealed', 'false')
-
-    vi.useRealTimers()
   })
 
   it('announces the reveal as the local player for their own accepted claim', () => {
@@ -952,8 +954,6 @@ describe('GameScreen score reveal', () => {
         .getByRole('button', { name: 'Cat on card 1' })
         .querySelector('[data-score-reveal]'),
     ).toHaveTextContent('Chrome player')
-
-    vi.useRealTimers()
   })
 
   it('advances immediately without a reveal when no claim is published', () => {
@@ -982,8 +982,6 @@ describe('GameScreen score reveal', () => {
       'card-77',
     )
     expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
-
-    vi.useRealTimers()
   })
 
   it('skips the reveal when mounting directly onto an already-resolved pair', () => {
@@ -1013,8 +1011,6 @@ describe('GameScreen score reveal', () => {
     expect(
       screen.getByRole('button', { name: 'Sun on card 1' }),
     ).toHaveAttribute('data-revealed', 'false')
-
-    vi.useRealTimers()
   })
 
   it('skips the reveal when the displayed revision was never the resolved one', () => {
@@ -1043,8 +1039,6 @@ describe('GameScreen score reveal', () => {
       'card-77',
     )
     expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
-
-    vi.useRealTimers()
   })
 
   it('cuts an active reveal short when a further revision arrives', () => {
@@ -1086,8 +1080,51 @@ describe('GameScreen score reveal', () => {
     expect(
       screen.getByText('Room frvg7, round 3', { selector: 'span.sr-only' }),
     ).toBeInTheDocument()
+  })
 
-    vi.useRealTimers()
+  it('keeps the reveal bounded when the same round rerenders with new data', () => {
+    vi.useFakeTimers()
+    const { rerender } = renderGame()
+
+    rerender(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={1}
+        cards={nextCards}
+        scoreboard={scoreboard}
+        lastAcceptedClaim={acceptedClaim}
+        cooldownUntil={null}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText('Score reveal')).toBeInTheDocument()
+
+    act(() => vi.advanceTimersByTime(1_000))
+    rerender(
+      <GameScreen
+        {...navigationProps}
+        roomCode="frvg7"
+        player={player}
+        pairRevision={1}
+        cards={nextCards.map((card) => ({ ...card }))}
+        scoreboard={scoreboard.map((entry) => ({ ...entry }))}
+        lastAcceptedClaim={acceptedClaim}
+        cooldownUntil={null}
+        onSubmitClaim={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByLabelText('Score reveal')).toBeInTheDocument()
+
+    act(() => vi.advanceTimersByTime(510))
+
+    expect(screen.queryByLabelText('Score reveal')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('article', { name: 'Card 1' }),
+    ).toHaveAttribute('data-card-id', 'card-77')
   })
 })
 

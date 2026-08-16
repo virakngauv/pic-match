@@ -166,6 +166,11 @@ function useDisplayedRound({
     reveal: null,
   }))
   const [previousPairRevision, setPreviousPairRevision] = useState(pairRevision)
+  const latestRoundRef = useRef({ pairRevision, cards })
+
+  useEffect(() => {
+    latestRoundRef.current = { pairRevision, cards }
+  })
 
   if (previousPairRevision !== pairRevision) {
     setPreviousPairRevision(pairRevision)
@@ -197,12 +202,12 @@ function useDisplayedRound({
           return current
         }
 
-        return { pairRevision, cards, reveal: null }
+        return { ...latestRoundRef.current, reveal: null }
       })
     }, SCORE_REVEAL_MS)
 
     return () => window.clearTimeout(timeout)
-  }, [displayedRound.reveal, pairRevision, cards])
+  }, [displayedRound.reveal])
 
   return displayedRound
 }
