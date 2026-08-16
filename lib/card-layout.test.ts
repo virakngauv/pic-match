@@ -141,8 +141,8 @@ describe('card layout templates', () => {
     expect(
       profile('non-finite', [0, 0, 0, 0, 30, 90, Number.NaN, -90]),
     ).toEqual(['non-finite angle 6 is non-finite.'])
-    expect(profile('out-of-range', [0, 5, -10, 8, 40, 90, -190, -90])).toEqual([
-      'out-of-range angle 6 is outside (-180, 180].',
+    expect(profile('out-of-range', [0, 5, -10, 8, 40, 90, 180, -90])).toEqual([
+      'out-of-range angle 6 is outside (-180, 180).',
     ])
     expect(profile('too-upright', [0, 4, -6, 8, -3, 12, 90, -90])).toEqual([
       'too-upright keeps 6 angles mostly upright; expected four or five.',

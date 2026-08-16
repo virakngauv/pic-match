@@ -362,9 +362,9 @@ export function validateRotationProfile(
   angles.forEach((angle, index) => {
     if (!Number.isFinite(angle)) {
       errors.push(`${rotationProfile.id} angle ${index} is non-finite.`)
-    } else if (angle <= -180 || angle > 180) {
+    } else if (angle <= -180 || angle >= 180) {
       errors.push(
-        `${rotationProfile.id} angle ${index} is outside (-180, 180].`,
+        `${rotationProfile.id} angle ${index} is outside (-180, 180).`,
       )
     }
   })
