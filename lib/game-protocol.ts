@@ -50,6 +50,19 @@ export type RoomSnapshot =
       scoreboard: ScoreboardEntry[]
     }
 
+export function isMemberSnapshot(
+  snapshot: RoomSnapshot,
+): snapshot is Extract<
+  RoomSnapshot,
+  { status: 'lobby' | 'playing' | 'finished' }
+> {
+  return (
+    snapshot.status === 'lobby' ||
+    snapshot.status === 'playing' ||
+    snapshot.status === 'finished'
+  )
+}
+
 export type CommandFailureStatus =
   | 'invalid'
   | 'forbidden'

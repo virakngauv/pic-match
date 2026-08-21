@@ -6,12 +6,14 @@ import { useRef, useState } from 'react'
 
 import { GameScreen } from '@/components/game-screen'
 import {
+  type ConnectionStatus,
+  type RoomEndedReason,
   useGameSocket,
   useRoomSnapshot,
 } from '@/components/game-socket-provider'
 import { JoinRoomScreen } from '@/components/join-room-screen'
 import { Button } from '@/components/ui/button'
-import type { RoomSnapshot } from '@/lib/game-protocol'
+import { isMemberSnapshot, type RoomSnapshot } from '@/lib/game-protocol'
 import type { MatchClaimPayload } from '@/lib/match-claim'
 import { generateClientToken } from '@/lib/player-session'
 
@@ -37,8 +39,8 @@ function PresentRoomLobby({
 }: {
   roomCode: string
   snapshot: RoomSnapshot | undefined
-  endedReason: 'expired' | 'server_restart' | null
-  connectionStatus: 'connecting' | 'connected' | 'disconnected'
+  endedReason: RoomEndedReason | null
+  connectionStatus: ConnectionStatus
 }) {
   const router = useRouter()
   const { leaveRoom, startGame, claimMatch, prepareRematch } = useGameSocket()
@@ -123,7 +125,7 @@ function PresentRoomLobby({
   if (
     !leavingSnapshot &&
     connectionStatus !== 'connected' &&
-    isMemberView(displayedRoomView)
+    isMemberSnapshot(displayedRoomView)
   ) {
     return (
       <RoomReconnecting
@@ -565,7 +567,7 @@ function RoomEnded({
   reason,
 }: {
   roomCode: string
-  reason: 'expired' | 'server_restart'
+  reason: RoomEndedReason
 }) {
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
@@ -591,14 +593,6 @@ function RoomEnded({
         </div>
       </section>
     </main>
-  )
-}
-
-function isMemberView(view: RoomSnapshot) {
-  return (
-    view.status === 'lobby' ||
-    view.status === 'playing' ||
-    view.status === 'finished'
   )
 }
 

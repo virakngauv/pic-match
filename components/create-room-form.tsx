@@ -60,12 +60,11 @@ export function CreateRoomForm() {
         maxLength={50}
         autoFocus
         required
-        disabled={isCreating || connectionStatus !== 'connected'}
+        disabled={isCreating}
       />
       <p
         className="text-accent mt-3 min-h-5 text-sm"
-        role="alert"
-        aria-live="polite"
+        role={error ? 'alert' : 'status'}
       >
         {error ??
           (connectionStatus === 'connected'

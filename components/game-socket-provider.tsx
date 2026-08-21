@@ -15,6 +15,7 @@ import {
 import { usePlayerSession } from '@/components/player-session-provider'
 import {
   GAME_PROTOCOL_VERSION,
+  isMemberSnapshot,
   type ClientToServerEvents,
   type CommandResult,
   type MatchClaimCommand,
@@ -23,8 +24,8 @@ import {
 } from '@/lib/game-protocol'
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
-type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
-type RoomEndedReason = 'expired' | 'server_restart'
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
+export type RoomEndedReason = 'expired' | 'server_restart'
 
 type GameSocketContextValue = {
   connectionStatus: ConnectionStatus
@@ -309,12 +310,4 @@ function unavailable(): CommandResult {
     status: 'server_unavailable',
     message: 'The game server is unavailable. Please try again.',
   }
-}
-
-function isMemberSnapshot(snapshot: RoomSnapshot) {
-  return (
-    snapshot.status === 'lobby' ||
-    snapshot.status === 'playing' ||
-    snapshot.status === 'finished'
-  )
 }

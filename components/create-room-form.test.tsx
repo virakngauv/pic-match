@@ -46,8 +46,9 @@ describe('CreateRoomForm', () => {
     mocks.connectionStatus = 'connecting'
     render(<CreateRoomForm />)
 
+    expect(screen.getByLabelText('Name')).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Connecting…' })).toBeDisabled()
-    expect(screen.getByRole('alert')).toHaveTextContent(
+    expect(screen.getByRole('status')).toHaveTextContent(
       'Connecting to the game server…',
     )
   })

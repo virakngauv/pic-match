@@ -153,6 +153,34 @@ describe('GameSocketProvider', () => {
     expect(screen.getByTestId('ended')).toHaveTextContent('server_restart')
   })
 
+  it('keeps an expired room classified as expired after shutdown', async () => {
+    const roomCode = 'bcdf2'
+    mocks.resumeSnapshots.set(roomCode, lobbySnapshot(roomCode))
+    render(
+      <GameSocketProvider>
+        <RoomProbe roomCode={roomCode} />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalled())
+    act(() => mocks.handlers.get('connect')?.())
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('lobby'),
+    )
+
+    act(() => {
+      mocks.handlers.get('room:expired')?.({
+        roomCode,
+        reason: 'idle',
+      } as never)
+    })
+
+    expect(screen.getByTestId('status')).toHaveTextContent('not_found')
+    expect(screen.getByTestId('ended')).toHaveTextContent('expired')
+
+    act(() => mocks.handlers.get('server:shutdown')?.())
+    expect(screen.getByTestId('ended')).toHaveTextContent('expired')
+  })
+
   it.each(['create', 'join'] as const)(
     'records membership after a successful %s acknowledgement',
     async (command) => {

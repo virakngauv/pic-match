@@ -155,6 +155,55 @@ describe('RoomLobby', () => {
     expect(screen.getByLabelText("Ada's score")).toHaveTextContent('0')
   })
 
+  it('adds room credentials to a claim and maps a stale result', async () => {
+    const user = userEvent.setup()
+    mocks.snapshot = playing()
+    mocks.claimMatch.mockResolvedValue({
+      status: 'stale',
+      message: 'That round already moved on.',
+    })
+    render(<RoomLobby roomCode="frvg7" />)
+
+    await user.click(screen.getByRole('button', { name: 'Sun on card 1' }))
+    await user.click(screen.getByRole('button', { name: 'Sun on card 2' }))
+
+    await waitFor(() =>
+      expect(mocks.claimMatch).toHaveBeenCalledWith({
+        roomCode: 'frvg7',
+        commandId: expect.stringMatching(/^[A-Za-z0-9_-]{8,64}$/),
+        pairRevision: 0,
+        firstSymbolId: 'sun',
+        secondSymbolId: 'sun',
+      }),
+    )
+    expect(
+      screen.getByRole('status', { name: 'Match claim feedback' }),
+    ).toHaveTextContent('That round already moved on.')
+  })
+
+  it('applies a server cooldown returned from a claim', async () => {
+    const user = userEvent.setup()
+    const cooldownUntil = Date.now() + 60_000
+    mocks.snapshot = playing()
+    mocks.claimMatch.mockResolvedValue({
+      status: 'cooldown',
+      message: 'Please wait before trying again.',
+      cooldownUntil,
+    })
+    render(<RoomLobby roomCode="frvg7" />)
+
+    await user.click(screen.getByRole('button', { name: 'Sun on card 1' }))
+    await user.click(screen.getByRole('button', { name: 'Sun on card 2' }))
+
+    await waitFor(() => expect(mocks.claimMatch).toHaveBeenCalled())
+    expect(
+      screen.getByRole('status', { name: 'Match claim feedback' }),
+    ).toHaveTextContent('Please wait a moment before selecting again.')
+    expect(
+      screen.getByRole('button', { name: 'Moon on card 1' }),
+    ).toBeDisabled()
+  })
+
   it('shows reconnecting without removing the current member', () => {
     mocks.snapshot = playing()
     mocks.connectionStatus = 'disconnected'

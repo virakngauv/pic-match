@@ -2,12 +2,13 @@ import type { Server as HttpServer } from 'node:http'
 
 import { Server, type Socket } from 'socket.io'
 
-import type {
-  ClientToServerEvents,
-  CommandFailure,
-  CommandResult,
-  RoomSnapshot,
-  ServerToClientEvents,
+import {
+  isMemberSnapshot,
+  type ClientToServerEvents,
+  type CommandFailure,
+  type CommandResult,
+  type RoomSnapshot,
+  type ServerToClientEvents,
 } from '../lib/game-protocol'
 import { GameServer } from './game-server'
 import {
@@ -306,14 +307,6 @@ export function createGameSocketServer(
       await new Promise<void>((resolve) => io.close(() => resolve()))
     },
   }
-}
-
-function isMemberSnapshot(snapshot: RoomSnapshot) {
-  return (
-    snapshot.status === 'lobby' ||
-    snapshot.status === 'playing' ||
-    snapshot.status === 'finished'
-  )
 }
 
 function snapshotRevision(snapshot: RoomSnapshot) {
