@@ -11,10 +11,11 @@ export function startGameServer(
     allowedOrigins?: string[]
   } = {},
 ) {
-  const port = options.port ?? Number(process.env.PORT ?? 3200)
+  const port = validatePort(options.port ?? Number(process.env.PORT ?? 3200))
   const host = options.host ?? process.env.HOST ?? '127.0.0.1'
   const allowedOrigins =
     options.allowedOrigins ?? parseAllowedOrigins(process.env.ALLOWED_ORIGINS)
+  const logger = createStructuredLogger(process.env.LOG_LEVEL)
 
   const httpServer = createServer((request, response) => {
     if (request.method === 'GET' && request.url === '/healthz') {
@@ -27,11 +28,31 @@ export function startGameServer(
   })
   const socketServer = createGameSocketServer(httpServer, {
     allowedOrigins,
-    logger: createStructuredLogger(process.env.LOG_LEVEL),
+    logger,
   })
 
+  httpServer.on('error', (error) => {
+    logger.error(
+      JSON.stringify({
+        event: 'game_server_error',
+        host,
+        port,
+        message: error.message,
+        code: 'code' in error ? error.code : undefined,
+      }),
+    )
+    if (isMain) process.exitCode = 1
+  })
   httpServer.listen(port, host, () => {
-    console.info(JSON.stringify({ event: 'game_server_started', host, port }))
+    const address = httpServer.address()
+    logger.info(
+      JSON.stringify({
+        event: 'game_server_started',
+        host,
+        port:
+          typeof address === 'object' && address !== null ? address.port : port,
+      }),
+    )
   })
 
   let stopping = false
@@ -47,6 +68,13 @@ export function startGameServer(
   }
 
   return { httpServer, ...socketServer, stop }
+}
+
+function validatePort(port: number) {
+  if (!Number.isInteger(port) || port < 0 || port > 65_535) {
+    throw new Error(`Invalid game-server port: ${String(port)}`)
+  }
+  return port
 }
 
 function parseAllowedOrigins(value: string | undefined) {

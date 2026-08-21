@@ -5,6 +5,7 @@ import { Server, type Socket } from 'socket.io'
 import type {
   ClientToServerEvents,
   CommandFailure,
+  CommandResult,
   RoomSnapshot,
   ServerToClientEvents,
 } from '../lib/game-protocol'
@@ -74,7 +75,7 @@ export function createGameSocketServer(
     const auth = parseHandshakeAuth(socket.handshake.auth)
     if (!auth) return next(new Error('Unsupported or invalid game session.'))
     socket.data.token = auth.token
-    socket.data.address = socket.handshake.address
+    socket.data.address = clientAddress(socket)
     next()
   })
 
@@ -85,90 +86,101 @@ export function createGameSocketServer(
 
     socket.on('session:resume', (payload, acknowledge) => {
       if (!canRun(socket, acknowledge)) return
-      const parsed = parseSessionResume(payload)
-      if (!parsed) return acknowledge(invalid())
-      if (!parsed.roomCode) return acknowledge({ status: 'success' })
+      safely('session:resume', acknowledge, async () => {
+        const parsed = parseSessionResume(payload)
+        if (!parsed) return acknowledge(invalid())
+        if (!parsed.roomCode) return acknowledge({ status: 'success' })
 
-      const snapshot = gameServer.snapshot(socket.data.token, parsed.roomCode)
-      if (isMemberSnapshot(snapshot)) void socket.join(parsed.roomCode)
-      socket.emit('room:snapshot', snapshot)
-      acknowledge({ status: 'success', snapshot })
+        const snapshot = gameServer.snapshot(socket.data.token, parsed.roomCode)
+        if (isMemberSnapshot(snapshot)) await socket.join(parsed.roomCode)
+        socket.emit('room:snapshot', snapshot)
+        acknowledge({ status: 'success', snapshot })
+      })
     })
 
     socket.on('room:create', (payload, acknowledge) => {
       if (!canRun(socket, acknowledge, true)) return
-      const parsed = parseCreateRoom(payload)
-      if (!parsed) return acknowledge(invalid())
+      safely('room:create', acknowledge, async () => {
+        const parsed = parseCreateRoom(payload)
+        if (!parsed) return acknowledge(invalid())
 
-      const result = gameServer.createRoom(socket.data.token, parsed.name)
-      void Promise.resolve(socket.join(result.roomCode)).then(() => {
+        const result = gameServer.createRoom(socket.data.token, parsed.name)
+        if (result.status !== 'success') return acknowledge(result)
+        await socket.join(result.roomCode)
         acknowledge(result)
-        void emitSnapshots(result.roomCode)
+        broadcastSnapshots(result.roomCode)
       })
     })
 
     socket.on('room:join', (payload, acknowledge) => {
       if (!canRun(socket, acknowledge, true)) return
-      const parsed = parseJoinRoom(payload)
-      if (!parsed) return acknowledge(invalid())
+      safely('room:join', acknowledge, async () => {
+        const parsed = parseJoinRoom(payload)
+        if (!parsed) return acknowledge(invalid())
 
-      const result = gameServer.joinRoom(
-        socket.data.token,
-        parsed.roomCode,
-        parsed.name,
-      )
-      if (result.status !== 'success') return acknowledge(result)
-
-      void Promise.resolve(socket.join(parsed.roomCode)).then(() => {
+        const result = gameServer.joinRoom(
+          socket.data.token,
+          parsed.roomCode,
+          parsed.name,
+        )
+        if (result.status !== 'success') return acknowledge(result)
+        await socket.join(parsed.roomCode)
         acknowledge(result)
-        void emitSnapshots(parsed.roomCode)
+        broadcastSnapshots(parsed.roomCode)
       })
     })
 
     socket.on('room:leave', (payload, acknowledge) => {
       if (!canRun(socket, acknowledge)) return
-      const parsed = parseRoomCommand(payload)
-      if (!parsed) return acknowledge(invalid())
+      safely('room:leave', acknowledge, async () => {
+        const parsed = parseRoomCommand(payload)
+        if (!parsed) return acknowledge(invalid())
 
-      const result = gameServer.leaveRoom(socket.data.token, parsed.roomCode)
-      void Promise.resolve(socket.leave(parsed.roomCode)).then(() => {
+        const result = gameServer.leaveRoom(socket.data.token, parsed.roomCode)
+        await socket.leave(parsed.roomCode)
         acknowledge(result)
-        void emitSnapshots(parsed.roomCode)
+        broadcastSnapshots(parsed.roomCode)
       })
     })
 
     socket.on('game:start', (payload, acknowledge) => {
       if (!canRun(socket, acknowledge)) return
-      const parsed = parseRoomCommand(payload)
-      if (!parsed) return acknowledge(invalid())
-      const result = gameServer.startGame(socket.data.token, parsed.roomCode)
-      acknowledge(result)
-      if (result.status === 'success') void emitSnapshots(parsed.roomCode)
+      safely('game:start', acknowledge, () => {
+        const parsed = parseRoomCommand(payload)
+        if (!parsed) return acknowledge(invalid())
+        const result = gameServer.startGame(socket.data.token, parsed.roomCode)
+        acknowledge(result)
+        if (result.status === 'success') broadcastSnapshots(parsed.roomCode)
+      })
     })
 
     socket.on('game:claim', (payload, acknowledge) => {
       if (!canRun(socket, acknowledge)) return
-      const parsed = parseMatchClaim(payload)
-      if (!parsed) return acknowledge(invalid())
-      const before = gameServer.snapshot(socket.data.token, parsed.roomCode)
-      const result = gameServer.claim(socket.data.token, parsed)
-      acknowledge(result)
-      const after = gameServer.snapshot(socket.data.token, parsed.roomCode)
-      if (snapshotRevision(after) !== snapshotRevision(before)) {
-        void emitSnapshots(parsed.roomCode)
-      }
+      safely('game:claim', acknowledge, () => {
+        const parsed = parseMatchClaim(payload)
+        if (!parsed) return acknowledge(invalid())
+        const before = gameServer.snapshot(socket.data.token, parsed.roomCode)
+        const result = gameServer.claim(socket.data.token, parsed)
+        const after = gameServer.snapshot(socket.data.token, parsed.roomCode)
+        acknowledge(result)
+        if (snapshotRevision(after) !== snapshotRevision(before)) {
+          broadcastSnapshots(parsed.roomCode)
+        }
+      })
     })
 
     socket.on('game:prepare-rematch', (payload, acknowledge) => {
       if (!canRun(socket, acknowledge)) return
-      const parsed = parseRoomCommand(payload)
-      if (!parsed) return acknowledge(invalid())
-      const result = gameServer.prepareRematch(
-        socket.data.token,
-        parsed.roomCode,
-      )
-      acknowledge(result)
-      if (result.status === 'success') void emitSnapshots(parsed.roomCode)
+      safely('game:prepare-rematch', acknowledge, () => {
+        const parsed = parseRoomCommand(payload)
+        if (!parsed) return acknowledge(invalid())
+        const result = gameServer.prepareRematch(
+          socket.data.token,
+          parsed.roomCode,
+        )
+        acknowledge(result)
+        if (result.status === 'success') broadcastSnapshots(parsed.roomCode)
+      })
     })
 
     socket.on('disconnect', (reason) => {
@@ -194,11 +206,52 @@ export function createGameSocketServer(
   async function emitSnapshots(roomCode: string) {
     const sockets = await io.in(roomCode).fetchSockets()
     for (const roomSocket of sockets) {
-      roomSocket.emit(
-        'room:snapshot',
-        gameServer.snapshot(roomSocket.data.token, roomCode),
-      )
+      try {
+        roomSocket.emit(
+          'room:snapshot',
+          gameServer.snapshot(roomSocket.data.token, roomCode),
+        )
+      } catch (error) {
+        logFailure('snapshot_failed', error)
+      }
     }
+  }
+
+  function broadcastSnapshots(roomCode: string) {
+    void emitSnapshots(roomCode).catch((error: unknown) => {
+      logFailure('snapshot_broadcast_failed', error)
+    })
+  }
+
+  function safely<TResult extends object>(
+    command: string,
+    acknowledge: (result: CommandResult<TResult>) => void,
+    run: () => void | Promise<void>,
+  ) {
+    const fail = (error: unknown) => {
+      logFailure('command_failed', error, command)
+      acknowledge({
+        status: 'server_unavailable',
+        message: 'The command could not be processed. Please try again.',
+      })
+    }
+
+    try {
+      const pending = run()
+      if (pending) void pending.catch(fail)
+    } catch (error) {
+      fail(error)
+    }
+  }
+
+  function logFailure(event: string, error: unknown, command?: string) {
+    logger.error(
+      JSON.stringify({
+        event,
+        command,
+        message: error instanceof Error ? error.message : 'Unknown error',
+      }),
+    )
   }
 
   function canRun(
@@ -249,6 +302,23 @@ function isMemberSnapshot(snapshot: RoomSnapshot) {
 
 function snapshotRevision(snapshot: RoomSnapshot) {
   return 'revision' in snapshot ? snapshot.revision : null
+}
+
+function clientAddress(socket: GameSocket) {
+  const directAddress = socket.handshake.address
+  if (!isLoopbackAddress(directAddress)) return directAddress
+
+  const forwarded = socket.handshake.headers['x-forwarded-for']
+  const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded
+  return forwardedValue?.split(',')[0]?.trim() || directAddress
+}
+
+function isLoopbackAddress(address: string) {
+  return (
+    address === '127.0.0.1' ||
+    address === '::1' ||
+    address.startsWith('::ffff:127.')
+  )
 }
 
 class SlidingWindowRateLimiter {

@@ -27,4 +27,10 @@ describe('game server HTTP process', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ status: 'ok' })
   })
+
+  it('rejects an invalid listen port before starting', () => {
+    expect(() => startGameServer({ port: Number.NaN })).toThrow(
+      'Invalid game-server port: NaN',
+    )
+  })
 })

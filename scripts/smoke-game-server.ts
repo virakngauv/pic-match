@@ -11,8 +11,9 @@ import {
 
 type GameClient = Socket<ServerToClientEvents, ClientToServerEvents>
 
-const gameServerUrl = requiredEnvironment('GAME_SERVER_URL')
-const browserOrigin = requiredEnvironment('GAME_SERVER_ORIGIN')
+const gameServerUrl = requiredHttpsEnvironment('GAME_SERVER_URL')
+const browserOrigin = requiredHttpsEnvironment('GAME_SERVER_ORIGIN')
+const ACK_TIMEOUT_MS = 5_000
 
 const clients: GameClient[] = []
 
@@ -23,13 +24,15 @@ try {
 
   const host = await connect()
   const guest = await connect()
-  const created = await host.emitWithAck('room:create', { name: 'Smoke host' })
+  const created = await host
+    .timeout(ACK_TIMEOUT_MS)
+    .emitWithAck('room:create', { name: 'Smoke host' })
   if (created.status !== 'success') throw new Error(created.message)
 
   const roomCode = created.roomCode
   const hostLobby = nextSnapshot(host, 'lobby')
   const guestLobby = nextSnapshot(guest, 'lobby')
-  const joined = await guest.emitWithAck('room:join', {
+  const joined = await guest.timeout(ACK_TIMEOUT_MS).emitWithAck('room:join', {
     roomCode,
     name: 'Smoke guest',
   })
@@ -38,16 +41,17 @@ try {
 
   const hostPlaying = nextSnapshot(host, 'playing')
   const guestPlaying = nextSnapshot(guest, 'playing')
-  const started = await host.emitWithAck('game:start', { roomCode })
+  const started = await host
+    .timeout(ACK_TIMEOUT_MS)
+    .emitWithAck('game:start', { roomCode })
   if (started.status !== 'success') throw new Error(started.message)
   const [hostState, guestState] = await Promise.all([hostPlaying, guestPlaying])
 
   const hostScored = nextSnapshot(host, 'playing')
   const guestScored = nextSnapshot(guest, 'playing')
-  const guestClaim = await guest.emitWithAck(
-    'game:claim',
-    correctClaim(guestState, roomCode),
-  )
+  const guestClaim = await guest
+    .timeout(ACK_TIMEOUT_MS)
+    .emitWithAck('game:claim', correctClaim(guestState, roomCode))
   if (guestClaim.status !== 'success') throw new Error(guestClaim.message)
   const [, afterGuestScore] = await Promise.all([hostScored, guestScored])
   const guestScore = afterGuestScore.scoreboard.find(
@@ -55,7 +59,9 @@ try {
   )?.score
   if (guestScore !== 1) throw new Error('Guest score did not synchronize.')
 
-  const resumed = await host.emitWithAck('session:resume', { roomCode })
+  const resumed = await host
+    .timeout(ACK_TIMEOUT_MS)
+    .emitWithAck('session:resume', { roomCode })
   if (resumed.status !== 'success' || resumed.snapshot?.status !== 'playing') {
     throw new Error('Host could not restore the current snapshot.')
   }
@@ -84,8 +90,25 @@ async function connect() {
   })
   clients.push(client)
   await new Promise<void>((resolve, reject) => {
-    client.once('connect', resolve)
-    client.once('connect_error', reject)
+    const timeout = setTimeout(() => {
+      cleanup()
+      reject(new Error('Timed out connecting to the game server.'))
+    }, ACK_TIMEOUT_MS)
+    const connected = () => {
+      cleanup()
+      resolve()
+    }
+    const failed = (error: Error) => {
+      cleanup()
+      reject(error)
+    }
+    const cleanup = () => {
+      clearTimeout(timeout)
+      client.off('connect', connected)
+      client.off('connect_error', failed)
+    }
+    client.once('connect', connected)
+    client.once('connect_error', failed)
   })
   return client
 }
@@ -128,8 +151,19 @@ function correctClaim(
   }
 }
 
-function requiredEnvironment(name: 'GAME_SERVER_URL' | 'GAME_SERVER_ORIGIN') {
+function requiredHttpsEnvironment(
+  name: 'GAME_SERVER_URL' | 'GAME_SERVER_ORIGIN',
+) {
   const value = process.env[name]?.trim()
   if (!value) throw new Error(`Set ${name} before running the smoke test.`)
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    throw new Error(`${name} must be a valid HTTPS URL.`)
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`${name} must use HTTPS.`)
+  }
   return value
 }

@@ -117,10 +117,20 @@ export class GameRoom {
     if (!member) return { status: 'success' }
 
     member.active = false
-    if (this.phase === 'lobby' && member.role === 'host') {
+    if (member.role === 'host') {
       member.role = 'player'
+      const departingParticipant = this.game?.participants.find(
+        (candidate) => candidate.playerId === member.playerId,
+      )
+      if (departingParticipant) departingParticipant.role = 'player'
       const successor = this.activeMembers()[0]
-      if (successor) successor.role = 'host'
+      if (successor) {
+        successor.role = 'host'
+        const participant = this.game?.participants.find(
+          (candidate) => candidate.playerId === successor.playerId,
+        )
+        if (participant) participant.role = 'host'
+      }
     }
 
     this.commandResults.delete(token)

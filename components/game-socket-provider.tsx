@@ -50,6 +50,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
   const socketRef = useRef<GameSocket | null>(null)
   const watchedRoomsRef = useRef(new Map<string, number>())
   const memberRoomsRef = useRef(new Set<string>())
+  const receiveSnapshotRef = useRef<(snapshot: RoomSnapshot) => void>(() => {})
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>('connecting')
   const [snapshots, setSnapshots] = useState<Record<string, RoomSnapshot>>({})
@@ -105,6 +106,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
         return { ...current, [snapshot.roomCode]: snapshot }
       })
     }
+    receiveSnapshotRef.current = receiveSnapshot
     const handleDisconnect = () => setConnectionStatus('disconnected')
     const handleConnectError = () => setConnectionStatus('disconnected')
     const handleExpired = ({ roomCode }: { roomCode: string }) => {
@@ -117,9 +119,10 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     }
     const handleShutdown = () => {
       const ended: Record<string, RoomEndedReason> = {}
-      for (const roomCode of watchedRoomsRef.current.keys()) {
+      for (const roomCode of memberRoomsRef.current) {
         ended[roomCode] = 'server_restart'
       }
+      memberRoomsRef.current.clear()
       setEndedRooms((current) => ({ ...current, ...ended }))
       setConnectionStatus('disconnected')
     }
@@ -133,6 +136,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
 
     return () => {
       socketRef.current = null
+      receiveSnapshotRef.current = () => {}
       socket.disconnect()
     }
   }, [clientToken])
@@ -144,10 +148,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     if (socket?.connected) {
       socket.emit('session:resume', { roomCode }, (result) => {
         if (result.status === 'success' && result.snapshot) {
-          setSnapshots((current) => ({
-            ...current,
-            [roomCode]: result.snapshot as RoomSnapshot,
-          }))
+          receiveSnapshotRef.current(result.snapshot)
         }
       })
     }
@@ -177,10 +178,21 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     [],
   )
   const leaveRoom = useCallback(
-    async (roomCode: string): Promise<CommandResult> =>
-      await runCommand(socketRef.current, (socket) =>
+    async (roomCode: string): Promise<CommandResult> => {
+      const result = await runCommand(socketRef.current, (socket) =>
         socket.emitWithAck('room:leave', { roomCode }),
-      ),
+      )
+      if (result.status === 'success') {
+        memberRoomsRef.current.delete(roomCode)
+        setEndedRooms((rooms) => {
+          if (!(roomCode in rooms)) return rooms
+          const next = { ...rooms }
+          delete next[roomCode]
+          return next
+        })
+      }
+      return result
+    },
     [],
   )
   const startGame = useCallback(
@@ -257,24 +269,28 @@ export function useRoomSnapshot(roomCode: string) {
   }
 }
 
-async function runCommand<TResult>(
+async function runCommand<TResult extends object>(
   socket: GameSocket | null,
-  command: (connectedSocket: GameSocket) => Promise<TResult>,
-): Promise<TResult> {
-  if (!socket?.connected) return unavailable() as TResult
+  command: (connectedSocket: GameSocket) => Promise<CommandResult<TResult>>,
+): Promise<CommandResult<TResult>> {
+  if (!socket?.connected) return unavailable()
 
+  let timeout: ReturnType<typeof setTimeout> | undefined
   try {
-    return (await Promise.race([
+    return await Promise.race([
       command(socket),
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error('Command timed out.')),
-          COMMAND_TIMEOUT_MS,
-        ),
+      new Promise<never>(
+        (_, reject) =>
+          (timeout = setTimeout(
+            () => reject(new Error('Command timed out.')),
+            COMMAND_TIMEOUT_MS,
+          )),
       ),
-    ])) as TResult
+    ])
   } catch {
-    return unavailable() as TResult
+    return unavailable()
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout)
   }
 }
 

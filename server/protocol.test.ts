@@ -5,7 +5,7 @@ import {
   io as createClient,
   type Socket as ClientSocket,
 } from 'socket.io-client'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   GAME_PROTOCOL_VERSION,
@@ -47,10 +47,13 @@ describe('Socket.IO game protocol', () => {
     await socketServer.shutdown()
   })
 
-  async function connect(token: string) {
+  async function connect(token: string, forwardedFor?: string) {
     const client: TestClient = createClient(url, {
       auth: { token, protocolVersion: GAME_PROTOCOL_VERSION },
-      extraHeaders: { Origin: allowedOrigin },
+      extraHeaders: {
+        Origin: allowedOrigin,
+        ...(forwardedFor ? { 'X-Forwarded-For': forwardedFor } : {}),
+      },
       forceNew: true,
       transports: ['websocket'],
     })
@@ -221,6 +224,45 @@ describe('Socket.IO game protocol', () => {
     expect(results.some((result) => result.status === 'rate_limited')).toBe(
       true,
     )
+  })
+
+  it('rate limits entry commands by Caddy-forwarded client address', async () => {
+    const first = await connect(hostToken, '203.0.113.10')
+    const second = await connect(guestToken, '203.0.113.11')
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      expect(
+        await first.emitWithAck('room:create', { name: `Ada ${attempt}` }),
+      ).toMatchObject({ status: 'success' })
+      expect(
+        await second.emitWithAck('room:create', { name: `Grace ${attempt}` }),
+      ).toMatchObject({ status: 'success' })
+    }
+
+    expect(
+      await first.emitWithAck('room:create', { name: 'Ada limited' }),
+    ).toMatchObject({ status: 'rate_limited' })
+    expect(
+      await second.emitWithAck('room:create', { name: 'Grace limited' }),
+    ).toMatchObject({ status: 'rate_limited' })
+  })
+
+  it('contains command failures without terminating the socket server', async () => {
+    const client = await connect(hostToken)
+    vi.spyOn(socketServer.gameServer, 'snapshot').mockImplementationOnce(() => {
+      throw new Error('Injected snapshot failure')
+    })
+
+    expect(
+      await client.emitWithAck('session:resume', { roomCode: 'bcdf2' }),
+    ).toEqual({
+      status: 'server_unavailable',
+      message: 'The command could not be processed. Please try again.',
+    })
+    expect(await client.emitWithAck('session:resume', {})).toEqual({
+      status: 'success',
+    })
+    expect(client.connected).toBe(true)
   })
 
   it('emits no application heartbeat while an idle socket stays connected', async () => {

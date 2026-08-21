@@ -219,4 +219,39 @@ describe('GameRoom', () => {
       roomCode: 'bcdf2',
     })
   })
+
+  it('transfers host during play so the remaining player can rematch', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    room.start(hostToken, 1_002)
+    room.leave(hostToken, 1_003)
+
+    const transferred = playing(room, guestToken)
+    expect(transferred.player.role).toBe('host')
+    expect(
+      transferred.scoreboard.filter(({ role }) => role === 'host'),
+    ).toEqual([expect.objectContaining({ name: 'Grace' })])
+    for (
+      let score = 0;
+      score < FIRST_PLAYABLE_CONFIGURATION.winningScore;
+      score += 1
+    ) {
+      const snapshot = playing(room, guestToken)
+      expect(
+        room.claim(
+          guestToken,
+          claim(snapshot, `guestwinning${score}`),
+          2_000 + score,
+        ),
+      ).toEqual({ status: 'success' })
+    }
+
+    expect(room.prepareRematch(guestToken, 3_000)).toEqual({
+      status: 'success',
+    })
+    expect(room.snapshotFor(guestToken)).toMatchObject({
+      status: 'lobby',
+      player: { role: 'host' },
+    })
+  })
 })

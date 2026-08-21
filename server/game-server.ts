@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomInt } from 'node:crypto'
 
 import type {
   CommandResult,
@@ -10,6 +10,7 @@ import { GameRoom } from './game-room'
 const CONSONANTS = 'bcdfghkpqrstvz'
 const FINAL_CHARACTERS = '23456789y'
 const MAX_CODE_ATTEMPTS = 25
+export const MAX_ACTIVE_ROOMS = 5_000
 
 export type RoomExpirationPolicy = {
   lobbyMs: number
@@ -28,11 +29,29 @@ export class GameServer {
 
   constructor(
     private readonly expiration = DEFAULT_ROOM_EXPIRATION,
-    private readonly random: () => number = Math.random,
+    private readonly random: () => number = () => randomInt(2 ** 30) / 2 ** 30,
+    private readonly maxRooms = MAX_ACTIVE_ROOMS,
   ) {}
 
-  createRoom(token: string, name: string, now = Date.now()) {
+  createRoom(
+    token: string,
+    name: string,
+    now = Date.now(),
+  ): CommandResult<{ roomCode: string }> {
+    if (this.rooms.size >= this.maxRooms) {
+      return {
+        status: 'server_unavailable',
+        message: 'The game server is at capacity. Please try again later.',
+      }
+    }
+
     const roomCode = this.availableRoomCode()
+    if (!roomCode) {
+      return {
+        status: 'server_unavailable',
+        message: 'A room code could not be allocated. Please try again.',
+      }
+    }
     this.rooms.set(roomCode, new GameRoom(roomCode, { token, name }, { now }))
     return { status: 'success' as const, roomCode }
   }
@@ -111,11 +130,12 @@ export class GameServer {
       const code = `${pick(CONSONANTS, this.random)}${pick(CONSONANTS, this.random)}${pick(CONSONANTS, this.random)}${pick(CONSONANTS, this.random)}${pick(FINAL_CHARACTERS, this.random)}`
       if (!this.rooms.has(code)) return code
     }
-    for (;;) {
+    for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt += 1) {
       const bytes = randomBytes(5)
       const code = `${CONSONANTS[bytes[0]! % CONSONANTS.length]}${CONSONANTS[bytes[1]! % CONSONANTS.length]}${CONSONANTS[bytes[2]! % CONSONANTS.length]}${CONSONANTS[bytes[3]! % CONSONANTS.length]}${FINAL_CHARACTERS[bytes[4]! % FINAL_CHARACTERS.length]}`
       if (!this.rooms.has(code)) return code
     }
+    return null
   }
 }
 

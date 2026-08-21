@@ -13,6 +13,7 @@ import { JoinRoomScreen } from '@/components/join-room-screen'
 import { Button } from '@/components/ui/button'
 import type { RoomSnapshot } from '@/lib/game-protocol'
 import type { MatchClaimPayload } from '@/lib/match-claim'
+import { generateClientToken } from '@/lib/player-session'
 
 const noopJoined = () => {}
 
@@ -95,7 +96,7 @@ function PresentRoomLobby({
   const handleSubmitMatchClaim = async (claim: MatchClaimPayload) => {
     const result = await claimMatch({
       roomCode,
-      commandId: crypto.randomUUID(),
+      commandId: crypto.randomUUID?.() ?? generateClientToken(),
       ...claim,
     })
     if (result.status === 'success') return { status: 'accepted' as const }
