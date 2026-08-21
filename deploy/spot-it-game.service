@@ -1,0 +1,24 @@
+[Unit]
+Description=Spot It single-process game server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=spotit
+Group=spotit
+WorkingDirectory=/srv/spot-it-web
+EnvironmentFile=/etc/spot-it-game.env
+ExecStart=/usr/bin/env pnpm start:server
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/spot-it-web
+
+[Install]
+WantedBy=multi-user.target

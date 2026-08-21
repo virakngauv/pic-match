@@ -8,8 +8,8 @@ const groups = [
   {
     eyebrow: 'Platform',
     title: 'Ready for real users',
-    description: 'Provider boundaries are wired and stay dormant without keys.',
-    items: ['Convex', 'Clerk', 'PostHog', 'Arcjet'],
+    description: 'One ephemeral game server plus optional product services.',
+    items: ['Socket.IO', 'Clerk', 'PostHog', 'Arcjet'],
   },
   {
     eyebrow: 'Quality',

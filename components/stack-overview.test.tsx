@@ -11,7 +11,7 @@ describe('StackOverview', () => {
       screen.getByRole('heading', { name: /one stack/i }),
     ).toBeInTheDocument()
     expect(screen.getByText('Next.js')).toBeInTheDocument()
-    expect(screen.getByText('Convex')).toBeInTheDocument()
+    expect(screen.getByText('Socket.IO')).toBeInTheDocument()
     expect(screen.getByText('Playwright')).toBeInTheDocument()
   })
 })

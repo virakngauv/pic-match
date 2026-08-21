@@ -10,6 +10,5 @@ export default defineConfig([
     'out/**',
     'playwright-report/**',
     'test-results/**',
-    'convex/_generated/**',
   ]),
 ])

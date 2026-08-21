@@ -22,7 +22,7 @@ export default defineConfig({
     ? undefined
     : {
         command:
-          'cross-env NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY= CLERK_SECRET_KEY= pnpm dev --hostname 127.0.0.1 --port 3100',
+          'cross-env NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY= CLERK_SECRET_KEY= pnpm dev:e2e',
         url: baseURL,
         reuseExistingServer: process.env.PW_REUSE_SERVER === '1',
         timeout: 120_000,

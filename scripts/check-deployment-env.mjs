@@ -1,6 +1,6 @@
 const publishConfirmationVariable = 'FIRST_PUBLIC_PLAYTEST_CONFIRMED'
 const requiredVercelVariables = [
-  'CONVEX_DEPLOY_KEY',
+  'NEXT_PUBLIC_GAME_SERVER_URL',
   publishConfirmationVariable,
 ]
 const optionalVercelVariables = [
@@ -22,9 +22,6 @@ console.log('Deployment environment (values are intentionally hidden):')
 for (const name of requiredVercelVariables) {
   console.log(`- required ${name}: ${isValid(name) ? 'configured' : 'missing'}`)
 }
-console.log(
-  '- managed NEXT_PUBLIC_CONVEX_URL: injected by `convex deploy` during the build',
-)
 for (const name of optionalVercelVariables) {
   console.log(
     `- optional ${name}: ${isConfigured(name) ? 'configured' : 'disabled'}`,

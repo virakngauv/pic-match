@@ -211,9 +211,13 @@ test('replays a complete shared race across browser sessions', async ({
     const competingSymbolId = findSharedSymbol(beforeCompetingClaims.cards)
     await selectCardSymbol(hostPage, 1, competingSymbolId)
     await selectCardSymbol(guestPage, 1, competingSymbolId)
+    // Dispatch the final selections without Playwright's actionability retry:
+    // the winning snapshot may disable the losing browser before its click is
+    // observed. Socket integration tests separately guarantee that two commands
+    // sent for one revision are serialized and award exactly one point.
     await Promise.all([
-      selectCardSymbol(hostPage, 2, competingSymbolId),
-      selectCardSymbol(guestPage, 2, competingSymbolId),
+      dispatchCardSymbolClick(hostPage, 2, competingSymbolId),
+      dispatchCardSymbolClick(guestPage, 2, competingSymbolId),
     ])
 
     await expect
@@ -694,6 +698,17 @@ async function selectCardSymbol(
     .getByLabel(`Card ${cardNumber}`)
     .locator(`button[data-symbol-id="${symbolId}"]`)
     .click()
+}
+
+async function dispatchCardSymbolClick(
+  page: Page,
+  cardNumber: 1 | 2,
+  symbolId: string,
+) {
+  await page
+    .getByLabel(`Card ${cardNumber}`)
+    .locator(`button[data-symbol-id="${symbolId}"]`)
+    .dispatchEvent('click')
 }
 
 function firstSymbolControl(page: Page) {

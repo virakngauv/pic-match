@@ -22,9 +22,6 @@ test-results/
 .env.local
 .env.*.local
 
-# convex generated files are committed; local deployment state is not
-.convex/
-
 # misc
 .DS_Store
 *.pem
