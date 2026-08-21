@@ -13,6 +13,8 @@ export const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
 export const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/
 export const SYMBOL_ID_PATTERN = /^[a-z0-9-]{1,32}$/
 export const MAX_PLAYER_NAME_LENGTH = 50
+const UNSAFE_PLAYER_NAME_CHARACTERS =
+  /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g
 
 type UnknownRecord = Record<string, unknown>
 
@@ -89,7 +91,12 @@ export function parseRoomCode(value: unknown) {
 
 export function parsePlayerName(value: unknown) {
   if (typeof value !== 'string') return null
-  const normalized = value.trim().replace(/\s+/g, ' ')
+  const normalized = value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(UNSAFE_PLAYER_NAME_CHARACTERS, '')
+    .replace(/\s+/g, ' ')
+    .trim()
   return normalized.length > 0 && normalized.length <= MAX_PLAYER_NAME_LENGTH
     ? normalized
     : null

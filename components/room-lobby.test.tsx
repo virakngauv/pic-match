@@ -100,6 +100,20 @@ function playing(): RoomSnapshot {
   }
 }
 
+function finished(): RoomSnapshot {
+  return {
+    status: 'finished',
+    roomCode: 'frvg7',
+    revision: 20,
+    player: { ...host, position: 0 },
+    winner: { ...host, position: 0, score: 12 },
+    scoreboard: [
+      { ...host, position: 0, score: 12 },
+      { ...guest, position: 1, score: 8 },
+    ],
+  }
+}
+
 describe('RoomLobby', () => {
   beforeEach(() => {
     mocks.snapshot = lobby()
@@ -144,6 +158,22 @@ describe('RoomLobby', () => {
 
     await waitFor(() => expect(mocks.leaveRoom).toHaveBeenCalledWith('frvg7'))
     expect(mocks.routerPush).toHaveBeenCalledWith('/home')
+  })
+
+  it('shows an error when leaving is rejected by the server', async () => {
+    const user = userEvent.setup()
+    mocks.leaveRoom.mockResolvedValue({
+      status: 'server_unavailable',
+      message: 'The game server is unavailable.',
+    })
+    render(<RoomLobby roomCode="frvg7" />)
+
+    await user.click(screen.getByRole('button', { name: 'Leave room' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to leave the room. Please try again.',
+    )
+    expect(mocks.routerPush).not.toHaveBeenCalled()
   })
 
   it('renders the authoritative playing snapshot', () => {
@@ -213,6 +243,16 @@ describe('RoomLobby', () => {
     ).toBeInTheDocument()
   })
 
+  it('describes a finished-room reconnect as reconnecting to the room', () => {
+    mocks.snapshot = finished()
+    mocks.connectionStatus = 'disconnected'
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Reconnecting to the room…' }),
+    ).toBeInTheDocument()
+  })
+
   it('explains intentional room loss after a server restart', () => {
     mocks.snapshot = { status: 'not_found', roomCode: 'frvg7' }
     mocks.endedReason = 'server_restart'
@@ -237,19 +277,39 @@ describe('RoomLobby', () => {
 
   it('lets only the finished-game host prepare a rematch', async () => {
     const user = userEvent.setup()
-    mocks.snapshot = {
-      status: 'finished',
-      roomCode: 'frvg7',
-      revision: 20,
-      player: { ...host, position: 0 },
-      winner: { ...host, position: 0, score: 12 },
-      scoreboard: [
-        { ...host, position: 0, score: 12 },
-        { ...guest, position: 1, score: 8 },
-      ],
-    }
+    mocks.snapshot = finished()
     render(<RoomLobby roomCode="frvg7" />)
     await user.click(screen.getByRole('button', { name: 'Play again' }))
     expect(mocks.prepareRematch).toHaveBeenCalledWith('frvg7')
+  })
+
+  it('reports a failed rematch and blocks duplicate requests while pending', async () => {
+    const user = userEvent.setup()
+    let resolvePrepare!: (result: {
+      status: 'server_unavailable'
+      message: string
+    }) => void
+    mocks.snapshot = finished()
+    mocks.prepareRematch.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePrepare = resolve
+      }),
+    )
+    render(<RoomLobby roomCode="frvg7" />)
+
+    const button = screen.getByRole('button', { name: 'Play again' })
+    await user.click(button)
+    expect(button).toBeDisabled()
+    await user.click(button)
+    expect(mocks.prepareRematch).toHaveBeenCalledOnce()
+
+    resolvePrepare({
+      status: 'server_unavailable',
+      message: 'The game server is unavailable.',
+    })
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Unable to return to the lobby. Please try again.',
+    )
+    expect(button).toBeEnabled()
   })
 })

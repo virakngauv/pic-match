@@ -130,7 +130,7 @@ function PresentRoomLobby({
     return (
       <RoomReconnecting
         roomCode={displayedRoomView.roomCode}
-        isGame={displayedRoomView.status !== 'lobby'}
+        isGame={displayedRoomView.status === 'playing'}
       />
     )
   }

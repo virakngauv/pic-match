@@ -66,6 +66,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!clientToken) return
 
+    const memberRooms = memberRoomsRef.current
     const gameServerUrl =
       process.env.NEXT_PUBLIC_GAME_SERVER_URL?.trim() || 'http://localhost:3200'
     const socket: GameSocket = io(gameServerUrl, {
@@ -87,7 +88,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     }
     const receiveSnapshot = (snapshot: RoomSnapshot) => {
       if (isMemberSnapshot(snapshot)) {
-        memberRoomsRef.current.add(snapshot.roomCode)
+        memberRooms.add(snapshot.roomCode)
         setEndedRooms((rooms) => {
           if (!(snapshot.roomCode in rooms)) return rooms
           const next = { ...rooms }
@@ -96,7 +97,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
         })
       } else if (
         snapshot.status === 'not_found' &&
-        memberRoomsRef.current.has(snapshot.roomCode)
+        memberRooms.has(snapshot.roomCode)
       ) {
         setEndedRooms((rooms) => ({
           ...rooms,
@@ -111,7 +112,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     const handleDisconnect = () => setConnectionStatus('disconnected')
     const handleConnectError = () => setConnectionStatus('disconnected')
     const handleExpired = ({ roomCode }: { roomCode: string }) => {
-      memberRoomsRef.current.delete(roomCode)
+      memberRooms.delete(roomCode)
       setEndedRooms((current) => ({ ...current, [roomCode]: 'expired' }))
       setSnapshots((current) => ({
         ...current,
@@ -120,10 +121,10 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     }
     const handleShutdown = () => {
       const ended: Record<string, RoomEndedReason> = {}
-      for (const roomCode of memberRoomsRef.current) {
+      for (const roomCode of memberRooms) {
         ended[roomCode] = 'server_restart'
       }
-      memberRoomsRef.current.clear()
+      memberRooms.clear()
       setEndedRooms((current) => ({ ...current, ...ended }))
       setConnectionStatus('disconnected')
     }
@@ -138,6 +139,9 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     return () => {
       socketRef.current = null
       receiveSnapshotRef.current = () => {}
+      memberRooms.clear()
+      setSnapshots({})
+      setEndedRooms({})
       socket.disconnect()
     }
   }, [clientToken])

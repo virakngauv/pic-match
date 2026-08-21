@@ -18,7 +18,17 @@ export function startGameServer(
   const logger = createStructuredLogger(process.env.LOG_LEVEL)
 
   const httpServer = createServer((request, response) => {
-    if (request.method === 'GET' && request.url === '/healthz') {
+    let pathname = ''
+    if (request.url) {
+      try {
+        pathname = new URL(request.url, 'http://localhost').pathname
+      } catch {
+        response.writeHead(400, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ status: 'bad_request' }))
+        return
+      }
+    }
+    if (request.method === 'GET' && pathname === '/healthz') {
       response.writeHead(200, { 'content-type': 'application/json' })
       response.end(JSON.stringify({ status: 'ok' }))
       return

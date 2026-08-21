@@ -11,6 +11,7 @@ import {
 import type { RoomSnapshot } from '../lib/game-protocol'
 
 const mocks = vi.hoisted(() => ({
+  clientToken: 'a'.repeat(32) as string | null,
   handlers: new Map<string, (...args: never[]) => void>(),
   resumeSnapshots: new Map<string, RoomSnapshot>(),
   emitWithAck: vi.fn(),
@@ -44,7 +45,7 @@ vi.mock('socket.io-client', () => ({
 
 vi.mock('@/components/player-session-provider', () => ({
   usePlayerSession: () => ({
-    clientToken: 'a'.repeat(32),
+    clientToken: mocks.clientToken,
     ensureClientToken: vi.fn(),
   }),
 }))
@@ -92,6 +93,7 @@ function MembershipProbe({
 
 describe('GameSocketProvider', () => {
   beforeEach(() => {
+    mocks.clientToken = 'a'.repeat(32)
     mocks.handlers.clear()
     mocks.resumeSnapshots.clear()
     mocks.emitWithAck.mockReset().mockResolvedValue({ status: 'success' })
@@ -151,6 +153,35 @@ describe('GameSocketProvider', () => {
     })
 
     expect(screen.getByTestId('ended')).toHaveTextContent('server_restart')
+  })
+
+  it('clears identity-scoped room state when the client token changes', async () => {
+    const roomCode = 'bcdf2'
+    const view = render(
+      <GameSocketProvider>
+        <RoomProbe roomCode={roomCode} />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalledOnce())
+
+    act(() => {
+      mocks.handlers.get('room:snapshot')?.(lobbySnapshot(roomCode) as never)
+      mocks.handlers.get('server:shutdown')?.()
+    })
+    expect(screen.getByTestId('status')).toHaveTextContent('lobby')
+    expect(screen.getByTestId('ended')).toHaveTextContent('server_restart')
+
+    mocks.clientToken = 'b'.repeat(32)
+    view.rerender(
+      <GameSocketProvider>
+        <RoomProbe roomCode={roomCode} />
+      </GameSocketProvider>,
+    )
+
+    await waitFor(() => expect(mocks.io).toHaveBeenCalledTimes(2))
+    expect(screen.getByTestId('status')).toHaveTextContent('missing')
+    expect(screen.getByTestId('ended')).toHaveTextContent('active')
+    expect(mocks.socket.disconnect).toHaveBeenCalledOnce()
   })
 
   it('keeps an expired room classified as expired after shutdown', async () => {
