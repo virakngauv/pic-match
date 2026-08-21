@@ -9,12 +9,6 @@
 - Open pull requests as ready for review by default. Create a draft only when explicitly requested or when required work remains incomplete.
 - For CodeRabbit review loops, run CodeRabbit with host credential access so it can read its authenticated account state. If authentication is required, start `coderabbit auth login`, open the printed fallback URL in the Codex in-app Browser, complete GitHub authorization there, and verify with `coderabbit auth status --agent` using the same host access before reviewing.
 
-## Pull Request Review Replies
-
-- After implementing feedback from a pull request review comment, reply in the original thread as Codex, explain why the feedback was addressed, and summarize the resulting change.
-- When feedback does not warrant a code or documentation change, reply in the original thread as Codex with the concrete reasoning for leaving the implementation unchanged.
-- Do not resolve review threads unless the user explicitly asks for resolution.
-
 ## Multiplayer Browser Testing
 
 - For exploratory two-player browser testing, use the Codex in-app Browser as player one and connected Chrome Computer Use as player two.
