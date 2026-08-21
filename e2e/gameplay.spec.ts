@@ -116,6 +116,9 @@ test('replays a complete shared race across browser sessions', async ({
     ).toBeVisible()
 
     await lateJoinerPage.goto('/join')
+    await expect(
+      lateJoinerPage.getByRole('button', { name: 'Join', exact: true }),
+    ).toBeEnabled()
     await lateJoinerPage.getByLabel('Room code').fill(roomCode)
     await lateJoinerPage.getByLabel('Name').fill(playerNames.replacement)
     await lateJoinerPage
@@ -391,6 +394,9 @@ test('replays a complete shared race across browser sessions', async ({
 
 async function createRoom(page: Page, name: string) {
   await page.goto('/create')
+  await expect(
+    page.getByRole('button', { name: 'Create', exact: true }),
+  ).toBeEnabled()
   await page.getByLabel('Name').fill(name)
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page).toHaveURL(/\/[bcdfghkpqrstvz]{4}[2-9y]$/)
@@ -405,6 +411,9 @@ async function createRoom(page: Page, name: string) {
 
 async function joinRoom(page: Page, roomCode: string, name: string) {
   await page.goto(`/${roomCode}`)
+  await expect(
+    page.getByRole('button', { name: 'Join', exact: true }),
+  ).toBeEnabled()
   await page.getByLabel('Name').fill(name)
   await page.getByRole('button', { name: 'Join', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
