@@ -280,9 +280,12 @@ describe('Socket.IO game protocol', () => {
 
   it('emits no application heartbeat while an idle socket stays connected', async () => {
     const client = await connect(hostToken)
+    const received: string[] = []
     const outgoing: string[] = []
+    client.onAny((event) => received.push(event))
     client.onAnyOutgoing((event) => outgoing.push(event))
     await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(received).toEqual([])
     expect(outgoing).toEqual([])
   })
 })

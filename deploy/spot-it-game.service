@@ -18,7 +18,6 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/srv/spot-it-web
 
 [Install]
 WantedBy=multi-user.target

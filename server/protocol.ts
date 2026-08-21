@@ -30,6 +30,7 @@ type GameSocket = Socket<
 
 export type GameSocketServerOptions = {
   allowedOrigins: string[]
+  trustedProxyAddresses?: string[]
   gameServer?: GameServer
   expirationSweepMs?: number
   logger?: Pick<Console, 'info' | 'warn' | 'error'>
@@ -47,8 +48,12 @@ export function createGameSocketServer(
   const gameServer = options.gameServer ?? new GameServer()
   const logger = options.logger ?? console
   const allowedOrigins = new Set(options.allowedOrigins)
+  const trustedProxyAddresses = new Set(
+    options.trustedProxyAddresses ?? ['127.0.0.1', '::1', '::ffff:127.0.0.1'],
+  )
   const socketCommands = new SlidingWindowRateLimiter(40, 10_000)
   const playerCommands = new SlidingWindowRateLimiter(80, 10_000)
+  const addressCommands = new SlidingWindowRateLimiter(400, 10_000)
   const entryCommands = new SlidingWindowRateLimiter(12, 60_000)
   let acceptingCommands = true
 
@@ -75,7 +80,7 @@ export function createGameSocketServer(
     const auth = parseHandshakeAuth(socket.handshake.auth)
     if (!auth) return next(new Error('Unsupported or invalid game session.'))
     socket.data.token = auth.token
-    socket.data.address = clientAddress(socket)
+    socket.data.address = clientAddress(socket, trustedProxyAddresses)
     next()
   })
 
@@ -270,11 +275,12 @@ export function createGameSocketServer(
     const now = Date.now()
     const permitted =
       socketCommands.take(socket.id, now) &&
-      playerCommands.take(socket.data.token, now)
-    const entryPermitted =
-      !isEntryCommand ||
-      isLoopbackAddress(socket.data.address) ||
-      entryCommands.take(socket.data.address, now)
+      playerCommands.take(socket.data.token, now) &&
+      addressCommands.take(socket.data.address, now)
+    const entryKey = isLoopbackAddress(socket.data.address)
+      ? `${socket.data.address}:${socket.data.token}`
+      : socket.data.address
+    const entryPermitted = !isEntryCommand || entryCommands.take(entryKey, now)
     if (!permitted || !entryPermitted) {
       acknowledge({ status: 'rate_limited', message: 'Too many commands.' })
       return false
@@ -306,9 +312,9 @@ function snapshotRevision(snapshot: RoomSnapshot) {
   return 'revision' in snapshot ? snapshot.revision : null
 }
 
-function clientAddress(socket: GameSocket) {
+function clientAddress(socket: GameSocket, trustedProxyAddresses: Set<string>) {
   const directAddress = socket.handshake.address
-  if (!isLoopbackAddress(directAddress)) return directAddress
+  if (!trustedProxyAddresses.has(directAddress)) return directAddress
 
   const forwarded = socket.handshake.headers['x-forwarded-for']
   const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded
@@ -341,6 +347,7 @@ class SlidingWindowRateLimiter {
     const attempts = (this.attempts.get(key) ?? []).filter(
       (attempt) => attempt > cutoff,
     )
+    this.attempts.delete(key)
     if (attempts.length >= this.limit) {
       this.attempts.set(key, attempts)
       return false

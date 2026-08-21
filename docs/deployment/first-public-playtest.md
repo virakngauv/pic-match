@@ -67,7 +67,9 @@ curl --fail https://games.example.com/healthz
 ```
 
 Caddy obtains and renews certificates. Do not place certificates in the Node
-application or repository.
+application or repository. Keep the example's explicit `X-Forwarded-For`
+override so the game server can trust Caddy's single-hop client address for
+abuse limits rather than a caller-supplied header.
 
 ## 4. Configure Vercel
 

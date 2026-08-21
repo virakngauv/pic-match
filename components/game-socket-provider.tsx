@@ -66,7 +66,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     if (!clientToken) return
 
     const gameServerUrl =
-      process.env.NEXT_PUBLIC_GAME_SERVER_URL ?? 'http://localhost:3200'
+      process.env.NEXT_PUBLIC_GAME_SERVER_URL?.trim() || 'http://localhost:3200'
     const socket: GameSocket = io(gameServerUrl, {
       auth: { token: clientToken, protocolVersion: GAME_PROTOCOL_VERSION },
       autoConnect: true,

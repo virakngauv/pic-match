@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   GameSocketProvider,
@@ -72,6 +72,26 @@ describe('GameSocketProvider', () => {
     mocks.socket.on.mockClear()
     mocks.socket.emit.mockClear()
     mocks.socket.disconnect.mockClear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('uses the local game server when the public URL is empty', async () => {
+    vi.stubEnv('NEXT_PUBLIC_GAME_SERVER_URL', '')
+    render(
+      <GameSocketProvider>
+        <RoomProbe roomCode="bcdf2" />
+      </GameSocketProvider>,
+    )
+
+    await waitFor(() =>
+      expect(mocks.io).toHaveBeenCalledWith(
+        'http://localhost:3200',
+        expect.any(Object),
+      ),
+    )
   })
 
   it('classifies a missing room after watch resume as a server restart', async () => {
