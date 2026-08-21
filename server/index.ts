@@ -68,16 +68,17 @@ export function startGameServer(
     )
   })
 
-  let stopping = false
-  async function stop() {
-    if (stopping) return
-    stopping = true
-    await socketServer.shutdown()
-    if (httpServer.listening) {
-      await new Promise<void>((resolveClose, reject) =>
-        httpServer.close((error) => (error ? reject(error) : resolveClose())),
-      )
-    }
+  let stopPromise: Promise<void> | undefined
+  function stop() {
+    stopPromise ??= (async () => {
+      await socketServer.shutdown()
+      if (httpServer.listening) {
+        await new Promise<void>((resolveClose, reject) =>
+          httpServer.close((error) => (error ? reject(error) : resolveClose())),
+        )
+      }
+    })()
+    return stopPromise
   }
 
   return { httpServer, ...socketServer, stop }

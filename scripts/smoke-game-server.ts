@@ -8,6 +8,7 @@ import {
   type RoomSnapshot,
   type ServerToClientEvents,
 } from '../lib/game-protocol'
+import { ROOM_CODE_PATTERN } from '../server/validation'
 
 type GameClient = Socket<ServerToClientEvents, ClientToServerEvents>
 
@@ -71,12 +72,17 @@ try {
     throw new Error('Host could not restore the current snapshot.')
   }
 
+  const roomCodePatternValid = ROOM_CODE_PATTERN.test(roomCode)
+  if (!roomCodePatternValid) {
+    throw new Error('Game server returned an invalid room code.')
+  }
+
   console.info(
     JSON.stringify({
       status: 'ok',
       health: true,
       wssClients: 2,
-      roomCodePatternValid: /^[bcdfghkpqrstvz]{4}[2-9y]$/.test(roomCode),
+      roomCodePatternValid,
       initialRevision: hostState.pairRevision,
       finalRevision: resumed.snapshot.pairRevision,
     }),

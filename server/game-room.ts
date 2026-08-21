@@ -38,6 +38,7 @@ type Participant = {
 type GameState = {
   seed: string
   pairRevision: number
+  matchup: ReturnType<typeof generateTwoCardMatchup> | null
   participants: Participant[]
   lastAcceptedClaim: {
     scorerId: string
@@ -168,6 +169,7 @@ export class GameRoom {
     this.game = {
       seed: `${this.initialSeed}:${this.revision}:${now}`,
       pairRevision: 0,
+      matchup: null,
       participants: members.map((member, position) => ({
         playerId: member.playerId,
         name: member.name,
@@ -216,11 +218,7 @@ export class GameRoom {
       })
     }
 
-    const cards = generateTwoCardMatchup(
-      FIRST_PLAYABLE_CONFIGURATION,
-      this.game.seed,
-      this.game.pairRevision,
-    ).cards
+    const cards = this.currentMatchup().cards
     const correct =
       cards[0].symbolIds.includes(claim.firstSymbolId) &&
       cards[1].symbolIds.includes(claim.secondSymbolId) &&
@@ -250,6 +248,7 @@ export class GameRoom {
       this.phase = 'finished'
     } else {
       this.game.pairRevision += 1
+      this.game.matchup = null
     }
 
     this.changed(now)
@@ -338,11 +337,7 @@ export class GameRoom {
       }
     }
 
-    const matchup = generateTwoCardMatchup(
-      FIRST_PLAYABLE_CONFIGURATION,
-      game.seed,
-      game.pairRevision,
-    )
+    const matchup = this.currentMatchup()
 
     return {
       status: 'playing',
@@ -407,6 +402,16 @@ export class GameRoom {
   private requireGame() {
     if (!this.game) throw new Error('Room game state is missing.')
     return this.game
+  }
+
+  private currentMatchup() {
+    const game = this.requireGame()
+    game.matchup ??= generateTwoCardMatchup(
+      FIRST_PLAYABLE_CONFIGURATION,
+      game.seed,
+      game.pairRevision,
+    )
+    return game.matchup
   }
 
   private touch(now: number) {

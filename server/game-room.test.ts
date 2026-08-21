@@ -150,6 +150,32 @@ describe('GameRoom', () => {
     ])
   })
 
+  it('reuses a matchup within a revision and replaces it after a score', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    room.start(hostToken, 1_002)
+    const snapshot = playing(room)
+    const gameState = (
+      room as unknown as {
+        game: { matchup: { revision: number } | null }
+      }
+    ).game
+    const firstMatchup = gameState.matchup
+
+    expect(firstMatchup?.revision).toBe(0)
+    playing(room, guestToken)
+    expect(gameState.matchup).toBe(firstMatchup)
+
+    expect(
+      room.claim(hostToken, claim(snapshot, 'cachedmatchup1'), 1_003),
+    ).toEqual({ status: 'success' })
+    expect(gameState.matchup).toBeNull()
+
+    playing(room)
+    expect(gameState.matchup).not.toBe(firstMatchup)
+    expect(gameState.matchup?.revision).toBe(1)
+  })
+
   it('deduplicates command IDs without awarding another point', () => {
     const room = createRoom()
     room.join(guestToken, 'Grace', 1_001)

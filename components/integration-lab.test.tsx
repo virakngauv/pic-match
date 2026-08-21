@@ -4,6 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { IntegrationLab } from './integration-lab'
 
+const mocks = vi.hoisted(() => ({ connectionStatus: 'connected' }))
+
+vi.mock('@/components/game-socket-provider', () => ({
+  useGameSocket: () => ({ connectionStatus: mocks.connectionStatus }),
+}))
+
 describe('IntegrationLab', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -35,6 +41,18 @@ describe('IntegrationLab', () => {
 
     expect(
       await screen.findByText('Hello from the Next.js API route!'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows the game-server connection status on the Socket.IO tab', async () => {
+    const user = userEvent.setup()
+    render(<IntegrationLab />)
+
+    await user.click(screen.getByRole('tab', { name: /Socket.IO/ }))
+
+    expect(screen.getByText('GameSocketProvider')).toBeInTheDocument()
+    expect(
+      screen.getByText('Connected · game server ready'),
     ).toBeInTheDocument()
   })
 })
