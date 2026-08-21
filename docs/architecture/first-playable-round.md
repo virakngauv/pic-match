@@ -123,8 +123,7 @@ pnpm test
 pnpm build
 ```
 
-Convex changes must also compile and deploy successfully to the configured
-development deployment.
+Socket protocol changes must also pass the isolated multi-client server tests.
 
 ## Deferred work
 
@@ -134,5 +133,4 @@ The following should not block the first playable game:
 - alternate Spot It game modes;
 - configurable winning scores;
 - spectators;
-- rematch controls and complete replay-flow coverage;
 - audio polish and additional animation polish.

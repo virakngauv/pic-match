@@ -30,6 +30,9 @@ test('moves a room from creation into a reconnectable game', async ({
 
     await hostPage.getByRole('link', { name: 'Create a room' }).click()
     await expect(hostPage).toHaveURL(/\/create$/)
+    await expect(
+      hostPage.getByRole('button', { name: 'Create', exact: true }),
+    ).toBeEnabled()
     await hostPage.getByLabel('Name').fill('Ada')
     await hostPage.getByRole('button', { name: 'Create', exact: true }).click()
 
@@ -52,6 +55,9 @@ test('moves a room from creation into a reconnectable game', async ({
     ).toBeVisible()
     await expect(guestPage.getByLabel('Room code')).toHaveValue(roomCode)
 
+    await expect(
+      guestPage.getByRole('button', { name: 'Join', exact: true }),
+    ).toBeEnabled()
     await guestPage.getByLabel('Name').fill('Grace')
     await guestPage.getByRole('button', { name: 'Join', exact: true }).click()
     await expect(guestPage).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
@@ -93,6 +99,9 @@ test('moves a room from creation into a reconnectable game', async ({
     ).toHaveAttribute('data-player-position', '1')
 
     await lateJoinerPage.goto('/join')
+    await expect(
+      lateJoinerPage.getByRole('button', { name: 'Join', exact: true }),
+    ).toBeEnabled()
     await lateJoinerPage.getByLabel('Room code').fill(roomCode)
     await lateJoinerPage.getByLabel('Name').fill('Linus')
     await lateJoinerPage

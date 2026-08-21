@@ -111,10 +111,8 @@ jobs:
   e2e:
     name: End-to-end
     needs: quality
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ci-preview
 
     steps:
       - name: Check out repository
@@ -138,16 +136,5 @@ jobs:
       - name: Install browsers
         run: pnpm exec playwright install --with-deps chromium firefox webkit
 
-      - name: Create clean Convex preview deployment
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
-        run: pnpm exec convex deploy --preview-create "ci-${{ github.run_id }}"
-
-      - name: Run Playwright against Convex preview
-        env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
-        run: >-
-          pnpm exec convex deploy
-          --preview-name "ci-${{ github.run_id }}"
-          --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL
-          --cmd "env -u CONVEX_DEPLOY_KEY pnpm test:e2e"
+      - name: Run Playwright against the local single-process game server
+        run: pnpm test:e2e

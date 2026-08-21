@@ -1,19 +1,19 @@
 'use client'
 
 import { SignInButton, SignUpButton, UserButton, useUser } from '@clerk/nextjs'
-import { useConvexAuth, useConvexConnectionState } from 'convex/react'
 import posthog from 'posthog-js'
 import { useState, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { useGameSocket } from '@/components/game-socket-provider'
 import { cn } from '@/lib/utils'
 
-type TabId = 'react' | 'next' | 'convex' | 'clerk' | 'posthog' | 'arcjet'
+type TabId = 'react' | 'next' | 'socket' | 'clerk' | 'posthog' | 'arcjet'
 
 const tabs: Array<{ id: TabId; label: string; eyebrow: string }> = [
   { id: 'react', label: 'React', eyebrow: 'State' },
   { id: 'next', label: 'Next.js', eyebrow: 'API' },
-  { id: 'convex', label: 'Convex', eyebrow: 'Data' },
+  { id: 'socket', label: 'Socket.IO', eyebrow: 'Game server' },
   { id: 'clerk', label: 'Clerk', eyebrow: 'Auth' },
   { id: 'posthog', label: 'PostHog', eyebrow: 'Events' },
   { id: 'arcjet', label: 'Arcjet', eyebrow: 'Security' },
@@ -29,7 +29,6 @@ type ApiResult = {
 
 export function IntegrationLab() {
   const [activeTab, setActiveTab] = useState<TabId>('react')
-  const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL)
   const clerkConfigured = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
 
   return (
@@ -93,14 +92,9 @@ export function IntegrationLab() {
           >
             {activeTab === 'react' && <ReactDemo />}
             {activeTab === 'next' && <NextDemo />}
-            {activeTab === 'convex' &&
-              (convexConfigured ? <ConvexDemo /> : <ConvexFallback />)}
+            {activeTab === 'socket' && <SocketDemo />}
             {activeTab === 'clerk' &&
-              (clerkConfigured ? (
-                <ClerkDemo convexConfigured={convexConfigured} />
-              ) : (
-                <ClerkFallback />
-              ))}
+              (clerkConfigured ? <ClerkDemo /> : <ClerkFallback />)}
             {activeTab === 'posthog' && <PostHogDemo />}
             {activeTab === 'arcjet' && <ArcjetDemo />}
           </div>
@@ -201,39 +195,22 @@ function NextDemo() {
   )
 }
 
-function ConvexFallback() {
-  return (
-    <DemoShell
-      label="NEXT_PUBLIC_CONVEX_URL"
-      title="Hello from the data layer."
-      description="The Convex provider is intentionally dormant until a deployment URL exists. Run the setup command to switch this tab to a live connection readout."
-    >
-      <p className="text-sm font-semibold">Provider status</p>
-      <Output>Demo mode · Convex URL not configured</Output>
-      <p className="text-muted-foreground mt-4 font-mono text-xs">
-        pnpm convex:dev
-      </p>
-    </DemoShell>
-  )
-}
-
-function ConvexDemo() {
-  const connection = useConvexConnectionState()
+function SocketDemo() {
+  const { connectionStatus } = useGameSocket()
 
   return (
     <DemoShell
-      label="ConvexProvider"
-      title="Hello from the live data layer."
-      description="This reads the reactive websocket connection state directly from the configured Convex client."
+      label="GameSocketProvider"
+      title="Hello from the game server."
+      description="This reads the Socket.IO connection used for ephemeral multiplayer rooms."
     >
       <p className="text-sm font-semibold">Connection status</p>
       <Output>
-        {connection.isWebSocketConnected
-          ? 'Connected · hello, Convex!'
-          : 'Connecting to Convex…'}
-        <span className="text-background/55 block">
-          connections: {connection.connectionCount}
-        </span>
+        {connectionStatus === 'connected'
+          ? 'Connected · game server ready'
+          : connectionStatus === 'connecting'
+            ? 'Connecting to the game server…'
+            : 'Game server disconnected'}
       </Output>
     </DemoShell>
   )
@@ -255,7 +232,7 @@ function ClerkFallback() {
   )
 }
 
-function ClerkDemo({ convexConfigured }: { convexConfigured: boolean }) {
+function ClerkDemo() {
   const { isLoaded, isSignedIn, user } = useUser()
 
   return (
@@ -286,23 +263,7 @@ function ClerkDemo({ convexConfigured }: { convexConfigured: boolean }) {
           </div>
         )}
       </div>
-      {convexConfigured && <ClerkConvexStatus />}
     </DemoShell>
-  )
-}
-
-function ClerkConvexStatus() {
-  const { isLoading, isAuthenticated } = useConvexAuth()
-
-  return (
-    <p className="text-muted-foreground mt-4 text-xs leading-5">
-      Convex auth:{' '}
-      {isLoading
-        ? 'checking Clerk token…'
-        : isAuthenticated
-          ? 'authenticated'
-          : 'waiting for sign-in'}
-    </p>
   )
 }
 

@@ -1,242 +1,115 @@
 # Spot It Web
 
-A real-time multiplayer browser implementation of Spot It, built with Next.js
-and Convex.
-
-The project is currently pre-production. Its complete anonymous multiplayer
-loop is implemented: players can create a room, race on a shared board, finish
-a game, return to the lobby, and play again with the same room.
-
-## Current functionality
-
-- Create and join rooms using short room codes
-- Persistent anonymous player identities
-- Real-time lobby presence
-- Host-authorized game start
-- Immutable participant roster when a game starts
-- Participant reconnection during lobby, active-game, and rematch transitions
-- Late-join blocking after the game starts
-- Lobby host reassignment when the host leaves
-- Server-derived lobby, playing, reconnecting, finished, and unavailable views
-- Deterministic Spot It card generation with one shared symbol per pair
-- A real-time two-card board shared by every participant
-- Server-authoritative, first-claim-wins match validation
-- Incorrect-match feedback with a one-second cooldown and red error markers
-- Live scoring, pair advancement, and a first-to-12 winner
-- Persisted final results and participant-specific winner messaging
-- Host-controlled rematches that reopen the existing lobby
-- Player departure, replacement joining, and fresh state between games
-- Unit, integration, and multi-browser end-to-end coverage through two complete
-  games, reconnection, rematching, and a mobile results layout
-
-## Technology
-
-- Next.js App Router, React, and TypeScript
-- Tailwind CSS and shadcn/ui
-- Convex for real-time rooms, presence, and game state
-- Vitest and React Testing Library
-- Playwright for end-to-end tests
-
-Clerk, PostHog, and Arcjet are available as optional integrations. They remain
-disabled in local development until their environment variables are configured.
-
-## Local development
-
-Requirements:
-
-- Node.js 22 or later
-- pnpm 11
-
-Install dependencies:
-
-```bash
-pnpm install
-```
-
-Create the local environment file from the tracked template:
-
-```bash
-cp .env.example .env.local
-```
-
-Keep local keys in `.env.local` at the repository root. Next.js loads this file
-automatically, and it is intentionally excluded from Git. Restart the Next.js
-development server after changing environment variables.
-
-Configure and start Convex:
-
-```bash
-pnpm convex:dev
-```
-
-The Convex CLI creates or selects a development deployment and writes
-`NEXT_PUBLIC_CONVEX_URL` to `.env.local`. Leave that terminal running during
-development.
-
-In another terminal, start Next.js:
-
-```bash
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-The application shell and wiring lab work without third-party credentials.
-Multiplayer room functionality requires a configured Convex development
-deployment.
-
-## Optional integrations
-
-Start by editing the repository-root `.env.local` created above. The complete
-file can look like this:
-
-```dotenv
-# Written automatically by `pnpm convex:dev`.
-NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
-
-# Clerk authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-
-# PostHog analytics
-NEXT_PUBLIC_POSTHOG_KEY=phc_...
-NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
-
-# Arcjet security
-ARCJET_KEY=ajkey_...
-```
-
-Only variables prefixed with `NEXT_PUBLIC_` are exposed to browser code. Never
-put secret values in a `NEXT_PUBLIC_` variable or commit `.env.local`.
-
-### Clerk
-
-Create or select an application in the Clerk dashboard, then copy its
-publishable key and secret key into these entries in `.env.local`:
-
-```dotenv
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
-```
-
-The root provider and Clerk middleware activate automatically when both values
-are present. Clerk is not required for the current anonymous player flow.
-
-Convex currently serves the anonymous player flow without an authentication
-provider. If Clerk authentication is later used inside Convex functions, add
-the Clerk provider to `convex/auth.config.ts` and configure its frontend API URL
-on each target Convex deployment:
-
-```bash
-pnpm convex env set CLERK_FRONTEND_API_URL https://your-clerk-domain
-```
-
-This value belongs to the Convex deployment environment, not `.env.local`.
-
-### PostHog
-
-Copy the project API key and host from the PostHog project settings into
-`.env.local`:
-
-```dotenv
-NEXT_PUBLIC_POSTHOG_KEY=phc_...
-NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
-```
-
-Use the host shown by PostHog for the selected project region. The application
-defaults to the US host when `NEXT_PUBLIC_POSTHOG_HOST` is omitted.
-
-### Arcjet
-
-Copy the site key from the Arcjet dashboard into `.env.local`:
-
-```dotenv
-ARCJET_KEY=ajkey_...
-```
-
-`ARCJET_KEY` is server-only. The included demo API route runs Arcjet Shield
-when it is configured and returns a transparent demo response otherwise.
+A multiplayer Spot It game built with Next.js and a deliberately simple,
+single-process Socket.IO game server.
 
 ## Architecture
 
-Rooms progress through a server-authoritative lifecycle:
+- The Next.js App Router frontend can run on Vercel.
+- One Node.js process owns every active room in a `Map` and communicates with
+  browsers through Socket.IO.
+- Rooms are ephemeral. A game-server restart, crash, deploy, or VPS restart
+  clears every room.
+- A private 128-bit browser token restores the same player while that server
+  process still owns the room. Socket IDs never identify players.
+- Membership is independent of connectivity. Disconnecting does not remove a
+  member, transfer host, change the roster, or alter a score.
+- There is no application heartbeat, presence model, database, or multi-process
+  adapter.
 
-```text
-lobby → playing → finished
+Clerk, PostHog, and Arcjet remain optional frontend integrations.
+
+## Local development
+
+Requirements: Node.js 22+ and pnpm 11.
+
+```bash
+pnpm install
+cp .env.example .env.local
+pnpm dev
 ```
 
-Room membership, connectivity, and game participation are modeled separately.
-When the host starts a game, Convex creates an immutable participant snapshot.
-Disconnecting does not remove or reorder a participant.
+`pnpm dev` starts:
 
-The implemented lifecycle and authorization rules are documented in
-[Room-to-game boundary](docs/architecture/room-game-boundary.md). The card
-model, shared-pair contract, atomic claim rules, scoring, and completion behavior
-are documented in
-[First playable round](docs/architecture/first-playable-round.md).
+- Next.js at `http://localhost:3000`
+- the game server at `http://127.0.0.1:3200`
 
-## Project structure
+The frontend defaults to `http://localhost:3200` when
+`NEXT_PUBLIC_GAME_SERVER_URL` is unset. Set that variable to the public `https`
+game-server origin for Vercel builds; Socket.IO will use WSS automatically.
 
-```text
-app/                 Next.js routes and layouts
-components/          Application components
-components/ui/       Reusable UI primitives
-convex/              Schema, queries, mutations, and backend tests
-e2e/                 Playwright end-to-end tests
-docs/architecture/   Architecture decisions and boundaries
-lib/                 Shared client utilities and session handling
+Useful single-service commands:
+
+```bash
+pnpm dev:web
+pnpm dev:server
+pnpm start:web
+pnpm start:server
 ```
 
-## Quality checks
+## Protocol and runtime
 
-Run the complete local verification suite:
+Shared event and snapshot types live in `lib/game-protocol.ts`. Runtime payload
+validation happens at the socket boundary in `server/validation.ts`.
+`server/game-room.ts` is a synchronous authoritative room actor with no
+Socket.IO imports. `server/game-server.ts` owns room lookup and expiration, and
+`server/protocol.ts` binds those commands to sockets.
+
+After every state change, all sockets in the room receive a complete,
+personalized snapshot. Reconnect asks for a fresh snapshot instead of relying
+on replayed events. Correct claims are revision-gated and command IDs make
+retries idempotent.
+
+Default idle expiration:
+
+- lobby: 2 hours
+- playing game: 4 hours
+- finished game: 30 minutes
+
+Only meaningful room/game commands update activity. Socket.IO transport ping,
+disconnect, and reconnect do not.
+
+## Verification
 
 ```bash
 pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test
-pnpm test:e2e
 pnpm build
+pnpm test:e2e
 ```
 
-Pull-request CI runs formatting, lint, typechecking, unit tests, and the
-production build. After a push to `main`, CI also deploys the Convex functions
-to a clean preview deployment and runs the Playwright suite against it.
+`pnpm test` includes pure room/server tests and isolated multi-client Socket.IO
+integration tests. Playwright uses separate browser contexts for multiplayer
+identity isolation.
 
-## Development data
+For a deployed game server:
 
-This project is pre-production, and existing Convex development data is
-disposable. Breaking schema changes may require clearing or recreating the
-development deployment.
-
-A production migration and retention policy must be established before the
-first public deployment.
+```bash
+GAME_SERVER_URL=https://games.example.com \
+GAME_SERVER_ORIGIN=https://your-app.vercel.app \
+pnpm deploy:smoke
+```
 
 ## Deployment
 
-The supported first-playtest deployment uses Vercel for the Next.js frontend
-and server routes, backed by the project's Convex production deployment. See
-the [first public playtest deployment runbook](docs/deployment/first-public-playtest.md)
-for environment ownership, fresh-clone setup, validation, publishing, health
-checks, release recording, and rollback. Publishing a first externally
-accessible URL always requires explicit confirmation.
+The supported production topology is one Ubuntu DigitalOcean Droplet, one
+systemd service, and one Caddy reverse proxy. Do not use cluster mode, multiple
+containers, overlapping app processes, a load balancer, or horizontal scaling.
 
-## First public playtest
+See [DigitalOcean game server operations](docs/deployment/first-public-playtest.md)
+and [the room/game boundary](docs/architecture/room-game-boundary.md).
 
-The next milestone is
-[First public playtest](https://github.com/virakngauv/spot-it-web/milestone/4).
-It prepares the completed multiplayer game for a small, observable playtest in
-five focused steps:
+## Repository map
 
-1. [Refresh this README for the completed game](https://github.com/virakngauv/spot-it-web/issues/52)
-2. [Make the app reproducibly deployable](https://github.com/virakngauv/spot-it-web/issues/53)
-3. [Add bounded cleanup for stale room data](https://github.com/virakngauv/spot-it-web/issues/54)
-4. [Add privacy-safe playtest monitoring](https://github.com/virakngauv/spot-it-web/issues/55)
-5. [Run and document a real-device multiplayer smoke test](https://github.com/virakngauv/spot-it-web/issues/56)
-
-Non-blocking interface improvements discovered during testing belong in the
-separate
-[Playtest UX polish](https://github.com/virakngauv/spot-it-web/milestone/5)
-milestone. Findings that prevent a safe or usable public playtest remain in the
-public-playtest milestone.
+```text
+app/                 Next.js routes
+components/          Application and UI components
+lib/                 Shared protocol and deterministic game logic
+server/              In-memory game server and tests
+e2e/                 Playwright multiplayer browser coverage
+deploy/              systemd and Caddy examples
+docs/                Architecture and operations notes
+scripts/             Deployment checks and smoke tests
+```

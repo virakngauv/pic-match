@@ -1,13 +1,10 @@
 'use client'
 
-import { useMutation } from 'convex/react'
 import { useState, type ComponentProps, type FormEvent } from 'react'
 
-import { usePlayerSession } from '@/components/player-session-provider'
+import { useGameSocket } from '@/components/game-socket-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { api } from '@/convex/_generated/api'
-import { getOrCreateClientInstanceId } from '@/lib/player-session'
 import { cn } from '@/lib/utils'
 
 const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
@@ -21,49 +18,8 @@ export function JoinRoomForm({
   roomCode?: string
   onJoined?: (room: JoinedRoom) => void
 }) {
-  const convexConfigured = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL)
-
-  if (!convexConfigured) {
-    return <UnavailableJoinRoomForm roomCode={roomCode} />
-  }
-
-  return <ConnectedJoinRoomForm roomCode={roomCode} onJoined={onJoined} />
-}
-
-function UnavailableJoinRoomForm({ roomCode }: { roomCode?: string }) {
   const roomCodeLocked = roomCode !== undefined
-
-  return (
-    <div className="mt-7 grid gap-5">
-      <Field
-        label="Room code"
-        id="room-code"
-        placeholder="bcdf2"
-        value={roomCode ?? ''}
-        readOnly={roomCodeLocked}
-        disabled
-      />
-      <Field label="Name" id="name" placeholder="Your name" disabled />
-      <p className="text-muted-foreground text-sm" role="status">
-        Room joining is unavailable until Convex is configured.
-      </p>
-      <Button className="h-12 w-full text-base" disabled>
-        Join
-      </Button>
-    </div>
-  )
-}
-
-function ConnectedJoinRoomForm({
-  roomCode,
-  onJoined,
-}: {
-  roomCode?: string
-  onJoined?: (room: JoinedRoom) => void
-}) {
-  const roomCodeLocked = roomCode !== undefined
-  const joinRoom = useMutation(api.rooms.join)
-  const { ensureClientToken } = usePlayerSession()
+  const { joinRoom, connectionStatus } = useGameSocket()
   const [enteredRoomCode, setEnteredRoomCode] = useState(roomCode ?? '')
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -88,30 +44,18 @@ function ConnectedJoinRoomForm({
     setIsJoining(true)
 
     try {
-      const clientToken = ensureClientToken()
-      const room = await joinRoom({
-        roomCode: normalizedRoomCode,
-        name: normalizedName,
-        clientToken,
-        clientInstanceId: getOrCreateClientInstanceId(),
-      })
+      const result = await joinRoom(normalizedRoomCode, normalizedName)
 
-      if (!room) {
-        setError('We couldn’t find that room. Check the code and try again.')
+      if (result.status !== 'success') {
+        setError(
+          result.status === 'room_not_found'
+            ? 'We couldn’t find that room. Check the code and try again.'
+            : result.message,
+        )
         return
       }
 
-      if (room.status === 'room_full') {
-        setError('This room is full.')
-        return
-      }
-
-      if (room.status === 'game_in_progress') {
-        setError('This game has already started.')
-        return
-      }
-
-      onJoined?.({ roomCode: room.roomCode })
+      onJoined?.({ roomCode: result.roomCode })
     } catch {
       setError('The room could not be checked. Please try again.')
     } finally {
@@ -155,13 +99,22 @@ function ConnectedJoinRoomForm({
       </div>
       <p
         className="text-accent mt-3 min-h-5 text-sm"
-        role="alert"
-        aria-live="polite"
+        role={error ? 'alert' : 'status'}
       >
-        {error}
+        {error ??
+          (connectionStatus === 'connected'
+            ? null
+            : 'Connecting to the game server…')}
       </p>
-      <Button className="mt-2 h-12 w-full text-base" disabled={isJoining}>
-        {isJoining ? 'Joining…' : 'Join'}
+      <Button
+        className="mt-2 h-12 w-full text-base"
+        disabled={isJoining || connectionStatus !== 'connected'}
+      >
+        {isJoining
+          ? 'Joining…'
+          : connectionStatus === 'connected'
+            ? 'Join'
+            : 'Connecting…'}
       </Button>
     </form>
   )

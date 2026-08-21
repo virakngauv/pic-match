@@ -4,7 +4,7 @@ import { StackOverview } from '@/components/stack-overview'
 
 const integrationState = [
   ['Core app', 'ready'],
-  ['Convex', process.env.NEXT_PUBLIC_CONVEX_URL ? 'live' : 'demo'],
+  ['Game server', 'checked below'],
   ['Clerk', process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? 'live' : 'demo'],
   ['PostHog', process.env.NEXT_PUBLIC_POSTHOG_KEY ? 'live' : 'demo'],
   ['Arcjet', process.env.ARCJET_KEY ? 'live' : 'demo'],
@@ -94,7 +94,7 @@ export function WiringLabPage() {
           <ol className="space-y-3">
             {[
               ['01', 'Copy .env.example to .env.local'],
-              ['02', 'Run pnpm convex:dev to create the backend'],
+              ['02', 'Run pnpm dev to start the web and game servers'],
               ['03', 'Add service keys when each integration is needed'],
             ].map(([number, text]) => (
               <li

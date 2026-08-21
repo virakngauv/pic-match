@@ -1,22 +1,25 @@
 'use client'
 
-import { useMutation, useQuery } from 'convex/react'
-import type { FunctionReturnType } from 'convex/server'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useRef, useState } from 'react'
 
 import { GameScreen } from '@/components/game-screen'
+import {
+  type ConnectionStatus,
+  type RoomEndedReason,
+  useGameSocket,
+  useRoomSnapshot,
+} from '@/components/game-socket-provider'
 import { JoinRoomScreen } from '@/components/join-room-screen'
-import { usePlayerSession } from '@/components/player-session-provider'
 import { Button } from '@/components/ui/button'
-import { api } from '@/convex/_generated/api'
+import { isMemberSnapshot, type RoomSnapshot } from '@/lib/game-protocol'
 import type { MatchClaimPayload } from '@/lib/match-claim'
-import { useRoomPresence } from '@/lib/use-room-presence'
+import { generateClientToken } from '@/lib/player-session'
 
 const noopJoined = () => {}
 
-type RoomView = FunctionReturnType<typeof api.rooms.getRoomView>
+type RoomView = RoomSnapshot
 type LobbyView = Extract<RoomView, { status: 'lobby' }>
 type LeaveableView = Extract<RoomView, { status: 'lobby' | 'playing' }>
 type LeavingSnapshot = {
@@ -24,46 +27,31 @@ type LeavingSnapshot = {
 }
 
 export function RoomLobby({ roomCode }: { roomCode: string }) {
-  const { clientToken } = usePlayerSession()
-
-  return <PresentRoomLobby roomCode={roomCode} clientToken={clientToken} />
+  const channel = useRoomSnapshot(roomCode)
+  return <PresentRoomLobby roomCode={roomCode} {...channel} />
 }
 
 function PresentRoomLobby({
   roomCode,
-  clientToken,
+  snapshot: roomView,
+  endedReason,
+  connectionStatus,
 }: {
   roomCode: string
-  clientToken: string | null | undefined
+  snapshot: RoomSnapshot | undefined
+  endedReason: RoomEndedReason | null
+  connectionStatus: ConnectionStatus
 }) {
   const router = useRouter()
-  const leaveRoom = useMutation(api.rooms.leave)
-  const startGame = useMutation(api.rooms.start)
-  const submitMatchClaim = useMutation(api.gameClaims.submit)
+  const { leaveRoom, startGame, claimMatch, prepareRematch } = useGameSocket()
   const [leavingSnapshot, setLeavingSnapshot] =
     useState<LeavingSnapshot | null>(null)
   const leaveRequestLockedRef = useRef(false)
   const [leaveError, setLeaveError] = useState<string | null>(null)
   const [isStarting, setIsStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
-  const roomView = useQuery(
-    api.rooms.getRoomView,
-    clientToken === undefined ? 'skip' : { roomCode, clientToken },
-  )
-  const hasRoomMembership =
-    roomView?.status === 'reconnecting' ||
-    roomView?.status === 'lobby' ||
-    roomView?.status === 'playing' ||
-    roomView?.status === 'finished'
-
-  const presenceStatus = useRoomPresence(
-    roomCode,
-    clientToken,
-    Boolean(clientToken && hasRoomMembership),
-  )
-
   const handleLeaveRoom = async (currentView: LeaveableView) => {
-    if (!clientToken || leaveRequestLockedRef.current) {
+    if (leaveRequestLockedRef.current) {
       return
     }
 
@@ -72,7 +60,8 @@ function PresentRoomLobby({
     setLeaveError(null)
 
     try {
-      await leaveRoom({ roomCode, clientToken })
+      const result = await leaveRoom(roomCode)
+      if (result.status !== 'success') throw new Error(result.message)
       router.push('/home')
     } catch {
       setLeaveError('Unable to leave the room. Please try again.')
@@ -88,7 +77,7 @@ function PresentRoomLobby({
   }
 
   const handleStartGame = async () => {
-    if (!clientToken || isStarting) {
+    if (isStarting) {
       return
     }
 
@@ -96,9 +85,10 @@ function PresentRoomLobby({
     setStartError(null)
 
     try {
-      await startGame({ roomCode, clientToken })
+      const result = await startGame(roomCode)
+      if (result.status !== 'success') setStartError(result.message)
     } catch {
-      setStartError('Unable to start the game. Please try again.')
+      setStartError('The game server is unavailable. Please try again.')
     } finally {
       setIsStarting(false)
     }
@@ -106,21 +96,43 @@ function PresentRoomLobby({
 
   /** Adds the current room credentials to a local match claim. */
   const handleSubmitMatchClaim = async (claim: MatchClaimPayload) => {
-    if (!clientToken) {
-      throw new Error('A player session is required to submit a match.')
+    const result = await claimMatch({
+      roomCode,
+      commandId: crypto.randomUUID?.() ?? generateClientToken(),
+      ...claim,
+    })
+    if (result.status === 'success') return { status: 'accepted' as const }
+    if (result.status === 'stale') return { status: 'stale' as const }
+    if (
+      (result.status === 'incorrect' || result.status === 'cooldown') &&
+      result.cooldownUntil !== undefined
+    ) {
+      return { status: result.status, cooldownUntil: result.cooldownUntil }
     }
-
-    return await submitMatchClaim({ roomCode, clientToken, ...claim })
+    throw new Error(result.message)
   }
 
   const displayedRoomView = leavingSnapshot?.view ?? roomView
 
-  if (displayedRoomView === undefined || clientToken === undefined) {
+  if (!leavingSnapshot && endedReason) {
+    return <RoomEnded roomCode={roomCode} reason={endedReason} />
+  }
+
+  if (displayedRoomView === undefined) {
     return <RoomEntrySkeleton />
   }
 
-  if (!leavingSnapshot && presenceStatus === 'room-full') {
-    return <RoomFull roomCode={displayedRoomView.roomCode} />
+  if (
+    !leavingSnapshot &&
+    connectionStatus !== 'connected' &&
+    isMemberSnapshot(displayedRoomView)
+  ) {
+    return (
+      <RoomReconnecting
+        roomCode={displayedRoomView.roomCode}
+        isGame={displayedRoomView.status === 'playing'}
+      />
+    )
   }
 
   switch (displayedRoomView.status) {
@@ -135,13 +147,6 @@ function PresentRoomLobby({
       )
     case 'game_in_progress':
       return <GameInProgress roomCode={displayedRoomView.roomCode} />
-    case 'reconnecting':
-      return (
-        <RoomReconnecting
-          roomCode={displayedRoomView.roomCode}
-          isGame={displayedRoomView.phase !== 'lobby'}
-        />
-      )
     case 'lobby':
       return (
         <ConnectedRoomLobby
@@ -176,10 +181,13 @@ function PresentRoomLobby({
       return (
         <FinishedRoom
           roomCode={displayedRoomView.roomCode}
-          clientToken={clientToken}
           player={displayedRoomView.player}
           winner={displayedRoomView.winner}
           scoreboard={displayedRoomView.scoreboard}
+          onPrepareRematch={async () => {
+            const result = await prepareRematch(roomCode)
+            if (result.status !== 'success') throw new Error(result.message)
+          }}
         />
       )
     default:
@@ -334,27 +342,6 @@ function ConnectedRoomLobby({
   )
 }
 
-function RoomFull({ roomCode }: { roomCode: string }) {
-  return (
-    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
-      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
-        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
-          Room {roomCode}
-        </p>
-        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          Sorry, this room is full.
-        </h1>
-        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-          All available player spots are currently taken.
-        </p>
-        <Button asChild className="mt-8">
-          <Link href="/home">Go home</Link>
-        </Button>
-      </section>
-    </main>
-  )
-}
-
 function GameInProgress({ roomCode }: { roomCode: string }) {
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
@@ -390,25 +377,24 @@ type FinishedScoreboardEntry = FinishedPlayer & {
 /** Presents the persisted winner and final scores to one participant. */
 function FinishedRoom({
   roomCode,
-  clientToken,
   player,
   winner,
   scoreboard,
+  onPrepareRematch,
 }: {
   roomCode: string
-  clientToken: string | null
   player: FinishedPlayer
   winner: FinishedScoreboardEntry
   scoreboard: readonly FinishedScoreboardEntry[]
+  onPrepareRematch: () => Promise<void>
 }) {
   const isWinner = player.playerId === winner.playerId
   const isHost = player.role === 'host'
-  const prepareRematch = useMutation(api.rooms.prepareRematch)
   const [isPreparingRematch, setIsPreparingRematch] = useState(false)
   const [rematchError, setRematchError] = useState<string | null>(null)
 
   const handlePrepareRematch = async () => {
-    if (!isHost || !clientToken || isPreparingRematch) {
+    if (!isHost || isPreparingRematch) {
       return
     }
 
@@ -416,7 +402,7 @@ function FinishedRoom({
     setRematchError(null)
 
     try {
-      await prepareRematch({ roomCode, clientToken })
+      await onPrepareRematch()
     } catch {
       setRematchError('Unable to return to the lobby. Please try again.')
       setIsPreparingRematch(false)
@@ -569,6 +555,40 @@ function RoomNotFound({ roomCode }: { roomCode: string }) {
           </Button>
           <Button asChild variant="outline">
             <Link href="/home">Go home</Link>
+          </Button>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function RoomEnded({
+  roomCode,
+  reason,
+}: {
+  roomCode: string
+  reason: RoomEndedReason
+}) {
+  return (
+    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Room {roomCode}
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          This room has ended.
+        </h1>
+        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+          {reason === 'expired'
+            ? 'The room expired after a period without game activity.'
+            : 'The game server restarted, so its temporary rooms were cleared.'}
+        </p>
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <Button asChild>
+            <Link href="/create">Create a new room</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/join">Join another room</Link>
           </Button>
         </div>
       </section>

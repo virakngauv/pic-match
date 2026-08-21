@@ -116,6 +116,9 @@ test('replays a complete shared race across browser sessions', async ({
     ).toBeVisible()
 
     await lateJoinerPage.goto('/join')
+    await expect(
+      lateJoinerPage.getByRole('button', { name: 'Join', exact: true }),
+    ).toBeEnabled()
     await lateJoinerPage.getByLabel('Room code').fill(roomCode)
     await lateJoinerPage.getByLabel('Name').fill(playerNames.replacement)
     await lateJoinerPage
@@ -212,8 +215,16 @@ test('replays a complete shared race across browser sessions', async ({
     await selectCardSymbol(hostPage, 1, competingSymbolId)
     await selectCardSymbol(guestPage, 1, competingSymbolId)
     await Promise.all([
-      selectCardSymbol(hostPage, 2, competingSymbolId),
-      selectCardSymbol(guestPage, 2, competingSymbolId),
+      expect(cardSymbolControl(hostPage, 2, competingSymbolId)).toBeEnabled(),
+      expect(cardSymbolControl(guestPage, 2, competingSymbolId)).toBeEnabled(),
+    ])
+    // Dispatch the final selections without Playwright's actionability retry:
+    // the winning snapshot may disable the losing browser before its click is
+    // observed. Socket integration tests separately guarantee that two commands
+    // sent for one revision are serialized and award exactly one point.
+    await Promise.all([
+      dispatchCardSymbolClick(hostPage, 2, competingSymbolId),
+      dispatchCardSymbolClick(guestPage, 2, competingSymbolId),
     ])
 
     await expect
@@ -387,6 +398,9 @@ test('replays a complete shared race across browser sessions', async ({
 
 async function createRoom(page: Page, name: string) {
   await page.goto('/create')
+  await expect(
+    page.getByRole('button', { name: 'Create', exact: true }),
+  ).toBeEnabled()
   await page.getByLabel('Name').fill(name)
   await page.getByRole('button', { name: 'Create', exact: true }).click()
   await expect(page).toHaveURL(/\/[bcdfghkpqrstvz]{4}[2-9y]$/)
@@ -401,6 +415,9 @@ async function createRoom(page: Page, name: string) {
 
 async function joinRoom(page: Page, roomCode: string, name: string) {
   await page.goto(`/${roomCode}`)
+  await expect(
+    page.getByRole('button', { name: 'Join', exact: true }),
+  ).toBeEnabled()
   await page.getByLabel('Name').fill(name)
   await page.getByRole('button', { name: 'Join', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
@@ -690,10 +707,21 @@ async function selectCardSymbol(
   cardNumber: 1 | 2,
   symbolId: string,
 ) {
-  await page
+  await cardSymbolControl(page, cardNumber, symbolId).click()
+}
+
+async function dispatchCardSymbolClick(
+  page: Page,
+  cardNumber: 1 | 2,
+  symbolId: string,
+) {
+  await cardSymbolControl(page, cardNumber, symbolId).dispatchEvent('click')
+}
+
+function cardSymbolControl(page: Page, cardNumber: 1 | 2, symbolId: string) {
+  return page
     .getByLabel(`Card ${cardNumber}`)
     .locator(`button[data-symbol-id="${symbolId}"]`)
-    .click()
 }
 
 function firstSymbolControl(page: Page) {

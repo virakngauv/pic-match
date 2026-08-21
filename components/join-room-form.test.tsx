@@ -5,35 +5,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { JoinRoomForm } from './join-room-form'
 
 const mocks = vi.hoisted(() => ({
-  ensureClientToken: vi.fn(() => 'a'.repeat(32)),
+  connectionStatus: 'connected' as 'connecting' | 'connected' | 'disconnected',
   joinRoom: vi.fn(),
   onJoined: vi.fn(),
 }))
 
-vi.mock('@/convex/_generated/api', () => ({
-  api: {
-    rooms: {
-      join: 'join',
-    },
-  },
-}))
-
-vi.mock('convex/react', () => ({
-  useMutation: () => mocks.joinRoom,
-}))
-
-vi.mock('@/components/player-session-provider', () => ({
-  usePlayerSession: () => ({
-    ensureClientToken: mocks.ensureClientToken,
+vi.mock('@/components/game-socket-provider', () => ({
+  useGameSocket: () => ({
+    joinRoom: mocks.joinRoom,
+    connectionStatus: mocks.connectionStatus,
   }),
 }))
 
 describe('JoinRoomForm', () => {
   beforeEach(() => {
-    vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', 'https://example.convex.cloud')
-    mocks.ensureClientToken.mockClear()
+    mocks.connectionStatus = 'connected'
     mocks.joinRoom.mockReset()
-    mocks.joinRoom.mockResolvedValue({ status: 'joined', roomCode: 'frvg7' })
+    mocks.joinRoom.mockResolvedValue({ status: 'success', roomCode: 'frvg7' })
     mocks.onJoined.mockReset()
   })
 
@@ -56,6 +44,18 @@ describe('JoinRoomForm', () => {
     expect(screen.getByLabelText('Room code')).toHaveFocus()
   })
 
+  it('waits for the game socket before allowing a join', () => {
+    mocks.connectionStatus = 'connecting'
+    render(<JoinRoomForm />)
+
+    expect(screen.getByLabelText('Room code')).toBeEnabled()
+    expect(screen.getByLabelText('Name')).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Connecting…' })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Connecting to the game server…',
+    )
+  })
+
   it('invokes onJoined with the room after a successful join', async () => {
     const user = userEvent.setup()
 
@@ -65,12 +65,7 @@ describe('JoinRoomForm', () => {
     await user.click(screen.getByRole('button', { name: 'Join' }))
 
     await waitFor(() => {
-      expect(mocks.joinRoom).toHaveBeenCalledWith({
-        roomCode: 'frvg7',
-        name: 'Browser player',
-        clientToken: 'a'.repeat(32),
-        clientInstanceId: expect.any(String),
-      })
+      expect(mocks.joinRoom).toHaveBeenCalledWith('frvg7', 'Browser player')
     })
     expect(mocks.onJoined).toHaveBeenCalledWith({ roomCode: 'frvg7' })
   })
@@ -93,7 +88,10 @@ describe('JoinRoomForm', () => {
 
   it('shows when the room has no available seats', async () => {
     const user = userEvent.setup()
-    mocks.joinRoom.mockResolvedValue({ status: 'room_full' })
+    mocks.joinRoom.mockResolvedValue({
+      status: 'room_full',
+      message: 'This room is full.',
+    })
 
     render(<JoinRoomForm roomCode="frvg7" onJoined={mocks.onJoined} />)
 
@@ -109,7 +107,10 @@ describe('JoinRoomForm', () => {
 
   it('shows when a game has already started', async () => {
     const user = userEvent.setup()
-    mocks.joinRoom.mockResolvedValue({ status: 'game_in_progress' })
+    mocks.joinRoom.mockResolvedValue({
+      status: 'game_in_progress',
+      message: 'This game has already started.',
+    })
 
     render(<JoinRoomForm roomCode="frvg7" onJoined={mocks.onJoined} />)
 
