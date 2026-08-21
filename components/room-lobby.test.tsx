@@ -176,6 +176,16 @@ describe('RoomLobby', () => {
     ).toBeInTheDocument()
   })
 
+  it('explains an ended room even before a snapshot arrives', () => {
+    mocks.snapshot = undefined
+    mocks.endedReason = 'server_restart'
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', { name: 'This room has ended.' }),
+    ).toBeInTheDocument()
+  })
+
   it('lets only the finished-game host prepare a rematch', async () => {
     const user = userEvent.setup()
     mocks.snapshot = {

@@ -247,6 +247,19 @@ describe('Socket.IO game protocol', () => {
     ).toMatchObject({ status: 'rate_limited' })
   })
 
+  it('rate limits room-code resume probes as entry commands', async () => {
+    const client = await connect(hostToken, '203.0.113.12')
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      expect(
+        await client.emitWithAck('session:resume', { roomCode: 'bcdf2' }),
+      ).toMatchObject({ status: 'success' })
+    }
+    expect(
+      await client.emitWithAck('session:resume', { roomCode: 'bcdf2' }),
+    ).toMatchObject({ status: 'rate_limited' })
+  })
+
   it('contains command failures without terminating the socket server', async () => {
     const client = await connect(hostToken)
     vi.spyOn(socketServer.gameServer, 'snapshot').mockImplementationOnce(() => {

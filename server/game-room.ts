@@ -190,10 +190,10 @@ export class GameRoom {
 
     const participant = this.participantForToken(token)
     if (!participant || this.phase !== 'playing' || !this.game) {
-      return this.remember(token, claim.commandId, {
+      return {
         status: 'forbidden',
         message: 'Only current game participants can submit a match.',
-      })
+      }
     }
 
     this.touch(now)

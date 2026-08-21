@@ -85,9 +85,9 @@ export function createGameSocketServer(
     )
 
     socket.on('session:resume', (payload, acknowledge) => {
-      if (!canRun(socket, acknowledge)) return
+      const parsed = parseSessionResume(payload)
+      if (!canRun(socket, acknowledge, parsed?.roomCode !== undefined)) return
       safely('session:resume', acknowledge, async () => {
-        const parsed = parseSessionResume(payload)
         if (!parsed) return acknowledge(invalid())
         if (!parsed.roomCode) return acknowledge({ status: 'success' })
 
@@ -272,7 +272,9 @@ export function createGameSocketServer(
       socketCommands.take(socket.id, now) &&
       playerCommands.take(socket.data.token, now)
     const entryPermitted =
-      !isEntryCommand || entryCommands.take(socket.data.address, now)
+      !isEntryCommand ||
+      isLoopbackAddress(socket.data.address) ||
+      entryCommands.take(socket.data.address, now)
     if (!permitted || !entryPermitted) {
       acknowledge({ status: 'rate_limited', message: 'Too many commands.' })
       return false

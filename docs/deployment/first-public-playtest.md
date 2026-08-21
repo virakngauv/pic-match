@@ -41,7 +41,9 @@ Use an exact comma-separated origin allowlist. Add explicit localhost origins
 only outside production.
 
 Copy `deploy/spot-it-game.service` to `/etc/systemd/system/`, adjust paths if
-needed, then enable it:
+needed, and confirm that Node is installed at `/usr/bin/node`. The unit invokes
+Node directly and resolves `tsx` from this repository, so it does not depend on
+a login-shell `pnpm` path. Then enable it:
 
 ```bash
 sudo systemctl daemon-reload

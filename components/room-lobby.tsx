@@ -112,12 +112,12 @@ function PresentRoomLobby({
 
   const displayedRoomView = leavingSnapshot?.view ?? roomView
 
-  if (displayedRoomView === undefined) {
-    return <RoomEntrySkeleton />
-  }
-
   if (!leavingSnapshot && endedReason) {
     return <RoomEnded roomCode={roomCode} reason={endedReason} />
+  }
+
+  if (displayedRoomView === undefined) {
+    return <RoomEntrySkeleton />
   }
 
   if (
