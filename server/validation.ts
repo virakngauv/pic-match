@@ -7,9 +7,10 @@ import {
   type SessionResumePayload,
   type SocketHandshakeAuth,
 } from '../lib/game-protocol'
+import { ROOM_CODE_PATTERN } from './room-code'
 
 export const CLIENT_TOKEN_PATTERN = /^[0-9a-f]{32}$/
-export const ROOM_CODE_PATTERN = /^[bcdfghkpqrstvz]{4}[2-9y]$/
+export { ROOM_CODE_PATTERN }
 export const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/
 export const SYMBOL_ID_PATTERN = /^[a-z0-9-]{1,32}$/
 export const MAX_PLAYER_NAME_LENGTH = 50

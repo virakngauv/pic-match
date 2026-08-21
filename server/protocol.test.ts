@@ -272,6 +272,23 @@ describe('Socket.IO game protocol', () => {
     ).toMatchObject({ status: 'rate_limited' })
   })
 
+  it('does not charge member resumes against the entry rate limit', async () => {
+    const client = await connect(hostToken, '203.0.113.13')
+    const created = await client.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error(created.message)
+
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      expect(
+        await client.emitWithAck('session:resume', {
+          roomCode: created.roomCode,
+        }),
+      ).toMatchObject({
+        status: 'success',
+        snapshot: { status: 'lobby' },
+      })
+    }
+  })
+
   it('contains command failures without terminating the socket server', async () => {
     const client = await connect(hostToken)
     vi.spyOn(socketServer.gameServer, 'snapshot').mockImplementationOnce(() => {

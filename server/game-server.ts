@@ -6,9 +6,8 @@ import type {
   RoomSnapshot,
 } from '../lib/game-protocol'
 import { GameRoom } from './game-room'
+import { ROOM_CODE_CONSONANTS, ROOM_CODE_FINAL_CHARACTERS } from './room-code'
 
-const CONSONANTS = 'bcdfghkpqrstvz'
-const FINAL_CHARACTERS = '23456789y'
 const MAX_CODE_ATTEMPTS = 25
 export const MAX_ACTIVE_ROOMS = 5_000
 
@@ -127,12 +126,12 @@ export class GameServer {
 
   private availableRoomCode() {
     for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt += 1) {
-      const code = `${pick(CONSONANTS, this.random)}${pick(CONSONANTS, this.random)}${pick(CONSONANTS, this.random)}${pick(CONSONANTS, this.random)}${pick(FINAL_CHARACTERS, this.random)}`
+      const code = `${pick(ROOM_CODE_CONSONANTS, this.random)}${pick(ROOM_CODE_CONSONANTS, this.random)}${pick(ROOM_CODE_CONSONANTS, this.random)}${pick(ROOM_CODE_CONSONANTS, this.random)}${pick(ROOM_CODE_FINAL_CHARACTERS, this.random)}`
       if (!this.rooms.has(code)) return code
     }
     for (let attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt += 1) {
       const bytes = randomBytes(5)
-      const code = `${CONSONANTS[bytes[0]! % CONSONANTS.length]}${CONSONANTS[bytes[1]! % CONSONANTS.length]}${CONSONANTS[bytes[2]! % CONSONANTS.length]}${CONSONANTS[bytes[3]! % CONSONANTS.length]}${FINAL_CHARACTERS[bytes[4]! % FINAL_CHARACTERS.length]}`
+      const code = `${ROOM_CODE_CONSONANTS[bytes[0]! % ROOM_CODE_CONSONANTS.length]}${ROOM_CODE_CONSONANTS[bytes[1]! % ROOM_CODE_CONSONANTS.length]}${ROOM_CODE_CONSONANTS[bytes[2]! % ROOM_CODE_CONSONANTS.length]}${ROOM_CODE_CONSONANTS[bytes[3]! % ROOM_CODE_CONSONANTS.length]}${ROOM_CODE_FINAL_CHARACTERS[bytes[4]! % ROOM_CODE_FINAL_CHARACTERS.length]}`
       if (!this.rooms.has(code)) return code
     }
     return null

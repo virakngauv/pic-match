@@ -11,7 +11,7 @@ export function startGameServer(
     allowedOrigins?: string[]
   } = {},
 ) {
-  const port = validatePort(options.port ?? Number(process.env.PORT ?? 3200))
+  const port = validatePort(options.port ?? parseEnvPort(process.env.PORT))
   const host = options.host ?? process.env.HOST ?? '127.0.0.1'
   const allowedOrigins =
     options.allowedOrigins ?? parseAllowedOrigins(process.env.ALLOWED_ORIGINS)
@@ -92,6 +92,11 @@ export function startGameServer(
   }
 
   return { httpServer, ...socketServer, stop }
+}
+
+export function parseEnvPort(value: string | undefined) {
+  const normalized = value?.trim()
+  return normalized ? Number(normalized) : 3200
 }
 
 function validatePort(port: number) {

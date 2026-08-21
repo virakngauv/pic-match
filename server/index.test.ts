@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { startGameServer } from './index'
+import { parseEnvPort, startGameServer } from './index'
 
 describe('game server HTTP process', () => {
   let server: ReturnType<typeof startGameServer> | null = null
@@ -67,6 +67,13 @@ describe('game server HTTP process', () => {
     expect(() => startGameServer({ port: Number.NaN })).toThrow(
       'Invalid game-server port: NaN',
     )
+  })
+
+  it('uses the default port for blank environment values', () => {
+    expect(parseEnvPort(undefined)).toBe(3200)
+    expect(parseEnvPort('')).toBe(3200)
+    expect(parseEnvPort('   ')).toBe(3200)
+    expect(parseEnvPort(' 3201 ')).toBe(3201)
   })
 
   it('logs a structured error when the listen port is already occupied', async () => {

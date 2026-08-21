@@ -92,13 +92,20 @@ export function createGameSocketServer(
 
     socket.on('session:resume', (payload, acknowledge) => {
       const parsed = parseSessionResume(payload)
-      if (!canRun(socket, acknowledge, parsed?.roomCode !== undefined)) return
+      if (!canRun(socket, acknowledge)) return
       safely('session:resume', acknowledge, async () => {
         if (!parsed) return acknowledge(invalid())
         if (!parsed.roomCode) return acknowledge({ status: 'success' })
 
         const snapshot = gameServer.snapshot(socket.data.token, parsed.roomCode)
-        if (isMemberSnapshot(snapshot)) await socket.join(parsed.roomCode)
+        if (isMemberSnapshot(snapshot)) {
+          await socket.join(parsed.roomCode)
+        } else if (!entryCommands.take(entryKey(socket), Date.now())) {
+          return acknowledge({
+            status: 'rate_limited',
+            message: 'Too many commands.',
+          })
+        }
         socket.emit('room:snapshot', snapshot)
         acknowledge({ status: 'success', snapshot })
       })
@@ -286,15 +293,19 @@ export function createGameSocketServer(
       socketCommands.take(socket.id, now) &&
       playerCommands.take(socket.data.token, now) &&
       addressCommands.take(socket.data.address, now)
-    const entryKey = isLoopbackAddress(socket.data.address)
-      ? `${socket.data.address}:${socket.data.token}`
-      : socket.data.address
-    const entryPermitted = !isEntryCommand || entryCommands.take(entryKey, now)
+    const entryPermitted =
+      !permitted || !isEntryCommand || entryCommands.take(entryKey(socket), now)
     if (!permitted || !entryPermitted) {
       acknowledge({ status: 'rate_limited', message: 'Too many commands.' })
       return false
     }
     return true
+  }
+
+  function entryKey(socket: GameSocket) {
+    return isLoopbackAddress(socket.data.address)
+      ? `${socket.data.address}:${socket.data.token}`
+      : socket.data.address
   }
 
   return {

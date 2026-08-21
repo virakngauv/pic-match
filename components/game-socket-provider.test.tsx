@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
       },
     ),
     emitWithAck: (...args: unknown[]) => mocks.emitWithAck(...args),
+    timeout: vi.fn(),
     disconnect: vi.fn(),
   },
 }))
@@ -74,9 +75,13 @@ function MembershipProbe({
   const { createRoom, joinRoom } = useGameSocket()
   const { endedReason } = useRoomSnapshot(roomCode)
   const [completed, setCompleted] = useState(false)
+  const [resultStatus, setResultStatus] = useState('pending')
 
   async function runCommand() {
-    await (command === 'create' ? createRoom('Ada') : joinRoom(roomCode, 'Ada'))
+    const result = await (command === 'create'
+      ? createRoom('Ada')
+      : joinRoom(roomCode, 'Ada'))
+    setResultStatus(result.status)
     setCompleted(true)
   }
 
@@ -84,6 +89,7 @@ function MembershipProbe({
     <>
       <div data-testid="membership-ended">{endedReason ?? 'active'}</div>
       <div data-testid="command-completed">{completed ? 'yes' : 'no'}</div>
+      <div data-testid="command-status">{resultStatus}</div>
       <button type="button" onClick={() => void runCommand()}>
         {command}
       </button>
@@ -101,6 +107,7 @@ describe('GameSocketProvider', () => {
     mocks.socket.connected = true
     mocks.socket.on.mockClear()
     mocks.socket.emit.mockClear()
+    mocks.socket.timeout.mockReset().mockReturnValue(mocks.socket)
     mocks.socket.disconnect.mockClear()
   })
 
@@ -238,6 +245,61 @@ describe('GameSocketProvider', () => {
       )
     },
   )
+
+  it.each(['create', 'join'] as const)(
+    'returns server_unavailable without emitting a disconnected %s command',
+    async (command) => {
+      const user = userEvent.setup()
+      mocks.socket.connected = false
+      render(
+        <GameSocketProvider>
+          <MembershipProbe command={command} roomCode="bcdf2" />
+        </GameSocketProvider>,
+      )
+      await waitFor(() => expect(mocks.io).toHaveBeenCalled())
+
+      await user.click(screen.getByRole('button', { name: command }))
+
+      expect(screen.getByTestId('command-status')).toHaveTextContent(
+        'server_unavailable',
+      )
+      expect(mocks.socket.timeout).not.toHaveBeenCalled()
+      expect(mocks.emitWithAck).not.toHaveBeenCalled()
+    },
+  )
+
+  it('uses Socket.IO acknowledgement timeouts for commands', async () => {
+    const user = userEvent.setup()
+    render(
+      <GameSocketProvider>
+        <MembershipProbe command="create" roomCode="bcdf2" />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'create' }))
+
+    expect(mocks.socket.timeout).toHaveBeenCalledWith(6_000)
+    expect(screen.getByTestId('command-status')).toHaveTextContent('success')
+  })
+
+  it('maps a Socket.IO acknowledgement timeout to server_unavailable', async () => {
+    const user = userEvent.setup()
+    mocks.emitWithAck.mockRejectedValue(new Error('operation has timed out'))
+    render(
+      <GameSocketProvider>
+        <MembershipProbe command="create" roomCode="bcdf2" />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'create' }))
+
+    expect(mocks.socket.timeout).toHaveBeenCalledWith(6_000)
+    expect(screen.getByTestId('command-status')).toHaveTextContent(
+      'server_unavailable',
+    )
+  })
 
   it('does not mark an explicitly left room as ended on shutdown', async () => {
     const user = userEvent.setup()

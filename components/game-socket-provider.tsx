@@ -290,22 +290,10 @@ async function runCommand<TResult extends object>(
 ): Promise<CommandResult<TResult>> {
   if (!socket?.connected) return unavailable()
 
-  let timeout: ReturnType<typeof setTimeout> | undefined
   try {
-    return await Promise.race([
-      command(socket),
-      new Promise<never>(
-        (_, reject) =>
-          (timeout = setTimeout(
-            () => reject(new Error('Command timed out.')),
-            COMMAND_TIMEOUT_MS,
-          )),
-      ),
-    ])
+    return await command(socket.timeout(COMMAND_TIMEOUT_MS))
   } catch {
     return unavailable()
-  } finally {
-    if (timeout !== undefined) clearTimeout(timeout)
   }
 }
 
