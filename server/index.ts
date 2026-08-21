@@ -41,7 +41,20 @@ export function startGameServer(
         code: 'code' in error ? error.code : undefined,
       }),
     )
-    if (isMain) process.exitCode = 1
+    if (isMain) {
+      process.exitCode = 1
+      void stop().catch((stopError: unknown) => {
+        logger.error(
+          JSON.stringify({
+            event: 'game_server_stop_failed',
+            message:
+              stopError instanceof Error
+                ? stopError.message
+                : 'Unknown shutdown error',
+          }),
+        )
+      })
+    }
   })
   httpServer.listen(port, host, () => {
     const address = httpServer.address()
@@ -113,7 +126,10 @@ if (isMain) {
   const server = startGameServer()
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.once(signal, () => {
-      void server.stop().then(() => process.exit(0))
+      void server.stop().then(
+        () => process.exit(0),
+        () => process.exit(1),
+      )
     })
   }
 }

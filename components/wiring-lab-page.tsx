@@ -4,7 +4,7 @@ import { StackOverview } from '@/components/stack-overview'
 
 const integrationState = [
   ['Core app', 'ready'],
-  ['Game server', 'live'],
+  ['Game server', 'checked below'],
   ['Clerk', process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? 'live' : 'demo'],
   ['PostHog', process.env.NEXT_PUBLIC_POSTHOG_KEY ? 'live' : 'demo'],
   ['Arcjet', process.env.ARCJET_KEY ? 'live' : 'demo'],

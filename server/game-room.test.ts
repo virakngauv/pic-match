@@ -96,6 +96,26 @@ describe('GameRoom', () => {
     })
   })
 
+  it('prunes departed lobby member records', () => {
+    const room = createRoom()
+
+    for (let index = 1; index <= 20; index += 1) {
+      const token = index.toString(16).padStart(32, '0')
+      expect(room.join(token, `Player ${index}`, 1_000 + index * 2)).toEqual({
+        status: 'success',
+      })
+      expect(room.leave(token, 1_001 + index * 2)).toEqual({
+        status: 'success',
+      })
+    }
+
+    expect(
+      (room as unknown as { members: Array<{ token: string }> }).members.map(
+        ({ token }) => token,
+      ),
+    ).toEqual([hostToken])
+  })
+
   it('requires an active host and two members to start', () => {
     const room = createRoom()
     expect(room.start(hostToken, 1_001)).toMatchObject({ status: 'invalid' })
@@ -253,5 +273,6 @@ describe('GameRoom', () => {
       status: 'lobby',
       player: { role: 'host' },
     })
+    expect((room as unknown as { members: unknown[] }).members).toHaveLength(1)
   })
 })

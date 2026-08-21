@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -57,6 +58,33 @@ function RoomProbe({ roomCode }: { roomCode: string }) {
       <div data-testid="ended">{endedReason ?? 'active'}</div>
       <button type="button" onClick={() => void leaveRoom(roomCode)}>
         Leave
+      </button>
+    </>
+  )
+}
+
+function MembershipProbe({
+  command,
+  roomCode,
+}: {
+  command: 'create' | 'join'
+  roomCode: string
+}) {
+  const { createRoom, joinRoom } = useGameSocket()
+  const { endedReason } = useRoomSnapshot(roomCode)
+  const [completed, setCompleted] = useState(false)
+
+  async function runCommand() {
+    await (command === 'create' ? createRoom('Ada') : joinRoom(roomCode, 'Ada'))
+    setCompleted(true)
+  }
+
+  return (
+    <>
+      <div data-testid="membership-ended">{endedReason ?? 'active'}</div>
+      <div data-testid="command-completed">{completed ? 'yes' : 'no'}</div>
+      <button type="button" onClick={() => void runCommand()}>
+        {command}
       </button>
     </>
   )
@@ -124,6 +152,33 @@ describe('GameSocketProvider', () => {
 
     expect(screen.getByTestId('ended')).toHaveTextContent('server_restart')
   })
+
+  it.each(['create', 'join'] as const)(
+    'records membership after a successful %s acknowledgement',
+    async (command) => {
+      const user = userEvent.setup()
+      const roomCode = 'bcdf2'
+      mocks.emitWithAck.mockResolvedValue({ status: 'success', roomCode })
+      render(
+        <GameSocketProvider>
+          <MembershipProbe command={command} roomCode={roomCode} />
+        </GameSocketProvider>,
+      )
+      await waitFor(() => expect(mocks.io).toHaveBeenCalled())
+
+      await user.click(screen.getByRole('button', { name: command }))
+      await waitFor(() =>
+        expect(screen.getByTestId('command-completed')).toHaveTextContent(
+          'yes',
+        ),
+      )
+      act(() => mocks.handlers.get('server:shutdown')?.())
+
+      expect(screen.getByTestId('membership-ended')).toHaveTextContent(
+        'server_restart',
+      )
+    },
+  )
 
   it('does not mark an explicitly left room as ended on shutdown', async () => {
     const user = userEvent.setup()

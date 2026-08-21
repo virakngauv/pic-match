@@ -201,9 +201,17 @@ export function createGameSocketServer(
   })
 
   const sweepTimer = setInterval(() => {
-    for (const roomCode of gameServer.expireRooms()) {
-      io.to(roomCode).emit('room:expired', { roomCode, reason: 'idle' })
-      void io.in(roomCode).socketsLeave(roomCode)
+    try {
+      for (const roomCode of gameServer.expireRooms()) {
+        try {
+          io.to(roomCode).emit('room:expired', { roomCode, reason: 'idle' })
+          io.in(roomCode).socketsLeave(roomCode)
+        } catch (error) {
+          logFailure('expiration_room_failed', error)
+        }
+      }
+    } catch (error) {
+      logFailure('expiration_sweep_failed', error)
     }
   }, options.expirationSweepMs ?? 60_000)
   sweepTimer.unref()

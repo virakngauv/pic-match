@@ -18,11 +18,14 @@ const ACK_TIMEOUT_MS = 5_000
 const clients: GameClient[] = []
 
 try {
-  const healthResponse = await fetch(new URL('/healthz', gameServerUrl))
+  const healthResponse = await fetch(new URL('/healthz', gameServerUrl), {
+    signal: AbortSignal.timeout(ACK_TIMEOUT_MS),
+  })
   if (!healthResponse.ok)
     throw new Error(`Health check failed: ${healthResponse.status}`)
 
-  const host = await connect()
+  const hostToken = randomBytes(16).toString('hex')
+  const host = await connect(hostToken)
   const guest = await connect()
   const created = await host
     .timeout(ACK_TIMEOUT_MS)
@@ -59,7 +62,9 @@ try {
   )?.score
   if (guestScore !== 1) throw new Error('Guest score did not synchronize.')
 
-  const resumed = await host
+  host.disconnect()
+  const reconnectedHost = await connect(hostToken)
+  const resumed = await reconnectedHost
     .timeout(ACK_TIMEOUT_MS)
     .emitWithAck('session:resume', { roomCode })
   if (resumed.status !== 'success' || resumed.snapshot?.status !== 'playing') {
@@ -80,8 +85,7 @@ try {
   for (const client of clients) client.disconnect()
 }
 
-async function connect() {
-  const token = randomBytes(16).toString('hex')
+async function connect(token = randomBytes(16).toString('hex')) {
   const client: GameClient = io(gameServerUrl, {
     auth: { token, protocolVersion: GAME_PROTOCOL_VERSION },
     extraHeaders: { Origin: browserOrigin },

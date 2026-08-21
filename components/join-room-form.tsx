@@ -81,7 +81,7 @@ export function JoinRoomForm({
           autoFocus={!roomCodeLocked}
           readOnly={roomCodeLocked}
           required
-          disabled={isJoining || connectionStatus !== 'connected'}
+          disabled={isJoining}
         />
         <Field
           label="Name"
@@ -94,13 +94,12 @@ export function JoinRoomForm({
           maxLength={50}
           autoFocus={roomCodeLocked}
           required
-          disabled={isJoining || connectionStatus !== 'connected'}
+          disabled={isJoining}
         />
       </div>
       <p
         className="text-accent mt-3 min-h-5 text-sm"
-        role="alert"
-        aria-live="polite"
+        role={error ? 'alert' : 'status'}
       >
         {error ??
           (connectionStatus === 'connected'

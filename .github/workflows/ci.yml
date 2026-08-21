@@ -111,10 +111,8 @@ jobs:
   e2e:
     name: End-to-end
     needs: quality
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    environment: ci-preview
 
     steps:
       - name: Check out repository

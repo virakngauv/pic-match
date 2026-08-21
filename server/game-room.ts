@@ -134,6 +134,10 @@ export class GameRoom {
     }
 
     this.commandResults.delete(token)
+    if (this.phase === 'lobby') {
+      const index = this.members.indexOf(member)
+      if (index >= 0) this.members.splice(index, 1)
+    }
     this.changed(now)
     return { status: 'success' }
   }
@@ -267,6 +271,9 @@ export class GameRoom {
 
     this.phase = 'lobby'
     this.game = null
+    for (let index = this.members.length - 1; index >= 0; index -= 1) {
+      if (!this.members[index]?.active) this.members.splice(index, 1)
+    }
     this.commandResults.clear()
     this.changed(now)
     return { status: 'success' }

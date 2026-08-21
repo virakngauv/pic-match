@@ -161,20 +161,30 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const createRoom = useCallback(
-    async (name: string): Promise<CommandResult<{ roomCode: string }>> =>
-      await runCommand(socketRef.current, (socket) =>
+    async (name: string): Promise<CommandResult<{ roomCode: string }>> => {
+      const result = await runCommand(socketRef.current, (socket) =>
         socket.emitWithAck('room:create', { name }),
-      ),
+      )
+      if (result.status === 'success') {
+        memberRoomsRef.current.add(result.roomCode)
+      }
+      return result
+    },
     [],
   )
   const joinRoom = useCallback(
     async (
       roomCode: string,
       name: string,
-    ): Promise<CommandResult<{ roomCode: string }>> =>
-      await runCommand(socketRef.current, (socket) =>
+    ): Promise<CommandResult<{ roomCode: string }>> => {
+      const result = await runCommand(socketRef.current, (socket) =>
         socket.emitWithAck('room:join', { roomCode, name }),
-      ),
+      )
+      if (result.status === 'success') {
+        memberRoomsRef.current.add(result.roomCode)
+      }
+      return result
+    },
     [],
   )
   const leaveRoom = useCallback(

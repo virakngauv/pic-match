@@ -13,6 +13,7 @@ import {
   type RoomSnapshot,
   type ServerToClientEvents,
 } from '../lib/game-protocol'
+import { GameServer } from './game-server'
 import { createGameSocketServer } from './protocol'
 
 type TestClient = ClientSocket<ServerToClientEvents, ClientToServerEvents>
@@ -27,24 +28,35 @@ describe('Socket.IO game protocol', () => {
   let url: string
   const clients: TestClient[] = []
 
-  beforeEach(async () => {
+  async function startServer(
+    options: {
+      expirationSweepMs?: number
+      gameServer?: GameServer
+      logger?: Pick<Console, 'info' | 'warn' | 'error'>
+    } = {},
+  ) {
     httpServer = createServer()
     socketServer = createGameSocketServer(httpServer, {
       allowedOrigins: [allowedOrigin],
-      expirationSweepMs: 60_000,
-      logger: { info() {}, warn() {}, error() {} },
+      expirationSweepMs: options.expirationSweepMs ?? 60_000,
+      gameServer: options.gameServer,
+      logger: options.logger ?? { info() {}, warn() {}, error() {} },
     })
     await new Promise<void>((resolve) =>
       httpServer.listen(0, '127.0.0.1', resolve),
     )
     const address = httpServer.address() as AddressInfo
     url = `http://127.0.0.1:${address.port}`
+  }
+
+  beforeEach(async () => {
+    await startServer()
   })
 
   afterEach(async () => {
     for (const client of clients) client.disconnect()
     clients.length = 0
-    await socketServer.shutdown()
+    if (httpServer.listening) await socketServer.shutdown()
   })
 
   async function connect(token: string, forwardedFor?: string) {
@@ -276,6 +288,84 @@ describe('Socket.IO game protocol', () => {
       status: 'success',
     })
     expect(client.connected).toBe(true)
+  })
+
+  it('contains expiration sweep failures without terminating the socket server', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const gameServer = new GameServer()
+    vi.spyOn(gameServer, 'expireRooms').mockImplementationOnce(() => {
+      throw new Error('Injected expiration failure')
+    })
+    await startServer({ expirationSweepMs: 5, gameServer, logger })
+    const client = await connect(hostToken)
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('expiration_sweep_failed'),
+      )
+    })
+    expect(await client.emitWithAck('session:resume', {})).toEqual({
+      status: 'success',
+    })
+    expect(client.connected).toBe(true)
+  })
+
+  it('continues expiration cleanup after a room notification fails', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const gameServer = new GameServer()
+    vi.spyOn(gameServer, 'expireRooms').mockReturnValueOnce(['bcdf2', 'cdfg3'])
+    await startServer({ expirationSweepMs: 100, gameServer, logger })
+    const originalTo = socketServer.io.to.bind(socketServer.io)
+    const to = vi.spyOn(socketServer.io, 'to')
+    to.mockImplementationOnce(
+      () =>
+        ({
+          emit() {
+            throw new Error('Injected room notification failure')
+          },
+        }) as unknown as ReturnType<typeof socketServer.io.to>,
+    )
+    to.mockImplementation((room) => originalTo(room))
+
+    await vi.waitFor(() => {
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('expiration_room_failed'),
+      )
+      expect(to).toHaveBeenCalledWith('cdfg3')
+    })
+  })
+
+  it('notifies sockets when an idle room expires and when the server shuts down', async () => {
+    await socketServer.shutdown()
+    await startServer({
+      expirationSweepMs: 5,
+      gameServer: new GameServer({
+        lobbyMs: 50,
+        playingMs: 1_000,
+        finishedMs: 1_000,
+      }),
+    })
+    const client = await connect(hostToken)
+    const created = await client.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error(created.message)
+    const roomCode = created.roomCode
+    const expired = new Promise<{ roomCode: string; reason: 'idle' }>(
+      (resolve) => client.once('room:expired', resolve),
+    )
+
+    await expect(expired).resolves.toEqual({ roomCode, reason: 'idle' })
+    await vi.waitFor(async () => {
+      expect(await socketServer.io.in(roomCode).fetchSockets()).toHaveLength(0)
+    })
+
+    const shuttingDown = new Promise<void>((resolve) =>
+      client.once('server:shutdown', resolve),
+    )
+    const shutdown = socketServer.shutdown()
+    await expect(shuttingDown).resolves.toBeUndefined()
+    await shutdown
   })
 
   it('emits no application heartbeat while an idle socket stays connected', async () => {
