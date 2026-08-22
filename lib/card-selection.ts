@@ -1,7 +1,5 @@
 export const SELECTED_SYMBOL_SCALE = 1.06
 export const SELECTED_SYMBOL_ROTATION_DEGREES = 6
-export const UNSELECTED_SYMBOL_SATURATION = 0
-export const UNSELECTED_SYMBOL_FILTER = `saturate(${UNSELECTED_SYMBOL_SATURATION})`
 
 /** Returns a stable clockwise or counter-clockwise selection tilt. */
 export function getSelectedSymbolRotationOffset(

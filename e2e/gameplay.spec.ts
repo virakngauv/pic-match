@@ -108,14 +108,28 @@ test('replays a complete shared race across browser sessions', async ({
     await expect(toggledSymbol).toHaveAttribute('aria-pressed', 'true')
     const selectionStylesAfter = await cardSelectionStyleSnapshot(hostPage)
     const selectedCardStyles = selectionStylesAfter[0]
+    const selectedStyleBefore = selectionStylesBefore[0]?.find(
+      ({ id }) => id === toggledSymbolId,
+    )
+    const selectedStyleAfter = selectedCardStyles?.find(
+      ({ id }) => id === toggledSymbolId,
+    )
 
-    expect(
-      selectedCardStyles?.find(({ id }) => id === toggledSymbolId)?.filter,
-    ).toBe('none')
+    expect(selectedStyleAfter?.filter).toBe('none')
+    expect(selectedStyleAfter?.borderWidth).toBe('2px')
+    expect(selectedStyleAfter?.borderColor).not.toBe(
+      selectedStyleBefore?.borderColor,
+    )
+    expect(selectedStyleAfter?.backgroundColor).not.toBe(
+      selectedStyleBefore?.backgroundColor,
+    )
+    expect(selectedStyleAfter?.boxShadow).not.toBe(
+      selectedStyleBefore?.boxShadow,
+    )
     expect(
       selectedCardStyles
         ?.filter(({ id }) => id !== toggledSymbolId)
-        .every(({ filter }) => filter === 'saturate(0)'),
+        .every(({ filter }) => filter === 'none'),
     ).toBe(true)
     expect(selectionStylesAfter[1]).toEqual(selectionStylesBefore[1])
     await expectUnclippedSiblingGlyphs(
@@ -579,11 +593,16 @@ async function cardSelectionStyleSnapshot(page: Page) {
             }
 
             const glyphStyles = getComputedStyle(glyph)
+            const symbolStyles = getComputedStyle(symbol)
 
             return {
               id: symbol.dataset.symbolId ?? '',
               filter: getComputedStyle(filter).filter,
               transform: glyphStyles.transform,
+              borderWidth: symbolStyles.borderWidth,
+              borderColor: symbolStyles.borderColor,
+              backgroundColor: symbolStyles.backgroundColor,
+              boxShadow: symbolStyles.boxShadow,
             }
           },
         ),
