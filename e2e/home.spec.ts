@@ -54,6 +54,7 @@ test('moves a room from creation into a reconnectable game', async ({
       guestPage.getByRole('heading', { name: 'Join your friends.' }),
     ).toBeVisible()
     await expect(guestPage.getByLabel('Room code')).toHaveValue(roomCode)
+    await expect(guestPage.getByLabel('Name')).toBeFocused()
 
     await expect(
       guestPage.getByRole('button', { name: 'Join', exact: true }),
@@ -102,6 +103,10 @@ test('moves a room from creation into a reconnectable game', async ({
     await expect(
       lateJoinerPage.getByRole('button', { name: 'Join', exact: true }),
     ).toBeEnabled()
+    await expect(lateJoinerPage.getByLabel('Room code')).toBeFocused()
+    await expect(lateJoinerPage.getByLabel('Room code')).not.toHaveAttribute(
+      'placeholder',
+    )
     await lateJoinerPage.getByLabel('Room code').fill(roomCode)
     await lateJoinerPage.getByLabel('Name').fill('Linus')
     await lateJoinerPage
