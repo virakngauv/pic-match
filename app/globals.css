@@ -92,19 +92,21 @@ body {
 
 .game-scoreboard {
   grid-area: scoreboard;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   min-width: 0;
   align-items: center;
   gap: 0.375rem;
+  overflow: hidden;
   border-radius: 1rem;
   padding: 0.25rem;
 }
 
 .game-scoreboard-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
+  display: grid;
+  align-content: center;
+  gap: 0.125rem;
+  min-width: max-content;
   padding-left: 0.25rem;
 }
 
@@ -112,22 +114,73 @@ body {
   display: none;
 }
 
-.game-score-list {
-  display: grid;
-  flex: 1;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.25rem;
+.game-score-viewport {
+  position: relative;
   min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: color-mix(in oklab, var(--accent) 55%, transparent)
+    transparent;
+  scrollbar-width: thin;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 0.75rem,
+    black calc(100% - 0.75rem),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 0.75rem,
+    black calc(100% - 0.75rem),
+    transparent
+  );
+}
+
+.game-scoreboard:has(.game-score-viewport:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.game-score-viewport::-webkit-scrollbar {
+  height: 0.375rem;
+}
+
+.game-score-viewport::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+.game-score-list {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+  width: max-content;
+  min-width: 100%;
+  padding: 0.125rem 0.75rem 0.375rem;
 }
 
 .game-score-entry {
   display: flex;
+  flex: 0 0 clamp(8.75rem, 38vw, 11rem);
   min-width: 0;
-  min-height: 2.5rem;
+  min-height: 3.25rem;
   align-items: center;
   gap: 0.375rem;
   border-radius: 0.75rem;
   padding: 0.25rem 0.375rem;
+  overflow-anchor: none;
+}
+
+.game-score-name {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .game-board {
@@ -261,7 +314,8 @@ body {
   }
 
   .game-score-entry {
-    min-height: 2rem;
+    flex-basis: 8.5rem;
+    min-height: 3rem;
     gap: 0.25rem;
     padding: 0.125rem 0.25rem;
   }
@@ -391,12 +445,13 @@ body {
 
   .game-shell {
     grid-template-areas:
-      'header scoreboard'
-      'board scoreboard'
-      'feedback scoreboard';
-    grid-template-columns: minmax(0, 1fr) 18rem;
-    grid-template-rows: auto minmax(18rem, 1fr) auto;
-    gap: 1.5rem;
+      'header'
+      'scoreboard'
+      'board'
+      'feedback';
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(18rem, 1fr) auto;
+    gap: 1rem;
     min-height: calc(100vh - 4rem);
   }
 
@@ -405,12 +460,10 @@ body {
   }
 
   .game-scoreboard {
-    position: sticky;
-    top: 2rem;
-    display: block;
-    align-self: start;
-    border-radius: 2rem;
-    padding: 1.25rem;
+    position: static;
+    align-self: stretch;
+    border-radius: 1.5rem;
+    padding: 0.75rem;
   }
 
   .game-scoreboard-heading {
@@ -418,17 +471,15 @@ body {
   }
 
   .game-score-list {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
     gap: 0.5rem;
-    margin-top: 1rem;
   }
 
   .game-score-entry {
-    min-height: 0;
+    flex-basis: clamp(11rem, 19vw, 14rem);
+    min-height: 3.75rem;
     gap: 0.75rem;
     border-radius: 1rem;
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
   }
 
   .game-board {

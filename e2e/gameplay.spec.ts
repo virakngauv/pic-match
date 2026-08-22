@@ -10,6 +10,7 @@ const roomCodePattern = /^[bcdfghkpqrstvz]{4}[2-9y]$/
 const playerNames = {
   host: 'Ada',
   guest: 'Grace',
+  third: 'Margaret Hamilton',
   replacement: 'Linus',
 } as const
 
@@ -32,10 +33,12 @@ test('replays a complete shared race across browser sessions', async ({
 
   const hostContext = await browser.newContext({ baseURL })
   let guestContext = await browser.newContext({ baseURL })
+  const thirdContext = await browser.newContext({ baseURL })
   const outsiderContext = await browser.newContext({ baseURL })
   const lateJoinerContext = await browser.newContext({ baseURL })
   const hostPage = await hostContext.newPage()
   let guestPage = await guestContext.newPage()
+  const thirdPage = await thirdContext.newPage()
   const outsiderPage = await outsiderContext.newPage()
   const lateJoinerPage = await lateJoinerContext.newPage()
 
@@ -74,14 +77,23 @@ test('replays a complete shared race across browser sessions', async ({
     await expect(
       hostPage.getByText(playerNames.guest, { exact: true }),
     ).toBeVisible()
+    await joinRoom(thirdPage, roomCode, playerNames.third)
+    await expect(
+      hostPage.getByText(playerNames.third, { exact: true }),
+    ).toBeVisible()
 
     await hostPage.getByRole('button', { name: 'Start game' }).click()
 
     await expectPlaying(hostPage, playerNames.host)
     await expectPlaying(guestPage, playerNames.guest)
+    await expectPlaying(thirdPage, playerNames.third)
 
     const initialState = await playingSnapshot(hostPage)
-    expect(initialState.scores).toEqual({ Ada: 0, Grace: 0 })
+    expect(initialState.scores).toEqual({
+      Ada: 0,
+      Grace: 0,
+      'Margaret Hamilton': 0,
+    })
     await expect
       .poll(async () => await playingSnapshot(guestPage))
       .toEqual(initialState)
@@ -101,6 +113,18 @@ test('replays a complete shared race across browser sessions', async ({
     const toggledSymbol = firstSymbolControl(hostPage)
     const toggledSymbolId = await toggledSymbol.getAttribute('data-symbol-id')
     const selectionStylesBefore = await cardSelectionStyleSnapshot(hostPage)
+    const leaderboard = hostPage.getByRole('list', {
+      name: 'Live leaderboard, highest score first',
+    })
+    const leaderboardViewport = hostPage.getByRole('region', {
+      name: 'Scrollable leaderboard',
+    })
+    expect(await leaderboardOrder(hostPage)).toEqual([
+      playerNames.host,
+      playerNames.guest,
+      playerNames.third,
+    ])
+    await expectHorizontalLeaderboard(hostPage, true)
     const paintCoverageBefore = await cardGlyphPaintCoverage(
       hostPage.getByLabel('Card 1'),
     )
@@ -149,9 +173,63 @@ test('replays a complete shared race across browser sessions', async ({
       selectionStylesBefore,
     )
     expect(await playingSnapshot(hostPage)).toEqual(initialState)
+
+    const leaderboardScrollLeft = await leaderboardViewport.evaluate(
+      (element) => {
+        element.scrollLeft = element.scrollWidth
+        element.dispatchEvent(new Event('scroll'))
+        return element.scrollLeft
+      },
+    )
+    expect(leaderboardScrollLeft).toBeGreaterThan(0)
+    await expect
+      .poll(
+        async () =>
+          await leaderboardViewport.evaluate((element) => element.scrollLeft),
+      )
+      .toBe(leaderboardScrollLeft)
+    const boardTopBeforeReorder = await boardTop(hostPage)
+
+    await expectNoScoreReveal(guestPage)
+    await selectSharedMatch(guestPage, (await playingSnapshot(guestPage)).cards)
+    const guestScoreEntry = leaderboard
+      .getByRole('listitem')
+      .filter({ hasText: playerNames.guest })
+    await Promise.all([
+      expectScore(hostPage, playerNames.guest, 1),
+      expect(guestScoreEntry).toHaveAttribute('data-score-rank', '1'),
+    ])
+    expect(await leaderboardOrder(hostPage)).toEqual([
+      playerNames.guest,
+      playerNames.host,
+      playerNames.third,
+    ])
+    await expect
+      .poll(
+        async () =>
+          await leaderboardViewport.evaluate((element) => element.scrollLeft),
+      )
+      .toBe(leaderboardScrollLeft)
+    expect(await boardTop(hostPage)).toBeCloseTo(boardTopBeforeReorder, 0)
+    await waitForRoundToSettle(guestPage)
+    await expectNoScoreReveal(hostPage)
+    await expectNoScoreReveal(guestPage)
+
     if (initialViewport) {
       await hostPage.setViewportSize(initialViewport)
+      await expectHorizontalLeaderboard(hostPage, false)
     }
+
+    await thirdPage.getByRole('button', { name: 'Leave room' }).click()
+    await thirdPage
+      .getByRole('dialog', { name: 'Leave this room?' })
+      .getByRole('button', { name: 'Leave room' })
+      .click()
+    await expect(thirdPage).toHaveURL(/\/home$/)
+    await expect(leaderboard.getByRole('listitem')).toHaveCount(3)
+    await expect
+      .poll(async () => await leaderboardOrder(hostPage))
+      .toEqual([playerNames.guest, playerNames.host, playerNames.third])
 
     await outsiderPage.goto(`/${roomCode}`)
     await expect(
@@ -439,6 +517,7 @@ test('replays a complete shared race across browser sessions', async ({
     await Promise.all([
       lateJoinerContext.close(),
       outsiderContext.close(),
+      thirdContext.close(),
       guestContext.close(),
       hostContext.close(),
     ])
@@ -510,6 +589,84 @@ async function expectNoHorizontalOverflow(page: Page) {
     .toBeLessThanOrEqual(0)
 }
 
+async function leaderboardOrder(page: Page) {
+  return page
+    .getByRole('list', { name: 'Live leaderboard, highest score first' })
+    .getByRole('listitem')
+    .evaluateAll((entries) =>
+      entries.map(
+        (entry) =>
+          entry
+            .querySelector<HTMLElement>('[data-scoreboard-name]')
+            ?.textContent?.trim() ?? '',
+      ),
+    )
+}
+
+async function boardTop(page: Page) {
+  return page
+    .getByLabel('Shared game board')
+    .evaluate((board) => board.getBoundingClientRect().top)
+}
+
+async function expectHorizontalLeaderboard(
+  page: Page,
+  shouldOverflow: boolean,
+) {
+  const measurements = await page.evaluate(() => {
+    const scoreboard = document.querySelector<HTMLElement>('.game-scoreboard')
+    const viewport = document.querySelector<HTMLElement>('.game-score-viewport')
+    const list = document.querySelector<HTMLOListElement>('.game-score-list')
+    const board = document.querySelector<HTMLElement>('.game-board')
+
+    if (!scoreboard || !viewport || !list || !board) {
+      throw new Error('Missing active-game leaderboard layout.')
+    }
+
+    const scoreboardBounds = scoreboard.getBoundingClientRect()
+    const boardBounds = board.getBoundingClientRect()
+    const listStyles = getComputedStyle(list)
+    const viewportStyles = getComputedStyle(viewport)
+
+    return {
+      boardTop: boardBounds.top,
+      documentClientWidth: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      listDisplay: listStyles.display,
+      listFlexWrap: listStyles.flexWrap,
+      scoreboardBottom: scoreboardBounds.bottom,
+      scoreboardLeft: scoreboardBounds.left,
+      scoreboardRight: scoreboardBounds.right,
+      viewportClientWidth: viewport.clientWidth,
+      viewportOverflowX: viewportStyles.overflowX,
+      viewportScrollWidth: viewport.scrollWidth,
+    }
+  })
+
+  expect(measurements.listDisplay).toBe('flex')
+  expect(measurements.listFlexWrap).toBe('nowrap')
+  expect(measurements.viewportOverflowX).toBe('auto')
+  expect(measurements.scoreboardBottom).toBeLessThanOrEqual(
+    measurements.boardTop + 1,
+  )
+  expect(measurements.scoreboardLeft).toBeGreaterThanOrEqual(-1)
+  expect(measurements.scoreboardRight).toBeLessThanOrEqual(
+    measurements.documentClientWidth + 1,
+  )
+  expect(measurements.documentScrollWidth).toBeLessThanOrEqual(
+    measurements.documentClientWidth + 1,
+  )
+  if (shouldOverflow) {
+    expect(measurements.viewportScrollWidth).toBeGreaterThan(
+      measurements.viewportClientWidth,
+    )
+  } else {
+    expect(measurements.viewportScrollWidth).toBeLessThanOrEqual(
+      measurements.viewportClientWidth + 1,
+    )
+  }
+}
+
 async function playingSnapshot(page: Page): Promise<PlayingSnapshot> {
   const cards = await page
     .getByLabel('Shared game board')
@@ -531,7 +688,9 @@ async function playingSnapshot(page: Page): Promise<PlayingSnapshot> {
       .evaluateAll((entries) =>
         entries.map((entry) => {
           const name =
-            entry.querySelector('span span')?.textContent?.trim() ?? ''
+            entry
+              .querySelector<HTMLElement>('[data-scoreboard-name]')
+              ?.textContent?.trim() ?? ''
           const score = Number(
             entry.querySelector('output')?.textContent ?? NaN,
           )
