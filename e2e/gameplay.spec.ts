@@ -220,12 +220,15 @@ test('replays a complete shared race across browser sessions', async ({
       await expectHorizontalLeaderboard(hostPage, false)
     }
 
-    await thirdPage.getByRole('button', { name: 'Leave room' }).click()
-    await thirdPage
-      .getByRole('dialog', { name: 'Leave this room?' })
-      .getByRole('button', { name: 'Leave room' })
-      .click()
-    await expect(thirdPage).toHaveURL(/\/home$/)
+    for (const page of [hostPage, guestPage, thirdPage]) {
+      await expect(page.getByRole('navigation')).toHaveCount(0)
+      await expect(
+        page.getByRole('button', { name: 'Leave room' }),
+      ).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Room menu' })).toHaveCount(
+        0,
+      )
+    }
     await expect(leaderboard.getByRole('listitem')).toHaveCount(3)
     await expect
       .poll(async () => await leaderboardOrder(hostPage))
@@ -448,7 +451,11 @@ test('replays a complete shared race across browser sessions', async ({
     ).toBeAttached()
 
     const secondGameInitialState = await playingSnapshot(hostPage)
-    expect(secondGameInitialState.scores).toEqual({ Ada: 0, Linus: 0 })
+    expect(secondGameInitialState.scores).toEqual({
+      Ada: 0,
+      'Margaret Hamilton': 0,
+      Linus: 0,
+    })
     await expect
       .poll(async () => await playingSnapshot(lateJoinerPage))
       .toEqual(secondGameInitialState)
@@ -460,13 +467,8 @@ test('replays a complete shared race across browser sessions', async ({
     ).toHaveCount(0)
     await expectNoHorizontalOverflow(hostPage)
 
-    await hostPage.getByRole('button', { name: 'Room menu' }).click()
-    await hostPage
-      .getByLabel('Room actions')
-      .getByRole('button', { name: 'Home' })
-      .click()
-    await expect(hostPage).toHaveURL(/\/home$/)
-    await hostPage.goto(`/${roomCode}`)
+    await expect(hostPage.getByRole('navigation')).toHaveCount(0)
+    await hostPage.reload()
     await expectPlaying(hostPage, playerNames.host)
     await expect
       .poll(async () => await playingSnapshot(hostPage))
@@ -492,13 +494,10 @@ test('replays a complete shared race across browser sessions', async ({
       .poll(async () => await playingSnapshot(lateJoinerPage))
       .toEqual(secondGameAfterScore)
 
-    await lateJoinerPage.getByRole('button', { name: 'Leave room' }).click()
-    const leaveDialog = lateJoinerPage.getByRole('dialog', {
-      name: 'Leave this room?',
-    })
-    await expect(leaveDialog).toContainText('may not be able to rejoin')
-    await leaveDialog.getByRole('button', { name: 'Leave room' }).click()
-    await expect(lateJoinerPage).toHaveURL(/\/home$/)
+    await expect(lateJoinerPage.getByRole('navigation')).toHaveCount(0)
+    await expect(
+      lateJoinerPage.getByRole('button', { name: 'Leave room' }),
+    ).toHaveCount(0)
     await expectPlaying(hostPage, playerNames.host)
     expect(await playingSnapshot(hostPage)).toEqual(secondGameAfterScore)
     await expect(
@@ -510,11 +509,10 @@ test('replays a complete shared race across browser sessions', async ({
     await expectNoHorizontalOverflow(hostPage)
 
     await lateJoinerPage.goto(`/${roomCode}`)
-    await expect(
-      lateJoinerPage.getByRole('heading', {
-        name: 'This game has already started.',
-      }),
-    ).toBeVisible()
+    await expectPlaying(lateJoinerPage, playerNames.replacement)
+    await expect
+      .poll(async () => await playingSnapshot(lateJoinerPage))
+      .toEqual(await playingSnapshot(hostPage))
 
     await outsiderPage.reload()
     await expect(

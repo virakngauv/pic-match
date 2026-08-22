@@ -2,7 +2,6 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 
-import { FIRST_PLAYABLE_WINNING_SCORE } from '@/lib/spot-it'
 import { cn } from '@/lib/utils'
 
 const REORDER_DURATION_MS = 260
@@ -33,12 +32,10 @@ export function orderGameScoreboard(
 /** Presents the top, horizontally scrollable active-game leaderboard. */
 export function GameScoreboard({
   localPlayerId,
-  pairRevision,
   scoreboard,
   revealScorerId,
 }: {
   localPlayerId: string
-  pairRevision: number
   scoreboard: readonly GameScoreboardEntry[]
   revealScorerId: string | null
 }) {
@@ -135,20 +132,9 @@ export function GameScoreboard({
       className="game-scoreboard bg-card border shadow-sm"
       aria-labelledby="scoreboard-heading"
     >
-      <div className="game-scoreboard-heading">
-        <h2
-          id="scoreboard-heading"
-          className="sr-only text-xl font-semibold sm:not-sr-only"
-        >
-          Scoreboard
-        </h2>
-        <span className="text-muted-foreground shrink-0 text-[0.65rem] font-bold tracking-[0.1em] uppercase sm:text-xs sm:tracking-[0.12em]">
-          <span className="game-short-round" aria-hidden="true">
-            R{pairRevision + 1} ·{' '}
-          </span>
-          First to {FIRST_PLAYABLE_WINNING_SCORE}
-        </span>
-      </div>
+      <h2 id="scoreboard-heading" className="sr-only">
+        Scoreboard
+      </h2>
       <p id="scoreboard-scroll-help" className="sr-only">
         Scores are ordered highest first. Scroll horizontally for more players.
       </p>
@@ -200,26 +186,17 @@ export function GameScoreboard({
                 data-scored={isRevealScorer ? 'true' : undefined}
               >
                 <span className="sr-only">Rank {index + 1}. </span>
-                <span className="min-w-0 flex-1">
+                <span className="game-score-player min-w-0">
                   <span
-                    className="game-score-name text-sm font-semibold sm:text-base"
+                    className="game-score-name text-xs font-semibold sm:text-base"
                     data-scoreboard-name=""
                     title={entry.name}
                   >
                     {entry.name}
                   </span>
-                  <span className="text-muted-foreground block truncate text-[0.65rem] sm:text-xs">
-                    {isLocalPlayer
-                      ? entry.role === 'host'
-                        ? 'You · Host'
-                        : 'You'
-                      : entry.role === 'host'
-                        ? 'Host'
-                        : 'Player'}
-                  </span>
                 </span>
                 <output
-                  className="bg-foreground text-background inline-flex size-8 shrink-0 items-center justify-center rounded-full px-2 font-mono text-sm font-bold sm:h-10 sm:min-w-10 sm:px-3 sm:text-lg"
+                  className="game-score-value font-mono text-sm font-bold sm:text-lg"
                   aria-label={`${entry.name}'s score`}
                   aria-live="off"
                 >

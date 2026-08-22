@@ -55,7 +55,6 @@ describe('GameScoreboard', () => {
     render(
       <GameScoreboard
         localPlayerId="linus"
-        pairRevision={4}
         scoreboard={[entries[2]!, entries[0]!, entries[1]!]}
         revealScorerId="grace"
       />,
@@ -86,7 +85,11 @@ describe('GameScoreboard', () => {
       'title',
       'Grace Hopper Twenty',
     )
-    expect(screen.getByText('First to 12')).toBeInTheDocument()
+    expect(screen.queryByText(/first to/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Host')).not.toBeInTheDocument()
+    expect(screen.queryByText('You')).not.toBeInTheDocument()
+    expect(screen.queryByText('Player')).not.toBeInTheDocument()
+    expect(items[1]).toHaveAttribute('aria-current', 'true')
     expect(
       screen.getByLabelText("Grace Hopper Twenty's score"),
     ).toHaveAttribute('aria-live', 'off')
@@ -120,7 +123,6 @@ describe('GameScoreboard', () => {
     const { rerender } = render(
       <GameScoreboard
         localPlayerId="ada"
-        pairRevision={0}
         scoreboard={initial}
         revealScorerId={null}
       />,
@@ -136,7 +138,6 @@ describe('GameScoreboard', () => {
     rerender(
       <GameScoreboard
         localPlayerId="ada"
-        pairRevision={0}
         scoreboard={initial.map((entry) =>
           entry.playerId === 'grace' ? { ...entry, score: 2 } : entry,
         )}
@@ -168,7 +169,6 @@ describe('GameScoreboard', () => {
     const { rerender } = render(
       <GameScoreboard
         localPlayerId="ada"
-        pairRevision={0}
         scoreboard={entries}
         revealScorerId={null}
       />,
@@ -183,7 +183,6 @@ describe('GameScoreboard', () => {
     rerender(
       <GameScoreboard
         localPlayerId="ada"
-        pairRevision={1}
         scoreboard={[...entries]}
         revealScorerId={null}
       />,
@@ -207,7 +206,6 @@ describe('GameScoreboard', () => {
     const { rerender } = render(
       <GameScoreboard
         localPlayerId="ada"
-        pairRevision={0}
         scoreboard={initial}
         revealScorerId={null}
       />,
@@ -218,7 +216,6 @@ describe('GameScoreboard', () => {
     rerender(
       <GameScoreboard
         localPlayerId="ada"
-        pairRevision={0}
         scoreboard={initial.map((entry) =>
           entry.playerId === 'grace' ? { ...entry, score: 2 } : entry,
         )}

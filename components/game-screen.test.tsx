@@ -102,14 +102,6 @@ const acceptedClaim = {
   pairRevision: 0,
 }
 
-const navigationProps = {
-  isLeaving: false,
-  leaveError: null,
-  onDismissError: vi.fn(),
-  onGoHome: vi.fn(),
-  onLeaveRoom: vi.fn(),
-}
-
 describe('GameScreen', () => {
   it('renders both server-provided cards and every symbol as a named control', () => {
     renderGame()
@@ -166,7 +158,6 @@ describe('GameScreen', () => {
 
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={0}
@@ -289,9 +280,8 @@ describe('GameScreen', () => {
         .map((button) => symbolFilter(button).style.filter),
     ).toEqual(Array(8).fill('none'))
     expect(onSubmitClaim).not.toHaveBeenCalled()
-    expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'Select the match on both cards.',
-    )
+    expect(screen.getByLabelText('Match claim feedback')).toBeEmptyDOMElement()
+    expect(screen.queryByText(/first to/i)).not.toBeInTheDocument()
     expect(
       screen.getByText('Room frvg7, round 1', { selector: 'span.sr-only' }),
     ).toBeInTheDocument()
@@ -399,7 +389,6 @@ describe('GameScreen', () => {
 
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={0}
@@ -462,7 +451,7 @@ describe('GameScreen', () => {
     expect(onSubmitClaim).not.toHaveBeenCalled()
     expect(
       screen.getByRole('status', { name: 'Match claim feedback' }),
-    ).toHaveTextContent('Select the match on both cards.')
+    ).toBeEmptyDOMElement()
   })
 
   it('marks the selected symbols, then clears them after an incorrect claim', async () => {
@@ -545,9 +534,7 @@ describe('GameScreen', () => {
         .filter,
     ).toBe('none')
     expect(firstSelection).toBeEnabled()
-    expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'Select the match on both cards.',
-    )
+    expect(screen.getByLabelText('Match claim feedback')).toBeEmptyDOMElement()
 
     vi.useRealTimers()
   })
@@ -598,9 +585,7 @@ describe('GameScreen', () => {
     act(() => vi.advanceTimersByTime(1_010))
 
     expect(screen.getByRole('button', { name: 'Cat on card 1' })).toBeEnabled()
-    expect(screen.getByLabelText('Match claim feedback')).toHaveTextContent(
-      'Select the match on both cards.',
-    )
+    expect(screen.getByLabelText('Match claim feedback')).toBeEmptyDOMElement()
 
     vi.useRealTimers()
   })
@@ -663,6 +648,9 @@ describe('GameScreen', () => {
     ).toHaveTextContent(
       'Unable to submit your match. Change or reselect either symbol to retry.',
     )
+    expect(
+      screen.getByRole('alert', { name: 'Match claim feedback' }),
+    ).toHaveClass('game-feedback-overlay')
     const firstCat = screen.getByRole('button', { name: 'Cat on card 1' })
     const secondCat = screen.getByRole('button', { name: 'Cat on card 2' })
 
@@ -742,7 +730,6 @@ describe('GameScreen', () => {
 
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={1}
@@ -773,54 +760,24 @@ describe('GameScreen', () => {
     ).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('keeps a leave confirmation open while the shared pair advances', async () => {
-    const user = userEvent.setup()
-    const onLeaveRoom = vi.fn()
-    const { rerender } = render(
-      <GameScreen
-        {...navigationProps}
-        roomCode="frvg7"
-        player={player}
-        pairRevision={0}
-        cards={cards}
-        scoreboard={scoreboard}
-        lastAcceptedClaim={null}
-        cooldownUntil={null}
-        onLeaveRoom={onLeaveRoom}
-        onSubmitClaim={vi.fn()}
-      />,
-    )
+  it('does not expose room navigation during active play', () => {
+    renderGame()
 
-    await user.click(screen.getByRole('button', { name: 'Leave room' }))
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-
-    rerender(
-      <GameScreen
-        {...navigationProps}
-        roomCode="frvg7"
-        player={player}
-        pairRevision={1}
-        cards={cards}
-        scoreboard={scoreboard}
-        lastAcceptedClaim={null}
-        cooldownUntil={null}
-        onLeaveRoom={onLeaveRoom}
-        onSubmitClaim={vi.fn()}
-      />,
-    )
-
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
     expect(
-      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
-    ).toBeInTheDocument()
-    const dialog = screen.getByRole('dialog', { name: 'Leave this room?' })
-    await user.click(within(dialog).getByRole('button', { name: 'Leave room' }))
-    expect(onLeaveRoom).toHaveBeenCalledOnce()
+      screen.queryByRole('button', { name: 'Home' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Leave room' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Room menu' }),
+    ).not.toBeInTheDocument()
   })
 
   it('shows a recoverable unavailable state instead of a partial board', () => {
     render(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={0}
@@ -852,7 +809,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={1}
@@ -948,7 +904,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={1}
@@ -980,7 +935,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={1}
@@ -1006,7 +960,6 @@ describe('GameScreen score reveal', () => {
     vi.useFakeTimers()
     render(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={1}
@@ -1037,7 +990,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={2}
@@ -1065,7 +1017,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={1}
@@ -1082,7 +1033,6 @@ describe('GameScreen score reveal', () => {
     act(() => vi.advanceTimersByTime(500))
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={2}
@@ -1106,7 +1056,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={1}
@@ -1123,7 +1072,6 @@ describe('GameScreen score reveal', () => {
     act(() => vi.advanceTimersByTime(1_000))
     rerender(
       <GameScreen
-        {...navigationProps}
         roomCode="frvg7"
         player={player}
         pairRevision={1}
@@ -1156,7 +1104,6 @@ function renderGame({
 } = {}) {
   return render(
     <GameScreen
-      {...navigationProps}
       roomCode="frvg7"
       player={player}
       pairRevision={0}
