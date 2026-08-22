@@ -249,6 +249,7 @@ body {
 }
 
 .game-feedback-overlay {
+  pointer-events: none;
   position: absolute;
   z-index: 20;
   right: 0.75rem;
