@@ -16,6 +16,7 @@ import {
   parseHandshakeAuth,
   parseJoinRoom,
   parseMatchClaim,
+  parseRemovePlayer,
   parseRoomCommand,
   parseSessionResume,
 } from './validation'
@@ -156,6 +157,29 @@ export function createGameSocketServer(
       })
     })
 
+    socket.on('room:remove-player', (payload, acknowledge) => {
+      if (!canRun(socket, acknowledge)) return
+      safely('room:remove-player', acknowledge, async () => {
+        const parsed = parseRemovePlayer(payload)
+        if (!parsed) return acknowledge(invalid())
+
+        const result = gameServer.removePlayer(
+          socket.data.token,
+          parsed.roomCode,
+          parsed.playerId,
+        )
+        if (result.status !== 'success') return acknowledge(result)
+
+        try {
+          await notifyRemovedPlayer(parsed.roomCode, result.removedToken)
+        } catch (error) {
+          logFailure('removed_player_notification_failed', error)
+        }
+        acknowledge({ status: 'success' })
+        broadcastSnapshots(parsed.roomCode)
+      })
+    })
+
     socket.on('game:start', (payload, acknowledge) => {
       if (!canRun(socket, acknowledge)) return
       safely('game:start', acknowledge, () => {
@@ -242,6 +266,19 @@ export function createGameSocketServer(
     void emitSnapshots(roomCode).catch((error: unknown) => {
       logFailure('snapshot_broadcast_failed', error)
     })
+  }
+
+  async function notifyRemovedPlayer(roomCode: string, token: string) {
+    const sockets = await io.in(roomCode).fetchSockets()
+    for (const roomSocket of sockets) {
+      if (roomSocket.data.token !== token) continue
+      try {
+        roomSocket.emit('room:removed', { roomCode })
+        await roomSocket.leave(roomCode)
+      } catch (error) {
+        logFailure('removed_player_socket_failed', error)
+      }
+    }
   }
 
   function safely<TResult extends object>(

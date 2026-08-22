@@ -53,13 +53,19 @@ vi.mock('@/components/player-session-provider', () => ({
 
 function RoomProbe({ roomCode }: { roomCode: string }) {
   const { snapshot, endedReason } = useRoomSnapshot(roomCode)
-  const { leaveRoom } = useGameSocket()
+  const { leaveRoom, removePlayer } = useGameSocket()
   return (
     <>
       <div data-testid="status">{snapshot?.status ?? 'missing'}</div>
       <div data-testid="ended">{endedReason ?? 'active'}</div>
       <button type="button" onClick={() => void leaveRoom(roomCode)}>
         Leave
+      </button>
+      <button
+        type="button"
+        onClick={() => void removePlayer(roomCode, 'player-2')}
+      >
+        Remove
       </button>
     </>
   )
@@ -217,6 +223,47 @@ describe('GameSocketProvider', () => {
 
     act(() => mocks.handlers.get('server:shutdown')?.())
     expect(screen.getByTestId('ended')).toHaveTextContent('expired')
+  })
+
+  it('classifies host removal as terminal and clears membership before shutdown', async () => {
+    const roomCode = 'bcdf2'
+    mocks.resumeSnapshots.set(roomCode, lobbySnapshot(roomCode))
+    render(
+      <GameSocketProvider>
+        <RoomProbe roomCode={roomCode} />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalled())
+    act(() => mocks.handlers.get('connect')?.())
+    await waitFor(() =>
+      expect(screen.getByTestId('status')).toHaveTextContent('lobby'),
+    )
+
+    act(() => mocks.handlers.get('room:removed')?.({ roomCode } as never))
+
+    expect(screen.getByTestId('status')).toHaveTextContent('joinable')
+    expect(screen.getByTestId('ended')).toHaveTextContent('removed')
+
+    act(() => mocks.handlers.get('server:shutdown')?.())
+    expect(screen.getByTestId('ended')).toHaveTextContent('removed')
+  })
+
+  it('sends a typed host-removal command through the socket timeout', async () => {
+    const user = userEvent.setup()
+    render(
+      <GameSocketProvider>
+        <RoomProbe roomCode="bcdf2" />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalled())
+
+    await user.click(screen.getByRole('button', { name: 'Remove' }))
+
+    expect(mocks.socket.timeout).toHaveBeenCalledWith(6_000)
+    expect(mocks.emitWithAck).toHaveBeenCalledWith('room:remove-player', {
+      roomCode: 'bcdf2',
+      playerId: 'player-2',
+    })
   })
 
   it.each(['create', 'join'] as const)(

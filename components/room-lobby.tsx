@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 import { GameScreen } from '@/components/game-screen'
 import {
@@ -13,7 +13,11 @@ import {
 } from '@/components/game-socket-provider'
 import { JoinRoomScreen } from '@/components/join-room-screen'
 import { Button } from '@/components/ui/button'
-import { isMemberSnapshot, type RoomSnapshot } from '@/lib/game-protocol'
+import {
+  isMemberSnapshot,
+  type CommandResult,
+  type RoomSnapshot,
+} from '@/lib/game-protocol'
 import type { MatchClaimPayload } from '@/lib/match-claim'
 import { generateClientToken } from '@/lib/player-session'
 
@@ -43,7 +47,8 @@ function PresentRoomLobby({
   connectionStatus: ConnectionStatus
 }) {
   const router = useRouter()
-  const { leaveRoom, startGame, claimMatch, prepareRematch } = useGameSocket()
+  const { leaveRoom, removePlayer, startGame, claimMatch, prepareRematch } =
+    useGameSocket()
   const [leavingSnapshot, setLeavingSnapshot] =
     useState<LeavingSnapshot | null>(null)
   const leaveRequestLockedRef = useRef(false)
@@ -156,6 +161,7 @@ function PresentRoomLobby({
           leaveError={leavingSnapshot ? null : leaveError}
           startError={leavingSnapshot ? null : startError}
           onLeave={() => handleLeaveRoom(displayedRoomView)}
+          onRemovePlayer={(playerId) => removePlayer(roomCode, playerId)}
           onStart={handleStartGame}
         />
       )
@@ -225,6 +231,7 @@ function ConnectedRoomLobby({
   leaveError,
   startError,
   onLeave,
+  onRemovePlayer,
   onStart,
 }: {
   view: LobbyView
@@ -233,10 +240,38 @@ function ConnectedRoomLobby({
   leaveError: string | null
   startError: string | null
   onLeave: () => void
+  onRemovePlayer: (playerId: string) => Promise<CommandResult>
   onStart: () => void
 }) {
   const isHost = view.player.role === 'host'
   const canStart = view.members.length >= 2
+  const [removalTarget, setRemovalTarget] = useState<
+    LobbyView['members'][number] | null
+  >(null)
+  const [removalAnnouncement, setRemovalAnnouncement] = useState('')
+  const removalTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const rosterHeadingRef = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    if (!removalAnnouncement) return
+    const timeout = window.setTimeout(() => setRemovalAnnouncement(''), 2_000)
+    return () => window.clearTimeout(timeout)
+  }, [removalAnnouncement])
+
+  const closeRemovalDialog = () => {
+    setRemovalTarget(null)
+    queueMicrotask(() => {
+      const trigger = removalTriggerRef.current
+      if (trigger?.isConnected) trigger.focus()
+      else rosterHeadingRef.current?.focus()
+    })
+  }
+
+  const finishRemoval = (name: string) => {
+    setRemovalTarget(null)
+    setRemovalAnnouncement(`${name} was removed from the room.`)
+    queueMicrotask(() => rosterHeadingRef.current?.focus())
+  }
 
   return (
     <main
@@ -262,7 +297,11 @@ function ConnectedRoomLobby({
 
         <div className="mt-8 border-t pt-7">
           <div className="flex items-baseline justify-between gap-4">
-            <h2 className="text-xl font-semibold tracking-tight">
+            <h2
+              ref={rosterHeadingRef}
+              className="text-xl font-semibold tracking-tight outline-none"
+              tabIndex={-1}
+            >
               In this room
             </h2>
             <span className="text-muted-foreground text-sm">
@@ -276,19 +315,42 @@ function ConnectedRoomLobby({
                 key={member.playerId}
                 className="bg-background flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
               >
-                <span className="font-semibold">{member.name}</span>
-                <span className="text-muted-foreground text-xs font-bold tracking-[0.12em] uppercase">
-                  {member.playerId === view.player.playerId
-                    ? member.role === 'host'
-                      ? 'You · Host'
-                      : 'You'
-                    : member.role === 'host'
-                      ? 'Host'
-                      : 'Player'}
+                <span className="min-w-0 font-semibold break-words">
+                  {member.name}
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="text-muted-foreground text-xs font-bold tracking-[0.12em] uppercase">
+                    {member.playerId === view.player.playerId
+                      ? member.role === 'host'
+                        ? 'You · Host'
+                        : 'You'
+                      : member.role === 'host'
+                        ? 'Host'
+                        : 'Player'}
+                  </span>
+                  {isHost && member.playerId !== view.player.playerId ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="h-9 px-3 text-xs"
+                      disabled={isLeaving || isStarting}
+                      aria-label={`Remove ${member.name} from room`}
+                      onClick={(event) => {
+                        removalTriggerRef.current = event.currentTarget
+                        setRemovalAnnouncement('')
+                        setRemovalTarget(member)
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
                 </span>
               </li>
             ))}
           </ul>
+          <p className="sr-only" role="status" aria-live="polite">
+            {removalAnnouncement}
+          </p>
         </div>
 
         <div className="mt-8 grid min-h-10 justify-items-center gap-3">
@@ -338,7 +400,152 @@ function ConnectedRoomLobby({
           </Button>
         </div>
       </section>
+      {removalTarget ? (
+        <RemovePlayerDialog
+          member={removalTarget}
+          onCancel={closeRemovalDialog}
+          onRemove={onRemovePlayer}
+          onRemoved={() => finishRemoval(removalTarget.name)}
+        />
+      ) : null}
     </main>
+  )
+}
+
+function RemovePlayerDialog({
+  member,
+  onCancel,
+  onRemove,
+  onRemoved,
+}: {
+  member: LobbyView['members'][number]
+  onCancel: () => void
+  onRemove: (playerId: string) => Promise<CommandResult>
+  onRemoved: () => void
+}) {
+  const titleId = useId()
+  const descriptionId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const requestLockedRef = useRef(false)
+  const [isRemoving, setIsRemoving] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+
+  useEffect(() => {
+    cancelButtonRef.current?.focus()
+  }, [])
+
+  const close = () => {
+    if (!isRemoving) onCancel()
+  }
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      close()
+      return
+    }
+    if (event.key !== 'Tab') return
+
+    const focusableElements = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLButtonElement>(
+        'button:not(:disabled)',
+      ) ?? [],
+    )
+    const firstElement = focusableElements[0]
+    const lastElement = focusableElements.at(-1)
+    if (!firstElement || !lastElement) {
+      event.preventDefault()
+      return
+    }
+    if (event.shiftKey && document.activeElement === firstElement) {
+      event.preventDefault()
+      lastElement.focus()
+    } else if (!event.shiftKey && document.activeElement === lastElement) {
+      event.preventDefault()
+      firstElement.focus()
+    }
+  }
+
+  const requestRemoval = async () => {
+    if (requestLockedRef.current) return
+    requestLockedRef.current = true
+    setIsRemoving(true)
+    setRemoveError(null)
+
+    try {
+      const result = await onRemove(member.playerId)
+      if (result.status === 'success') {
+        onRemoved()
+        return
+      }
+      setRemoveError(result.message)
+    } catch {
+      setRemoveError(`Unable to remove ${member.name}. Please try again.`)
+    }
+
+    requestLockedRef.current = false
+    setIsRemoving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-5">
+      <div
+        ref={dialogRef}
+        className="bg-card w-full max-w-md rounded-[2rem] border p-7 shadow-2xl sm:p-8"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+        aria-busy={isRemoving}
+        onKeyDown={handleKeyDown}
+      >
+        <p className="text-accent text-xs font-bold tracking-[0.16em] uppercase">
+          Host action
+        </p>
+        <h2
+          id={titleId}
+          className="mt-3 text-2xl font-semibold tracking-[-0.03em] break-words"
+        >
+          Remove {member.name}?
+        </h2>
+        <p
+          id={descriptionId}
+          className="text-muted-foreground mt-3 text-sm leading-6"
+        >
+          They’ll leave this lobby and will need to join the room again to play.
+        </p>
+        {removeError ? (
+          <p className="mt-4 text-sm font-semibold text-red-700" role="alert">
+            {removeError}
+          </p>
+        ) : null}
+        <p className="sr-only" role="status" aria-live="polite">
+          {isRemoving ? `Removing ${member.name}…` : ''}
+        </p>
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <Button
+            ref={cancelButtonRef}
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            disabled={isRemoving}
+            onClick={close}
+          >
+            Keep player
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            className="min-h-11"
+            disabled={isRemoving}
+            onClick={() => void requestRemoval()}
+          >
+            {isRemoving ? 'Removing…' : `Remove ${member.name}`}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -569,6 +776,8 @@ function RoomEnded({
   roomCode: string
   reason: RoomEndedReason
 }) {
+  const wasRemoved = reason === 'removed'
+
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
@@ -576,12 +785,16 @@ function RoomEnded({
           Room {roomCode}
         </p>
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          This room has ended.
+          {wasRemoved
+            ? 'You were removed from this room.'
+            : 'This room has ended.'}
         </h1>
         <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-          {reason === 'expired'
-            ? 'The room expired after a period without game activity.'
-            : 'The game server restarted, so its temporary rooms were cleared.'}
+          {wasRemoved
+            ? 'The host removed you from the lobby. You can join another room or ask the host before joining this one again.'
+            : reason === 'expired'
+              ? 'The room expired after a period without game activity.'
+              : 'The game server restarted, so its temporary rooms were cleared.'}
         </p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Button asChild>

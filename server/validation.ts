@@ -3,6 +3,7 @@ import {
   type CreateRoomPayload,
   type JoinRoomPayload,
   type MatchClaimCommand,
+  type RemovePlayerPayload,
   type RoomCommandPayload,
   type SessionResumePayload,
   type SocketHandshakeAuth,
@@ -12,6 +13,7 @@ import { ROOM_CODE_PATTERN } from './room-code'
 export const CLIENT_TOKEN_PATTERN = /^[0-9a-f]{32}$/
 export { ROOM_CODE_PATTERN }
 export const COMMAND_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/
+export const PLAYER_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 export const SYMBOL_ID_PATTERN = /^[a-z0-9-]{1,32}$/
 export const MAX_PLAYER_NAME_LENGTH = 50
 const UNSAFE_PLAYER_NAME_CHARACTERS =
@@ -55,6 +57,16 @@ export function parseRoomCommand(value: unknown): RoomCommandPayload | null {
   if (!isRecord(value)) return null
   const roomCode = parseRoomCode(value.roomCode)
   return roomCode ? { roomCode } : null
+}
+
+export function parseRemovePlayer(value: unknown): RemovePlayerPayload | null {
+  if (!isRecord(value)) return null
+  const roomCode = parseRoomCode(value.roomCode)
+  return roomCode &&
+    typeof value.playerId === 'string' &&
+    PLAYER_ID_PATTERN.test(value.playerId)
+    ? { roomCode, playerId: value.playerId }
+    : null
 }
 
 export function parseMatchClaim(value: unknown): MatchClaimCommand | null {

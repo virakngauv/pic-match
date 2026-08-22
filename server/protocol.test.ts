@@ -198,6 +198,75 @@ describe('Socket.IO game protocol', () => {
     }
   })
 
+  it('lets the host remove every socket for a lobby player', async () => {
+    const host = await connect(hostToken)
+    const guest = await connect(guestToken)
+    const guestSecondSocket = await connect(guestToken)
+    const created = await host.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error('Unable to create room.')
+    const roomCode = created.roomCode
+    await guest.emitWithAck('room:join', { roomCode, name: 'Grace' })
+    await guestSecondSocket.emitWithAck('session:resume', { roomCode })
+
+    const lobby = socketServer.gameServer.snapshot(hostToken, roomCode)
+    if (lobby.status !== 'lobby') throw new Error('Expected lobby.')
+    const hostId = lobby.player.playerId
+    const guestId = lobby.members.find(({ name }) => name === 'Grace')?.playerId
+    if (!guestId) throw new Error('Expected guest player id.')
+
+    expect(
+      await guest.emitWithAck('room:remove-player', {
+        roomCode,
+        playerId: hostId,
+      }),
+    ).toMatchObject({ status: 'forbidden' })
+    expect(
+      await host.emitWithAck('room:remove-player', {
+        roomCode,
+        playerId: 'not valid',
+      }),
+    ).toEqual({
+      status: 'invalid',
+      message: 'Invalid command payload.',
+    })
+
+    const firstRemoved = new Promise<{ roomCode: string }>((resolve) =>
+      guest.once('room:removed', resolve),
+    )
+    const secondRemoved = new Promise<{ roomCode: string }>((resolve) =>
+      guestSecondSocket.once('room:removed', resolve),
+    )
+    const hostLobby = nextSnapshot(host, 'lobby')
+
+    expect(
+      await host.emitWithAck('room:remove-player', {
+        roomCode,
+        playerId: guestId,
+      }),
+    ).toEqual({ status: 'success' })
+    await expect(firstRemoved).resolves.toEqual({ roomCode })
+    await expect(secondRemoved).resolves.toEqual({ roomCode })
+    await expect(hostLobby).resolves.toMatchObject({
+      members: [{ name: 'Ada', role: 'host' }],
+    })
+    await vi.waitFor(async () => {
+      expect(await socketServer.io.in(roomCode).fetchSockets()).toHaveLength(1)
+    })
+
+    expect(
+      await host.emitWithAck('room:remove-player', {
+        roomCode,
+        playerId: guestId,
+      }),
+    ).toMatchObject({ status: 'stale' })
+    expect(
+      await guest.emitWithAck('session:resume', { roomCode }),
+    ).toMatchObject({
+      status: 'success',
+      snapshot: { status: 'joinable', roomCode },
+    })
+  })
+
   it('rejects malformed auth and disallowed browser origins', async () => {
     const invalidAuth = createClient(url, {
       auth: { token: 'bad', protocolVersion: GAME_PROTOCOL_VERSION },
