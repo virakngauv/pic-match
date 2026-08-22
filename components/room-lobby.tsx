@@ -599,6 +599,9 @@ function FinishedRoom({
 }) {
   const isWinner = player.playerId === winner.playerId
   const isHost = player.role === 'host'
+  const orderedScoreboard = [...scoreboard].sort(
+    (left, right) => right.score - left.score || left.position - right.position,
+  )
   const [isPreparingRematch, setIsPreparingRematch] = useState(false)
   const [rematchError, setRematchError] = useState<string | null>(null)
 
@@ -643,7 +646,7 @@ function FinishedRoom({
         <div className="mt-8 text-left">
           <h2 className="text-lg font-semibold">Final scoreboard</h2>
           <ol className="mt-3 grid gap-2">
-            {scoreboard.map((entry) => {
+            {orderedScoreboard.map((entry) => {
               const isLocalPlayer = entry.playerId === player.playerId
               const isWinningPlayer = entry.playerId === winner.playerId
 

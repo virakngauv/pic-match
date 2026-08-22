@@ -102,7 +102,7 @@ function playing(): RoomSnapshot {
   }
 }
 
-function finished(): RoomSnapshot {
+function finished(): Extract<RoomSnapshot, { status: 'finished' }> {
   return {
     status: 'finished',
     roomCode: 'frvg7',
@@ -396,6 +396,33 @@ describe('RoomLobby', () => {
     expect(
       screen.getByRole('link', { name: 'Join another room' }),
     ).toBeVisible()
+  })
+
+  it('orders the finished scoreboard by score with a seat-position tie-break', () => {
+    const third = {
+      playerId: 'player-3',
+      name: 'Linus',
+      role: 'player' as const,
+    }
+    mocks.snapshot = {
+      ...finished(),
+      scoreboard: [
+        { ...host, position: 0, score: 5 },
+        { ...guest, position: 1, score: 9 },
+        { ...third, position: 2, score: 5 },
+      ],
+    }
+    render(<RoomLobby roomCode="frvg7" />)
+
+    const entries = screen.getAllByRole('listitem')
+    expect(
+      entries.map((entry) => entry.querySelector('span span')?.textContent),
+    ).toEqual(['Grace', 'Ada', 'Linus'])
+    expect(entries.map((entry) => entry.dataset.playerPosition)).toEqual([
+      '1',
+      '0',
+      '2',
+    ])
   })
 
   it('lets only the finished-game host prepare a rematch', async () => {

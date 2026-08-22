@@ -386,6 +386,7 @@ test('replays a complete shared race across browser sessions', async ({
     }
 
     const guestFinalScore = await scoreFor(guestPage, playerNames.guest, false)
+    const thirdFinalScore = await scoreFor(guestPage, playerNames.third, false)
     await submitSharedMatch(hostPage)
 
     await expectFinished(hostPage, playerNames.host)
@@ -396,6 +397,14 @@ test('replays a complete shared race across browser sessions', async ({
     await expectFinalScore(guestPage, playerNames.host, 12)
     await expectFinalScore(hostPage, playerNames.guest, guestFinalScore)
     await expectFinalScore(guestPage, playerNames.guest, guestFinalScore)
+
+    const expectedFinalOrder = [
+      { name: playerNames.host, score: 12, position: 0 },
+      { name: playerNames.guest, score: guestFinalScore, position: 1 },
+      { name: playerNames.third, score: thirdFinalScore, position: 2 },
+    ]
+    await expectFinalScoreboardOrder(hostPage, expectedFinalOrder)
+    await expectFinalScoreboardOrder(guestPage, expectedFinalOrder)
 
     await hostPage.setViewportSize({ width: 390, height: 844 })
     await expect(
@@ -1049,4 +1058,24 @@ async function expectFinalScore(page: Page, name: string, score: number) {
   await expect(page.getByLabel(`${name}'s final score`)).toHaveText(
     String(score),
   )
+}
+
+async function expectFinalScoreboardOrder(
+  page: Page,
+  expected: ReadonlyArray<{ name: string; score: number; position: number }>,
+) {
+  await expect
+    .poll(async () =>
+      page
+        .getByRole('main', { name: /^Final results for / })
+        .getByRole('listitem')
+        .evaluateAll((entries) =>
+          entries.map((entry) => ({
+            name: entry.querySelector('span span')?.textContent ?? '',
+            score: Number(entry.querySelector('output')?.textContent),
+            position: Number(entry.dataset.playerPosition),
+          })),
+        ),
+    )
+    .toEqual(expected)
 }
