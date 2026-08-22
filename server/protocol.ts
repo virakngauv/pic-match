@@ -269,7 +269,7 @@ export function createGameSocketServer(
   }
 
   async function notifyRemovedPlayer(roomCode: string, token: string) {
-    const sockets = await io.in(roomCode).fetchSockets()
+    const sockets = await io.fetchSockets()
     for (const roomSocket of sockets) {
       if (roomSocket.data.token !== token) continue
       try {

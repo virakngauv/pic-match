@@ -328,7 +328,9 @@ function ConnectedRoomLobby({
                         ? 'Host'
                         : 'Player'}
                   </span>
-                  {isHost && member.playerId !== view.player.playerId ? (
+                  {isHost &&
+                  member.role === 'player' &&
+                  member.playerId !== view.player.playerId ? (
                     <Button
                       type="button"
                       variant="destructive"

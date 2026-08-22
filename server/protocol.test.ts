@@ -207,6 +207,7 @@ describe('Socket.IO game protocol', () => {
     const roomCode = created.roomCode
     await guest.emitWithAck('room:join', { roomCode, name: 'Grace' })
     await guestSecondSocket.emitWithAck('session:resume', { roomCode })
+    const guestUnresumedSocket = await connect(guestToken)
 
     const lobby = socketServer.gameServer.snapshot(hostToken, roomCode)
     if (lobby.status !== 'lobby') throw new Error('Expected lobby.')
@@ -236,6 +237,9 @@ describe('Socket.IO game protocol', () => {
     const secondRemoved = new Promise<{ roomCode: string }>((resolve) =>
       guestSecondSocket.once('room:removed', resolve),
     )
+    const unresumedRemoved = new Promise<{ roomCode: string }>((resolve) =>
+      guestUnresumedSocket.once('room:removed', resolve),
+    )
     const hostLobby = nextSnapshot(host, 'lobby')
 
     expect(
@@ -246,6 +250,7 @@ describe('Socket.IO game protocol', () => {
     ).toEqual({ status: 'success' })
     await expect(firstRemoved).resolves.toEqual({ roomCode })
     await expect(secondRemoved).resolves.toEqual({ roomCode })
+    await expect(unresumedRemoved).resolves.toEqual({ roomCode })
     await expect(hostLobby).resolves.toMatchObject({
       members: [{ name: 'Ada', role: 'host' }],
     })

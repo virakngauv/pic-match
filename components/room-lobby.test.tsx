@@ -192,6 +192,25 @@ describe('RoomLobby', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('does not render removal controls for another host-role member', () => {
+    mocks.snapshot = {
+      ...lobby(),
+      members: [
+        host,
+        { playerId: 'player-3', name: 'Lin', role: 'host' },
+        guest,
+      ],
+    }
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.queryByRole('button', { name: 'Remove Lin from room' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Remove Grace from room' }),
+    ).toBeInTheDocument()
+  })
+
   it('locks duplicate removals and announces success', async () => {
     const user = userEvent.setup()
     let resolveRemoval!: (result: { status: 'success' }) => void
