@@ -386,6 +386,7 @@ test('replays a complete shared race across browser sessions', async ({
     }
 
     const guestFinalScore = await scoreFor(guestPage, playerNames.guest, false)
+    const thirdFinalScore = await scoreFor(guestPage, playerNames.third, false)
     await submitSharedMatch(hostPage)
 
     await expectFinished(hostPage, playerNames.host)
@@ -400,6 +401,7 @@ test('replays a complete shared race across browser sessions', async ({
     const expectedFinalOrder = [
       { name: playerNames.host, score: 12, position: 0 },
       { name: playerNames.guest, score: guestFinalScore, position: 1 },
+      { name: playerNames.third, score: thirdFinalScore, position: 2 },
     ]
     await expectFinalScoreboardOrder(hostPage, expectedFinalOrder)
     await expectFinalScoreboardOrder(guestPage, expectedFinalOrder)
