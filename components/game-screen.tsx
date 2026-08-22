@@ -120,14 +120,17 @@ export function GameScreen({
             ? getScoreRevealMessage(displayedRound.reveal, player.playerId)
             : ''}
         </p>
+        <GameScoreboard
+          localPlayerId={player.playerId}
+          pairRevision={displayedRound.pairRevision}
+          scoreboard={scoreboard}
+          revealScorerId={displayedRound.reveal?.scorerId ?? null}
+        />
         <GameRound
           key={displayedRound.pairRevision}
-          player={player}
           pairRevision={displayedRound.pairRevision}
           cards={displayedRound.cards}
-          scoreboard={scoreboard}
           revealedMatch={revealedMatch}
-          revealScorerId={displayedRound.reveal?.scorerId ?? null}
           cooldownUntil={cooldownUntil}
           interactionDisabled={isLeaving || revealedMatch !== null}
           onSubmitClaim={onSubmitClaim}
@@ -222,22 +225,16 @@ type ClaimFeedback =
 
 /** Owns local selection state for one immutable server pair revision. */
 function GameRound({
-  player,
   pairRevision,
   cards,
-  scoreboard,
   revealedMatch,
-  revealScorerId,
   cooldownUntil,
   interactionDisabled,
   onSubmitClaim,
 }: {
-  player: GamePlayer
   pairRevision: number
   cards: readonly GameCardModel[]
-  scoreboard: readonly ScoreboardEntry[]
   revealedMatch: RevealedMatch | null
-  revealScorerId: string | null
   cooldownUntil: number | null
   interactionDisabled: boolean
   onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
@@ -353,13 +350,6 @@ function GameRound({
 
   return (
     <>
-      <GameScoreboard
-        localPlayerId={player.playerId}
-        pairRevision={pairRevision}
-        scoreboard={scoreboard}
-        revealScorerId={revealScorerId}
-      />
-
       {cards.length === 2 ? (
         <section className="game-board" aria-label="Shared game board">
           {cards.map((card, index) => {

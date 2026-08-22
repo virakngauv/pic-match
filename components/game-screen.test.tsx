@@ -733,6 +733,9 @@ describe('GameScreen', () => {
   it('resets selections when the server advances to the next revision', async () => {
     const user = userEvent.setup()
     const { rerender } = renderGame()
+    const scoreboardBeforeAdvance = screen.getByRole('complementary', {
+      name: 'Scoreboard',
+    })
 
     await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
     await user.click(screen.getByRole('button', { name: 'Cat on card 2' }))
@@ -758,6 +761,9 @@ describe('GameScreen', () => {
     ).toBeInTheDocument()
     expect(screen.getByLabelText("Chrome player's score")).toHaveTextContent(
       '1',
+    )
+    expect(screen.getByRole('complementary', { name: 'Scoreboard' })).toBe(
+      scoreboardBeforeAdvance,
     )
     expect(
       screen.getByRole('button', { name: 'Cat on card 1' }),

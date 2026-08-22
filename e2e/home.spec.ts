@@ -172,7 +172,7 @@ async function expectGameplayFitsViewport(
       scoreboard: scoreboardBounds,
       scoreListDisplay: scoreListStyles.display,
       scoreListFlexWrap: scoreListStyles.flexWrap,
-      scoreListOverflowX: scoreViewportStyles.overflowX,
+      scoreViewportOverflowX: scoreViewportStyles.overflowX,
     }
   })
 
@@ -186,7 +186,7 @@ async function expectGameplayFitsViewport(
   expect(measurements.minTargetSize).toBeGreaterThanOrEqual(minimumTargetSize)
   expect(measurements.scoreListDisplay).toBe('flex')
   expect(measurements.scoreListFlexWrap).toBe('nowrap')
-  expect(measurements.scoreListOverflowX).toBe('auto')
+  expect(measurements.scoreViewportOverflowX).toBe('auto')
   expect(measurements.scoreboard.left).toBeGreaterThanOrEqual(-1)
   expect(measurements.scoreboard.right).toBeLessThanOrEqual(
     measurements.clientWidth + 1,

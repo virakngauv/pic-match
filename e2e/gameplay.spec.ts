@@ -182,7 +182,12 @@ test('replays a complete shared race across browser sessions', async ({
       },
     )
     expect(leaderboardScrollLeft).toBeGreaterThan(0)
-    await hostPage.waitForTimeout(75)
+    await expect
+      .poll(
+        async () =>
+          await leaderboardViewport.evaluate((element) => element.scrollLeft),
+      )
+      .toBe(leaderboardScrollLeft)
     const boardTopBeforeReorder = await boardTop(hostPage)
 
     await expectNoScoreReveal(guestPage)
@@ -193,7 +198,6 @@ test('replays a complete shared race across browser sessions', async ({
     await Promise.all([
       expectScore(hostPage, playerNames.guest, 1),
       expect(guestScoreEntry).toHaveAttribute('data-score-rank', '1'),
-      expect(guestScoreEntry).toHaveAttribute('data-reordering', 'true'),
     ])
     expect(await leaderboardOrder(hostPage)).toEqual([
       playerNames.guest,
@@ -213,8 +217,8 @@ test('replays a complete shared race across browser sessions', async ({
 
     if (initialViewport) {
       await hostPage.setViewportSize(initialViewport)
+      await expectHorizontalLeaderboard(hostPage, false)
     }
-    await expectHorizontalLeaderboard(hostPage, false)
 
     await thirdPage.getByRole('button', { name: 'Leave room' }).click()
     await thirdPage
@@ -222,6 +226,10 @@ test('replays a complete shared race across browser sessions', async ({
       .getByRole('button', { name: 'Leave room' })
       .click()
     await expect(thirdPage).toHaveURL(/\/home$/)
+    await expect(leaderboard.getByRole('listitem')).toHaveCount(3)
+    await expect
+      .poll(async () => await leaderboardOrder(hostPage))
+      .toEqual([playerNames.guest, playerNames.host, playerNames.third])
 
     await outsiderPage.goto(`/${roomCode}`)
     await expect(
@@ -624,20 +632,20 @@ async function expectHorizontalLeaderboard(
       boardTop: boardBounds.top,
       documentClientWidth: document.documentElement.clientWidth,
       documentScrollWidth: document.documentElement.scrollWidth,
-      listClientWidth: viewport.clientWidth,
       listDisplay: listStyles.display,
       listFlexWrap: listStyles.flexWrap,
-      listOverflowX: viewportStyles.overflowX,
-      listScrollWidth: viewport.scrollWidth,
       scoreboardBottom: scoreboardBounds.bottom,
       scoreboardLeft: scoreboardBounds.left,
       scoreboardRight: scoreboardBounds.right,
+      viewportClientWidth: viewport.clientWidth,
+      viewportOverflowX: viewportStyles.overflowX,
+      viewportScrollWidth: viewport.scrollWidth,
     }
   })
 
   expect(measurements.listDisplay).toBe('flex')
   expect(measurements.listFlexWrap).toBe('nowrap')
-  expect(measurements.listOverflowX).toBe('auto')
+  expect(measurements.viewportOverflowX).toBe('auto')
   expect(measurements.scoreboardBottom).toBeLessThanOrEqual(
     measurements.boardTop + 1,
   )
@@ -649,12 +657,12 @@ async function expectHorizontalLeaderboard(
     measurements.documentClientWidth + 1,
   )
   if (shouldOverflow) {
-    expect(measurements.listScrollWidth).toBeGreaterThan(
-      measurements.listClientWidth,
+    expect(measurements.viewportScrollWidth).toBeGreaterThan(
+      measurements.viewportClientWidth,
     )
   } else {
-    expect(measurements.listScrollWidth).toBeLessThanOrEqual(
-      measurements.listClientWidth + 1,
+    expect(measurements.viewportScrollWidth).toBeLessThanOrEqual(
+      measurements.viewportClientWidth + 1,
     )
   }
 }

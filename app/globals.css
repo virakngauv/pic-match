@@ -139,7 +139,7 @@ body {
   );
 }
 
-.game-score-viewport:focus-visible {
+.game-scoreboard:has(.game-score-viewport:focus-visible) {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
@@ -155,6 +155,7 @@ body {
 
 .game-score-list {
   display: flex;
+  flex-wrap: nowrap;
   gap: 0.25rem;
   width: max-content;
   min-width: 100%;
@@ -471,7 +472,6 @@ body {
 
   .game-score-list {
     gap: 0.5rem;
-    margin-top: 0;
   }
 
   .game-score-entry {

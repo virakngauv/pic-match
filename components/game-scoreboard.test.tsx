@@ -87,6 +87,9 @@ describe('GameScoreboard', () => {
       'Grace Hopper Twenty',
     )
     expect(screen.getByText('First to 12')).toBeInTheDocument()
+    expect(
+      screen.getByLabelText("Grace Hopper Twenty's score"),
+    ).toHaveAttribute('aria-live', 'off')
   })
 
   it('returns a new deterministically ordered array without mutating input', () => {
@@ -144,6 +147,10 @@ describe('GameScoreboard', () => {
     expect(
       screen.getAllByRole('listitem').map((item) => item.dataset.playerId),
     ).toEqual(['grace', 'ada'])
+    expect(screen.getAllByRole('listitem')[0]).toHaveAttribute(
+      'data-reordering',
+      'true',
+    )
     expect(viewport.scrollLeft).toBe(48)
     expect(animate).toHaveBeenCalledTimes(2)
     expect(animate.mock.calls.map(([keyframes]) => keyframes)).toEqual(
@@ -153,6 +160,36 @@ describe('GameScoreboard', () => {
       ]),
     )
     expect(cancel).not.toHaveBeenCalled()
+  })
+
+  it('prefers a newer live leftward scroll position over a stale event value', () => {
+    mockReducedMotion(false)
+    mockEntryPositions(new Map())
+    const { rerender } = render(
+      <GameScoreboard
+        localPlayerId="ada"
+        pairRevision={0}
+        scoreboard={entries}
+        revealScorerId={null}
+      />,
+    )
+    const viewport = screen.getByRole('region', {
+      name: 'Scrollable leaderboard',
+    })
+    viewport.scrollLeft = 64
+    fireEvent.scroll(viewport)
+    viewport.scrollLeft = 24
+
+    rerender(
+      <GameScoreboard
+        localPlayerId="ada"
+        pairRevision={1}
+        scoreboard={[...entries]}
+        revealScorerId={null}
+      />,
+    )
+
+    expect(viewport.scrollLeft).toBe(24)
   })
 
   it('reorders immediately without animation when reduced motion is requested', () => {

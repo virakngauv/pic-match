@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 
+import { FIRST_PLAYABLE_WINNING_SCORE } from '@/lib/spot-it'
 import { cn } from '@/lib/utils'
 
 const REORDER_DURATION_MS = 260
@@ -55,11 +56,12 @@ export function GameScoreboard({
     const viewport = viewportRef.current
     if (!viewport) return
 
-    const preservedScrollLeft = Math.max(
-      scrollLeftRef.current,
-      viewport.scrollLeft,
-    )
-    viewport.scrollLeft = preservedScrollLeft
+    const preservedScrollLeft =
+      viewport.scrollLeft > 0 ? viewport.scrollLeft : scrollLeftRef.current
+    if (viewport.scrollLeft !== preservedScrollLeft) {
+      viewport.scrollLeft = preservedScrollLeft
+    }
+    scrollLeftRef.current = viewport.scrollLeft
     const viewportBounds = viewport.getBoundingClientRect()
     const nextPositions = new Map<string, EntryPosition>()
 
@@ -144,7 +146,7 @@ export function GameScoreboard({
           <span className="game-short-round" aria-hidden="true">
             R{pairRevision + 1} ·{' '}
           </span>
-          First to 12
+          First to {FIRST_PLAYABLE_WINNING_SCORE}
         </span>
       </div>
       <p id="scoreboard-scroll-help" className="sr-only">
@@ -173,7 +175,16 @@ export function GameScoreboard({
               <li
                 ref={(element) => {
                   if (element) entryRefs.current.set(entry.playerId, element)
-                  else entryRefs.current.delete(entry.playerId)
+                  else {
+                    entryRefs.current.delete(entry.playerId)
+                    const animation = animationsRef.current.get(entry.playerId)
+                    animation?.cancel()
+                    if (
+                      animationsRef.current.get(entry.playerId) === animation
+                    ) {
+                      animationsRef.current.delete(entry.playerId)
+                    }
+                  }
                 }}
                 key={entry.playerId}
                 className={cn(
@@ -210,6 +221,7 @@ export function GameScoreboard({
                 <output
                   className="bg-foreground text-background inline-flex size-8 shrink-0 items-center justify-center rounded-full px-2 font-mono text-sm font-bold sm:h-10 sm:min-w-10 sm:px-3 sm:text-lg"
                   aria-label={`${entry.name}'s score`}
+                  aria-live="off"
                 >
                   {entry.score}
                 </output>
