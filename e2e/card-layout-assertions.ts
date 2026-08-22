@@ -47,6 +47,10 @@ export async function expectValidCardGeometry(
           const bounds = button.getBoundingClientRect()
           const glyph = button.querySelector('[data-symbol-glyph]')
           const styles = getComputedStyle(button)
+          const hasTransientTreatment =
+            button.dataset.selected === 'true' ||
+            button.dataset.incorrect === 'true' ||
+            button.dataset.revealed === 'true'
           const radius = Math.max(bounds.width, bounds.height) / 2
           const center = {
             x: bounds.left + bounds.width / 2,
@@ -74,17 +78,21 @@ export async function expectValidCardGeometry(
           }
 
           if (
+            !hasTransientTreatment &&
             styles.backgroundColor !== 'rgba(0, 0, 0, 0)' &&
             styles.backgroundColor !== 'transparent'
           ) {
             issues.push(`card ${cardIndex} has a persistent symbol background`)
           }
 
-          if (styles.boxShadow !== 'none') {
+          if (!hasTransientTreatment && styles.boxShadow !== 'none') {
             issues.push(`card ${cardIndex} has a persistent symbol shadow`)
           }
 
-          if (Number.parseFloat(styles.borderTopWidth) !== 0) {
+          if (
+            !hasTransientTreatment &&
+            Number.parseFloat(styles.borderTopWidth) !== 0
+          ) {
             issues.push(`card ${cardIndex} has a persistent symbol border`)
           }
 

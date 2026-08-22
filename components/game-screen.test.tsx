@@ -9,10 +9,7 @@ import {
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  SELECTED_SYMBOL_SCALE,
-  UNSELECTED_SYMBOL_FILTER,
-} from '@/lib/card-selection'
+import { SELECTED_SYMBOL_SCALE } from '@/lib/card-selection'
 
 import { GameScreen } from './game-screen'
 
@@ -224,12 +221,12 @@ describe('GameScreen', () => {
     )
     expect(sunGlyph.style.transform).toMatch(/rotate\(-?6deg\)/)
     expect(symbolFilter(sun).style.filter).toBe('none')
-    expect(symbolFilter(moon).style.filter).toBe(UNSELECTED_SYMBOL_FILTER)
+    expect(symbolFilter(moon).style.filter).toBe('none')
     expect(symbolFilter(moon)).not.toBe(moonGlyph)
     expect(symbolFilter(moon).style.transform).toBe('')
     expect(moonGlyph.style.filter).toBe('')
-    expect(sun).not.toHaveClass(
-      'border-accent/70',
+    expect(sun).toHaveClass(
+      'border-accent/70!',
       'bg-accent/15',
       'ring-accent/40',
       'border-2',
@@ -247,12 +244,20 @@ describe('GameScreen', () => {
     expect(sun).toHaveAttribute('aria-pressed', 'false')
     expect(moon).toHaveAttribute('aria-pressed', 'true')
     expect(sunGlyph.style.transform).toBe(sunBaseTransform)
-    expect(symbolFilter(sun).style.filter).toBe(UNSELECTED_SYMBOL_FILTER)
+    expect(symbolFilter(sun).style.filter).toBe('none')
+    expect(sun).not.toHaveClass('border-accent/70!')
     expect(moonGlyph.style.transform).not.toBe(moonBaseTransform)
     expect(moonGlyph.style.transform).toContain(
       `scale(${SELECTED_SYMBOL_SCALE})`,
     )
     expect(symbolFilter(moon).style.filter).toBe('none')
+    expect(moon).toHaveClass(
+      'border-accent/70!',
+      'bg-accent/15',
+      'ring-accent/40',
+      'border-2',
+      'ring-4',
+    )
     expect(onSubmitClaim).not.toHaveBeenCalled()
   })
 
@@ -275,7 +280,7 @@ describe('GameScreen', () => {
     expect(cat).toHaveFocus()
     expect(cat).toHaveAttribute('aria-pressed', 'false')
     expect(cat).toHaveAttribute('data-selected', 'false')
-    expect(cat).not.toHaveClass('border-accent/70', 'bg-accent/15', 'ring-4')
+    expect(cat).not.toHaveClass('border-accent/70!', 'bg-accent/15', 'ring-4')
     expect(catGlyph.style.transform).toBe(baseTransform)
     expect(symbolFilter(cat).style.filter).toBe('none')
     expect(
@@ -364,11 +369,7 @@ describe('GameScreen', () => {
 
     await user.click(firstCat)
 
-    expect(cardGlyphFilters(firstCard)).toEqual([
-      ...Array(4).fill(UNSELECTED_SYMBOL_FILTER),
-      'none',
-      ...Array(3).fill(UNSELECTED_SYMBOL_FILTER),
-    ])
+    expect(cardGlyphFilters(firstCard)).toEqual(Array(8).fill('none'))
     expect(cardGlyphFilters(secondCard)).toEqual(Array(8).fill('none'))
 
     await user.click(secondCat)
@@ -377,12 +378,10 @@ describe('GameScreen', () => {
     expect(secondCat).toHaveAttribute('aria-pressed', 'true')
     expect(symbolFilter(firstCat).style.filter).toBe('none')
     expect(symbolFilter(secondCat).style.filter).toBe('none')
-    expect(
-      cardGlyphFilters(firstCard).filter((filter) => filter === 'none'),
-    ).toHaveLength(1)
-    expect(
-      cardGlyphFilters(secondCard).filter((filter) => filter === 'none'),
-    ).toHaveLength(1)
+    expect(cardGlyphFilters(firstCard)).toEqual(Array(8).fill('none'))
+    expect(cardGlyphFilters(secondCard)).toEqual(Array(8).fill('none'))
+    expect(firstCat).toHaveClass('border-accent/70!', 'ring-accent/40')
+    expect(secondCat).toHaveClass('border-accent/70!', 'ring-accent/40')
     expect(onSubmitClaim).toHaveBeenCalledTimes(1)
 
     await act(async () => resolveClaim?.({ status: 'accepted' }))
@@ -504,10 +503,12 @@ describe('GameScreen', () => {
     const incorrectMark = within(firstSelection).getByText('×')
 
     expect(incorrectMark).toHaveClass('spot-it-incorrect-mark')
-    expect(incorrectMark).not.toHaveStyle({
-      filter: UNSELECTED_SYMBOL_FILTER,
-      transform: firstGlyph.style.transform,
-    })
+    expect(firstSelection).toHaveClass(
+      'border-red-700/70',
+      'bg-red-100/80',
+      'ring-red-500/50',
+    )
+    expect(firstSelection).not.toHaveClass('border-accent/70!')
     expect(symbolFilter(firstSelection).style.filter).toBe('none')
     expect(firstGlyph.style.transform).toContain(
       `scale(${SELECTED_SYMBOL_SCALE})`,
@@ -515,7 +516,7 @@ describe('GameScreen', () => {
     expect(
       symbolFilter(screen.getByRole('button', { name: 'Sun on card 1' })).style
         .filter,
-    ).toBe(UNSELECTED_SYMBOL_FILTER)
+    ).toBe('none')
     expect(within(secondSelection).getByText('×')).toHaveClass(
       'spot-it-incorrect-mark',
     )
@@ -875,6 +876,17 @@ describe('GameScreen score reveal', () => {
 
     expect(firstCat).toHaveAttribute('data-revealed', 'true')
     expect(secondCat).toHaveAttribute('data-revealed', 'true')
+    expect(symbolFilter(firstCat)).toHaveAttribute(
+      'data-score-reveal-muted',
+      'false',
+    )
+    expect(symbolFilter(firstCat).style.filter).toBe('none')
+    const firstSun = screen.getByRole('button', { name: 'Sun on card 1' })
+    expect(symbolFilter(firstSun)).toHaveAttribute(
+      'data-score-reveal-muted',
+      'true',
+    )
+    expect(symbolFilter(firstSun).style.filter).toBe('saturate(0)')
     expect(firstBadge).toHaveTextContent('Firefox host')
     expect(firstBadge).toHaveClass('spot-it-score-reveal')
     expect(firstBadge?.firstElementChild).toHaveClass(

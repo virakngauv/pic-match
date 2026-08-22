@@ -2,7 +2,6 @@ import type { CSSProperties } from 'react'
 
 import {
   SELECTED_SYMBOL_SCALE,
-  UNSELECTED_SYMBOL_FILTER,
   getSelectedSymbolRotationOffset,
 } from '@/lib/card-selection'
 import { getSpotItSymbolPresentation } from '@/lib/spot-it-symbols'
@@ -25,6 +24,8 @@ const SYMBOL_COLORS = [
   'oklch(0.48 0.17 260)',
   'oklch(0.55 0.18 320)',
 ] as const
+
+const SCORE_REVEAL_MUTED_FILTER = 'saturate(0)'
 
 /** Renders one server-derived card as a circular set of symbol controls. */
 export function GameCard({
@@ -49,8 +50,6 @@ export function GameCard({
   const symbolLayouts = new Map(
     layoutPlan.symbols.map((layout) => [layout.symbolId, layout]),
   )
-  const hasSelection = selectedSymbolId !== null
-
   return (
     <article
       className="bg-card [container-type:inline-size] relative aspect-square w-full min-w-72 overflow-hidden rounded-full border-4 border-white shadow-[0_18px_55px_rgba(73,52,31,0.16),inset_0_0_0_1px_var(--border)]"
@@ -69,9 +68,7 @@ export function GameCard({
         const isSelected = selectedSymbolId === symbolId
         const isIncorrect = isSelected && showIncorrectFeedback
         const isRevealed = revealedMatch?.symbolId === symbolId
-        const isDesaturated =
-          (hasSelection && !isSelected) ||
-          (revealedMatch !== null && !isRevealed)
+        const isRevealMuted = revealedMatch !== null && !isRevealed
 
         if (!layout) {
           throw new Error(`Missing layout for symbol ${symbolId}.`)
@@ -104,7 +101,7 @@ export function GameCard({
                 : isRevealed
                   ? 'z-[1] border-2 border-emerald-700/70 bg-emerald-100/80 ring-4 ring-emerald-500/50'
                   : isSelected
-                    ? 'z-[1]'
+                    ? 'border-accent/70! bg-accent/15 ring-accent/40 z-[1] border-2 ring-4'
                     : 'hover:brightness-110',
             )}
             data-symbol-id={symbolId}
@@ -132,9 +129,9 @@ export function GameCard({
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 inline-flex items-center justify-center"
               data-symbol-filter=""
-              data-desaturated={isDesaturated}
+              data-score-reveal-muted={isRevealMuted}
               style={{
-                filter: isDesaturated ? UNSELECTED_SYMBOL_FILTER : 'none',
+                filter: isRevealMuted ? SCORE_REVEAL_MUTED_FILTER : 'none',
               }}
             >
               <span
