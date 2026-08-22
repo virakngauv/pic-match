@@ -56,6 +56,27 @@ describe('GameServer', () => {
     expect(server.rooms.has(roomCode)).toBe(false)
   })
 
+  it('routes host removal without exposing the removed token in snapshots', () => {
+    const server = new GameServer()
+    const host = 'a'.repeat(32)
+    const guest = 'b'.repeat(32)
+    const { roomCode } = createdRoom(server, host, 'Ada', 1_000)
+    server.joinRoom(guest, roomCode, 'Grace', 1_001)
+    const lobby = server.snapshot(host, roomCode)
+    if (lobby.status !== 'lobby') throw new Error('Expected lobby.')
+    const guestId = lobby.members[1]?.playerId
+    if (!guestId) throw new Error('Expected guest player id.')
+
+    expect(server.removePlayer(host, roomCode, guestId, 1_002)).toEqual({
+      status: 'success',
+      removedToken: guest,
+    })
+    expect(server.snapshot(guest, roomCode)).toEqual({
+      status: 'joinable',
+      roomCode,
+    })
+  })
+
   it('returns a typed failure when the process reaches room capacity', () => {
     const server = new GameServer(undefined, () => 0, 1)
     createdRoom(server, 'a'.repeat(32), 'Ada', 1_000)

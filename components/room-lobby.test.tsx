@@ -19,9 +19,10 @@ const guest = {
 
 const mocks = vi.hoisted(() => ({
   snapshot: undefined as RoomSnapshot | undefined,
-  endedReason: null as 'expired' | 'server_restart' | null,
+  endedReason: null as 'expired' | 'removed' | 'server_restart' | null,
   connectionStatus: 'connected' as 'connecting' | 'connected' | 'disconnected',
   leaveRoom: vi.fn(),
+  removePlayer: vi.fn(),
   startGame: vi.fn(),
   claimMatch: vi.fn(),
   prepareRematch: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock('@/components/game-socket-provider', () => ({
   }),
   useGameSocket: () => ({
     leaveRoom: mocks.leaveRoom,
+    removePlayer: mocks.removePlayer,
     startGame: mocks.startGame,
     claimMatch: mocks.claimMatch,
     prepareRematch: mocks.prepareRematch,
@@ -46,7 +48,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.routerPush }),
 }))
 
-function lobby(): RoomSnapshot {
+function lobby(): Extract<RoomSnapshot, { status: 'lobby' }> {
   return {
     status: 'lobby',
     roomCode: 'frvg7',
@@ -120,6 +122,7 @@ describe('RoomLobby', () => {
     mocks.endedReason = null
     mocks.connectionStatus = 'connected'
     mocks.leaveRoom.mockReset().mockResolvedValue({ status: 'success' })
+    mocks.removePlayer.mockReset().mockResolvedValue({ status: 'success' })
     mocks.startGame.mockReset().mockResolvedValue({ status: 'success' })
     mocks.claimMatch.mockReset().mockResolvedValue({ status: 'success' })
     mocks.prepareRematch.mockReset().mockResolvedValue({ status: 'success' })
@@ -149,6 +152,110 @@ describe('RoomLobby', () => {
     expect(screen.getByText('Grace')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Start game' }))
     expect(mocks.startGame).toHaveBeenCalledWith('frvg7')
+  })
+
+  it('offers host-only removal with an accessible cancelable confirmation', async () => {
+    const user = userEvent.setup()
+    render(<RoomLobby roomCode="frvg7" />)
+    const trigger = screen.getByRole('button', {
+      name: 'Remove Grace from room',
+    })
+
+    await user.click(trigger)
+    const dialog = screen.getByRole('dialog', { name: 'Remove Grace?' })
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(dialog).toHaveTextContent('need to join the room again')
+    const cancel = screen.getByRole('button', { name: 'Keep player' })
+    const confirm = screen.getByRole('button', { name: 'Remove Grace' })
+    expect(cancel).toHaveFocus()
+
+    await user.keyboard('{Shift>}{Tab}{/Shift}')
+    expect(confirm).toHaveFocus()
+    await user.tab()
+    expect(cancel).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('does not render removal controls for a guest', () => {
+    mocks.snapshot = {
+      ...lobby(),
+      player: { ...guest, position: null },
+    }
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.queryByRole('button', { name: /remove .* from room/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('does not render removal controls for another host-role member', () => {
+    mocks.snapshot = {
+      ...lobby(),
+      members: [
+        host,
+        { playerId: 'player-3', name: 'Lin', role: 'host' },
+        guest,
+      ],
+    }
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.queryByRole('button', { name: 'Remove Lin from room' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Remove Grace from room' }),
+    ).toBeInTheDocument()
+  })
+
+  it('locks duplicate removals and announces success', async () => {
+    const user = userEvent.setup()
+    let resolveRemoval!: (result: { status: 'success' }) => void
+    mocks.removePlayer.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRemoval = resolve
+      }),
+    )
+    render(<RoomLobby roomCode="frvg7" />)
+    await user.click(
+      screen.getByRole('button', { name: 'Remove Grace from room' }),
+    )
+    const confirm = screen.getByRole('button', { name: 'Remove Grace' })
+
+    await user.dblClick(confirm)
+
+    expect(mocks.removePlayer).toHaveBeenCalledOnce()
+    expect(mocks.removePlayer).toHaveBeenCalledWith('frvg7', 'player-2')
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.getByRole('button', { name: 'Removing…' })).toBeDisabled()
+
+    resolveRemoval({ status: 'success' })
+
+    expect(
+      await screen.findByText('Grace was removed from the room.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('keeps the confirmation recoverable when removal fails', async () => {
+    const user = userEvent.setup()
+    mocks.removePlayer.mockResolvedValue({
+      status: 'server_unavailable',
+      message: 'The game server is unavailable. Please try again.',
+    })
+    render(<RoomLobby roomCode="frvg7" />)
+    await user.click(
+      screen.getByRole('button', { name: 'Remove Grace from room' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Remove Grace' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The game server is unavailable. Please try again.',
+    )
+    expect(screen.getByRole('button', { name: 'Remove Grace' })).toBeEnabled()
   })
 
   it('explicitly leaves before navigating home', async () => {
@@ -273,6 +380,22 @@ describe('RoomLobby', () => {
     expect(
       screen.getByRole('heading', { name: 'This room has ended.' }),
     ).toBeInTheDocument()
+  })
+
+  it('explains when the host removes the local player', () => {
+    mocks.snapshot = { status: 'joinable', roomCode: 'frvg7' }
+    mocks.endedReason = 'removed'
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'You were removed from this room.',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/host removed you from the lobby/i)).toBeVisible()
+    expect(
+      screen.getByRole('link', { name: 'Join another room' }),
+    ).toBeVisible()
   })
 
   it('lets only the finished-game host prepare a rematch', async () => {

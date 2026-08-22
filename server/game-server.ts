@@ -79,6 +79,17 @@ export class GameServer {
     return result
   }
 
+  removePlayer(
+    token: string,
+    roomCode: string,
+    playerId: string,
+    now = Date.now(),
+  ) {
+    return this.withRoom(roomCode, (room) =>
+      room.removePlayer(token, playerId, now),
+    )
+  }
+
   startGame(token: string, roomCode: string, now = Date.now()) {
     return this.withRoom(roomCode, (room) => room.start(token, now))
   }
@@ -114,10 +125,10 @@ export class GameServer {
     return expired
   }
 
-  private withRoom(
+  private withRoom<TResult extends object = Record<never, never>>(
     roomCode: string,
-    action: (room: GameRoom) => CommandResult,
-  ): CommandResult {
+    action: (room: GameRoom) => CommandResult<TResult>,
+  ): CommandResult<TResult> {
     const room = this.rooms.get(roomCode)
     return room
       ? action(room)

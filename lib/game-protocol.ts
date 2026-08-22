@@ -92,6 +92,7 @@ export type SessionResumePayload = { roomCode?: string }
 export type CreateRoomPayload = { name: string }
 export type JoinRoomPayload = { roomCode: string; name: string }
 export type RoomCommandPayload = { roomCode: string }
+export type RemovePlayerPayload = RoomCommandPayload & { playerId: string }
 export type MatchClaimCommand = RoomCommandPayload & {
   commandId: string
   pairRevision: number
@@ -116,6 +117,10 @@ export type ClientToServerEvents = {
     payload: RoomCommandPayload,
     acknowledge: (result: CommandResult) => void,
   ) => void
+  'room:remove-player': (
+    payload: RemovePlayerPayload,
+    acknowledge: (result: CommandResult) => void,
+  ) => void
   'game:start': (
     payload: RoomCommandPayload,
     acknowledge: (result: CommandResult) => void,
@@ -132,6 +137,7 @@ export type ClientToServerEvents = {
 
 export type ServerToClientEvents = {
   'room:snapshot': (snapshot: RoomSnapshot) => void
+  'room:removed': (payload: { roomCode: string }) => void
   'room:expired': (payload: { roomCode: string; reason: 'idle' }) => void
   'server:shutdown': () => void
 }

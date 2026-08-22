@@ -25,7 +25,7 @@ import {
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
-export type RoomEndedReason = 'expired' | 'server_restart'
+export type RoomEndedReason = 'expired' | 'removed' | 'server_restart'
 
 type GameSocketContextValue = {
   connectionStatus: ConnectionStatus
@@ -38,6 +38,7 @@ type GameSocketContextValue = {
     name: string,
   ) => Promise<CommandResult<{ roomCode: string }>>
   leaveRoom: (roomCode: string) => Promise<CommandResult>
+  removePlayer: (roomCode: string, playerId: string) => Promise<CommandResult>
   startGame: (roomCode: string) => Promise<CommandResult>
   claimMatch: (claim: MatchClaimCommand) => Promise<CommandResult>
   prepareRematch: (roomCode: string) => Promise<CommandResult>
@@ -119,6 +120,14 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
         [roomCode]: { status: 'not_found', roomCode },
       }))
     }
+    const handleRemoved = ({ roomCode }: { roomCode: string }) => {
+      memberRooms.delete(roomCode)
+      setEndedRooms((current) => ({ ...current, [roomCode]: 'removed' }))
+      setSnapshots((current) => ({
+        ...current,
+        [roomCode]: { status: 'joinable', roomCode },
+      }))
+    }
     const handleShutdown = () => {
       const ended: Record<string, RoomEndedReason> = {}
       for (const roomCode of memberRooms) {
@@ -133,6 +142,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     socket.on('disconnect', handleDisconnect)
     socket.on('connect_error', handleConnectError)
     socket.on('room:snapshot', receiveSnapshot)
+    socket.on('room:removed', handleRemoved)
     socket.on('room:expired', handleExpired)
     socket.on('server:shutdown', handleShutdown)
 
@@ -217,6 +227,13 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
       ),
     [],
   )
+  const removePlayer = useCallback(
+    async (roomCode: string, playerId: string): Promise<CommandResult> =>
+      await runCommand(socketRef.current, (socket) =>
+        socket.emitWithAck('room:remove-player', { roomCode, playerId }),
+      ),
+    [],
+  )
   const claimMatch = useCallback(
     async (claim: MatchClaimCommand): Promise<CommandResult> =>
       await runCommand(socketRef.current, (socket) =>
@@ -241,6 +258,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
       createRoom,
       joinRoom,
       leaveRoom,
+      removePlayer,
       startGame,
       claimMatch,
       prepareRematch,
@@ -253,6 +271,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
       joinRoom,
       leaveRoom,
       prepareRematch,
+      removePlayer,
       snapshots,
       startGame,
       watchRoom,

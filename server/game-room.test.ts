@@ -116,6 +116,87 @@ describe('GameRoom', () => {
     ).toEqual([hostToken])
   })
 
+  it('lets only the host remove another lobby member', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    const lobby = room.snapshotFor(hostToken)
+    if (lobby.status !== 'lobby') throw new Error('Expected lobby.')
+    const guestId = lobby.members.find(({ name }) => name === 'Grace')?.playerId
+    if (!guestId) throw new Error('Expected guest player id.')
+
+    expect(room.removePlayer(guestToken, guestId, 1_002)).toEqual({
+      status: 'forbidden',
+      message: 'Only the host can remove a player.',
+    })
+    expect(room.removePlayer(hostToken, lobby.player.playerId, 1_003)).toEqual({
+      status: 'forbidden',
+      message: 'The host cannot be removed from the room.',
+    })
+    expect(room.removePlayer(hostToken, guestId, 1_004)).toEqual({
+      status: 'success',
+      removedToken: guestToken,
+    })
+    expect(room.snapshotFor(hostToken)).toMatchObject({
+      status: 'lobby',
+      members: [{ name: 'Ada', role: 'host' }],
+    })
+    expect(room.snapshotFor(guestToken)).toEqual({
+      status: 'joinable',
+      roomCode: 'bcdf2',
+    })
+    expect(room.removePlayer(hostToken, guestId, 1_005)).toEqual({
+      status: 'stale',
+      message: 'That player is no longer in the lobby.',
+    })
+  })
+
+  it('frees a removed seat and excludes that player from the frozen game roster', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    for (let index = 2; index < MAX_ROOM_MEMBERS; index += 1) {
+      expect(
+        room.join(`extra-token-${index}`, `Player ${index}`, 1_001 + index),
+      ).toEqual({ status: 'success' })
+    }
+    expect(room.join('room-full-token', 'No seat', 1_100)).toMatchObject({
+      status: 'room_full',
+    })
+    const guestId = (
+      room.snapshotFor(hostToken) as Extract<RoomSnapshot, { status: 'lobby' }>
+    ).members[1]?.playerId
+    if (!guestId) throw new Error('Expected guest player id.')
+
+    expect(room.removePlayer(hostToken, guestId, 1_101).status).toBe('success')
+    const replacementToken = 'c'.repeat(32)
+    expect(room.join(replacementToken, 'Linus', 1_102)).toEqual({
+      status: 'success',
+    })
+    expect(room.start(hostToken, 1_103)).toEqual({ status: 'success' })
+    const names = playing(room).scoreboard.map(({ name }) => name)
+    expect(names).toHaveLength(MAX_ROOM_MEMBERS)
+    expect(names).not.toContain('Grace')
+    expect(names).toContain('Linus')
+  })
+
+  it('rejects player removal after the game starts', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    const guestId = (
+      room.snapshotFor(hostToken) as Extract<RoomSnapshot, { status: 'lobby' }>
+    ).members[1]?.playerId
+    if (!guestId) throw new Error('Expected guest player id.')
+    room.start(hostToken, 1_002)
+
+    expect(room.removePlayer(hostToken, guestId, 1_003)).toEqual({
+      status: 'invalid',
+      message: 'Players can only be removed from the lobby.',
+    })
+    expect(playing(room).scoreboard.map(({ name }) => name)).toEqual([
+      'Ada',
+      'Grace',
+    ])
+  })
+
   it('requires an active host and two members to start', () => {
     const room = createRoom()
     expect(room.start(hostToken, 1_001)).toMatchObject({ status: 'invalid' })

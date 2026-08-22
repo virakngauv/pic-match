@@ -43,7 +43,38 @@ test('replays a complete shared race across browser sessions', async ({
     const roomCode = await createRoom(hostPage, playerNames.host)
     await joinRoom(guestPage, roomCode, playerNames.guest)
 
-    await expect(hostPage.getByText(playerNames.guest)).toBeVisible()
+    await expect(
+      hostPage.getByText(playerNames.guest, { exact: true }),
+    ).toBeVisible()
+    await hostPage
+      .getByRole('button', {
+        name: `Remove ${playerNames.guest} from room`,
+      })
+      .click()
+    const removeDialog = hostPage.getByRole('dialog', {
+      name: `Remove ${playerNames.guest}?`,
+    })
+    await expect(removeDialog).toContainText('need to join the room again')
+    await removeDialog
+      .getByRole('button', { name: `Remove ${playerNames.guest}` })
+      .click()
+    await expect(
+      hostPage.getByRole('listitem').filter({ hasText: playerNames.guest }),
+    ).toHaveCount(0)
+    await expect(
+      guestPage.getByRole('heading', {
+        name: 'You were removed from this room.',
+      }),
+    ).toBeVisible()
+    await guestPage.reload()
+    await expect(
+      guestPage.getByRole('heading', { name: 'Join your friends.' }),
+    ).toBeVisible()
+    await joinRoom(guestPage, roomCode, playerNames.guest)
+    await expect(
+      hostPage.getByText(playerNames.guest, { exact: true }),
+    ).toBeVisible()
+
     await hostPage.getByRole('button', { name: 'Start game' }).click()
 
     await expectPlaying(hostPage, playerNames.host)
@@ -286,7 +317,9 @@ test('replays a complete shared race across browser sessions', async ({
 
     await expectLobby(hostPage, roomCode)
     await expectLobby(guestPage, roomCode)
-    await expect(guestPage.getByText(playerNames.guest)).toBeVisible()
+    await expect(
+      guestPage.getByText(playerNames.guest, { exact: true }),
+    ).toBeVisible()
     await expect(
       guestPage.getByRole('listitem').filter({ hasText: playerNames.guest }),
     ).toContainText('You')
@@ -318,7 +351,9 @@ test('replays a complete shared race across browser sessions', async ({
     await expect
       .poll(async () => await playingSnapshot(lateJoinerPage))
       .toEqual(secondGameInitialState)
-    await expect(hostPage.getByText(playerNames.guest)).toHaveCount(0)
+    await expect(
+      hostPage.getByText(playerNames.guest, { exact: true }),
+    ).toHaveCount(0)
     await expect(
       hostPage.locator('button[data-symbol-id][aria-pressed="true"]'),
     ).toHaveCount(0)

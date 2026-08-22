@@ -143,6 +143,48 @@ export class GameRoom {
     return { status: 'success' }
   }
 
+  removePlayer(
+    token: string,
+    playerId: string,
+    now = Date.now(),
+  ): CommandResult<{ removedToken: string }> {
+    const actor = this.findActiveMember(token)
+    if (!actor || actor.role !== 'host') {
+      return {
+        status: 'forbidden',
+        message: 'Only the host can remove a player.',
+      }
+    }
+    if (this.phase !== 'lobby') {
+      return {
+        status: 'invalid',
+        message: 'Players can only be removed from the lobby.',
+      }
+    }
+
+    const target = this.members.find(
+      (member) => member.active && member.playerId === playerId,
+    )
+    if (!target) {
+      return {
+        status: 'stale',
+        message: 'That player is no longer in the lobby.',
+      }
+    }
+    if (target === actor || target.role === 'host') {
+      return {
+        status: 'forbidden',
+        message: 'The host cannot be removed from the room.',
+      }
+    }
+
+    const index = this.members.indexOf(target)
+    this.members.splice(index, 1)
+    this.commandResults.delete(target.token)
+    this.changed(now)
+    return { status: 'success', removedToken: target.token }
+  }
+
   start(token: string, now = Date.now()): CommandResult {
     const actor = this.findActiveMember(token)
     if (!actor || actor.role !== 'host') {
