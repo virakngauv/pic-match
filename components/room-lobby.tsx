@@ -25,9 +25,8 @@ const noopJoined = () => {}
 
 type RoomView = RoomSnapshot
 type LobbyView = Extract<RoomView, { status: 'lobby' }>
-type LeaveableView = Extract<RoomView, { status: 'lobby' | 'playing' }>
 type LeavingSnapshot = {
-  view: LeaveableView
+  view: LobbyView
 }
 
 export function RoomLobby({ roomCode }: { roomCode: string }) {
@@ -55,7 +54,7 @@ function PresentRoomLobby({
   const [leaveError, setLeaveError] = useState<string | null>(null)
   const [isStarting, setIsStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
-  const handleLeaveRoom = async (currentView: LeaveableView) => {
+  const handleLeaveRoom = async (currentView: LobbyView) => {
     if (leaveRequestLockedRef.current) {
       return
     }
@@ -72,12 +71,6 @@ function PresentRoomLobby({
       setLeaveError('Unable to leave the room. Please try again.')
       setLeavingSnapshot(null)
       leaveRequestLockedRef.current = false
-    }
-  }
-
-  const handleGoHome = () => {
-    if (!leavingSnapshot) {
-      router.push('/home')
     }
   }
 
@@ -175,11 +168,6 @@ function PresentRoomLobby({
           scoreboard={displayedRoomView.scoreboard}
           lastAcceptedClaim={displayedRoomView.lastAcceptedClaim ?? null}
           cooldownUntil={displayedRoomView.cooldownUntil}
-          isLeaving={leavingSnapshot !== null}
-          leaveError={leaveError}
-          onDismissError={() => setLeaveError(null)}
-          onGoHome={handleGoHome}
-          onLeaveRoom={() => handleLeaveRoom(displayedRoomView)}
           onSubmitClaim={handleSubmitMatchClaim}
         />
       )

@@ -7,7 +7,6 @@ import {
   type GameCardModel,
   type RevealedMatch,
 } from '@/components/game-card'
-import { GameNavigation } from '@/components/game-navigation'
 import {
   GameScoreboard,
   type GameScoreboardEntry,
@@ -15,7 +14,6 @@ import {
 import { getPairLayoutPlans } from '@/lib/card-layout'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
 import { getSpotItSymbolPresentation } from '@/lib/spot-it-symbols'
-import { cn } from '@/lib/utils'
 
 const INCORRECT_FEEDBACK_MS = 1_000
 const SCORE_REVEAL_MS = 1_500
@@ -39,11 +37,6 @@ export function GameScreen({
   scoreboard,
   lastAcceptedClaim,
   cooldownUntil,
-  isLeaving,
-  leaveError,
-  onDismissError,
-  onGoHome,
-  onLeaveRoom,
   onSubmitClaim,
 }: {
   roomCode: string
@@ -53,11 +46,6 @@ export function GameScreen({
   scoreboard: readonly ScoreboardEntry[]
   lastAcceptedClaim: ScoredClaim | null
   cooldownUntil: number | null
-  isLeaving: boolean
-  leaveError: string | null
-  onDismissError: () => void
-  onGoHome: () => void
-  onLeaveRoom: () => void
   onSubmitClaim: (claim: MatchClaimPayload) => Promise<MatchClaimResult>
 }) {
   const displayedRound = useDisplayedRound({
@@ -102,13 +90,6 @@ export function GameScreen({
           <p className="text-muted-foreground game-header-instructions sr-only max-w-xs text-sm leading-6 lg:not-sr-only">
             The same symbol appears once on each card.
           </p>
-          <GameNavigation
-            isLeaving={isLeaving}
-            leaveError={leaveError}
-            onDismissError={onDismissError}
-            onGoHome={onGoHome}
-            onLeaveRoom={onLeaveRoom}
-          />
         </header>
         <p
           role="status"
@@ -122,7 +103,6 @@ export function GameScreen({
         </p>
         <GameScoreboard
           localPlayerId={player.playerId}
-          pairRevision={displayedRound.pairRevision}
           scoreboard={scoreboard}
           revealScorerId={displayedRound.reveal?.scorerId ?? null}
         />
@@ -132,7 +112,7 @@ export function GameScreen({
           cards={displayedRound.cards}
           revealedMatch={revealedMatch}
           cooldownUntil={cooldownUntil}
-          interactionDisabled={isLeaving || revealedMatch !== null}
+          interactionDisabled={revealedMatch !== null}
           onSubmitClaim={onSubmitClaim}
         />
       </div>
@@ -268,6 +248,16 @@ function GameRound({
     feedback === 'stale'
   const cardLayoutPlans =
     cards.length === 2 ? getPairLayoutPlans(cards, pairRevision) : null
+  const feedbackMessage = isSubmitting
+    ? 'Submitting match…'
+    : isIncorrectFeedbackActive
+      ? 'Incorrect match. Try again in a moment.'
+      : isServerCooldownActive
+        ? 'Please wait a moment before selecting again.'
+        : feedback && feedback !== 'incorrect' && feedback !== 'cooldown'
+          ? getClaimFeedbackMessage(feedback)
+          : ''
+
   useEffect(() => {
     if (incorrectFeedbackUntil === null) {
       return
@@ -374,6 +364,16 @@ function GameRound({
               </div>
             )
           })}
+          <p
+            id="match-claim-feedback"
+            className={
+              feedback === 'error' ? 'game-feedback-overlay' : 'sr-only'
+            }
+            role={feedback === 'error' ? 'alert' : 'status'}
+            aria-label="Match claim feedback"
+          >
+            {feedbackMessage}
+          </p>
         </section>
       ) : (
         <div
@@ -391,32 +391,6 @@ function GameRound({
           </div>
         </div>
       )}
-
-      {cards.length === 2 ? (
-        <div className="game-feedback">
-          <p
-            id="match-claim-feedback"
-            className={cn(
-              'text-muted-foreground text-center text-sm leading-tight',
-              feedback && 'font-semibold',
-            )}
-            role={feedback === 'error' ? 'alert' : 'status'}
-            aria-label="Match claim feedback"
-          >
-            {isSubmitting
-              ? 'Submitting match…'
-              : isIncorrectFeedbackActive
-                ? 'Incorrect match. Try again in a moment.'
-                : isServerCooldownActive
-                  ? 'Please wait a moment before selecting again.'
-                  : feedback &&
-                      feedback !== 'incorrect' &&
-                      feedback !== 'cooldown'
-                    ? getClaimFeedbackMessage(feedback)
-                    : 'Select the match on both cards.'}
-          </p>
-        </div>
-      ) : null}
     </>
   )
 }

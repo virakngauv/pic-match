@@ -148,8 +148,21 @@ async function expectGameplayFitsViewport(
     )
     const scoreList =
       document.querySelector<HTMLOListElement>('.game-score-list')
+    const firstScoreEntry =
+      scoreList?.querySelector<HTMLElement>('.game-score-entry')
+    const firstScoreName =
+      firstScoreEntry?.querySelector<HTMLElement>('.game-score-name')
+    const firstScoreValue =
+      firstScoreEntry?.querySelector<HTMLElement>('.game-score-value')
 
-    if (!scoreboard || !scoreViewport || !scoreList) {
+    if (
+      !scoreboard ||
+      !scoreViewport ||
+      !scoreList ||
+      !firstScoreEntry ||
+      !firstScoreName ||
+      !firstScoreValue
+    ) {
       throw new Error('Missing the active-game leaderboard.')
     }
 
@@ -170,9 +183,25 @@ async function expectGameplayFitsViewport(
       scrollHeight: document.documentElement.scrollHeight,
       scrollWidth: document.documentElement.scrollWidth,
       scoreboard: scoreboardBounds,
+      scoreEntryText: Array.from(
+        scoreList.querySelectorAll<HTMLElement>('.game-score-entry'),
+      ).map((entry) => ({
+        name:
+          entry.querySelector<HTMLElement>('.game-score-name')?.innerText ?? '',
+        score:
+          entry.querySelector<HTMLElement>('.game-score-value')?.innerText ??
+          '',
+      })),
+      scoreName: boundsFor(firstScoreName),
+      scoreValue: boundsFor(firstScoreValue),
       scoreListDisplay: scoreListStyles.display,
       scoreListFlexWrap: scoreListStyles.flexWrap,
       scoreViewportOverflowX: scoreViewportStyles.overflowX,
+      navigationCount: document.querySelectorAll(
+        'main.game-surface nav, .game-navigation',
+      ).length,
+      persistentFeedbackCount:
+        document.querySelectorAll('.game-feedback').length,
     }
   })
 
@@ -187,6 +216,12 @@ async function expectGameplayFitsViewport(
   expect(measurements.scoreListDisplay).toBe('flex')
   expect(measurements.scoreListFlexWrap).toBe('nowrap')
   expect(measurements.scoreViewportOverflowX).toBe('auto')
+  expect(measurements.navigationCount).toBe(0)
+  expect(measurements.persistentFeedbackCount).toBe(0)
+  expect(measurements.scoreEntryText).toEqual([
+    { name: 'Ada', score: '0' },
+    { name: 'Grace', score: '0' },
+  ])
   expect(measurements.scoreboard.left).toBeGreaterThanOrEqual(-1)
   expect(measurements.scoreboard.right).toBeLessThanOrEqual(
     measurements.clientWidth + 1,
@@ -194,6 +229,12 @@ async function expectGameplayFitsViewport(
   expect(measurements.scoreboard.bottom).toBeLessThanOrEqual(
     Math.min(...measurements.cards.map((card) => card.top)) + 1,
   )
+
+  if (viewport.width < 640) {
+    expect(measurements.scoreValue.top).toBeGreaterThanOrEqual(
+      measurements.scoreName.bottom - 1,
+    )
+  }
 
   for (const card of measurements.cards) {
     expect(card.top).toBeGreaterThanOrEqual(-1)
@@ -255,7 +296,7 @@ async function expectGameplayAtDoubleTextSize(page: Page) {
   expect(measurements.surfaceScrollWidth).toBeLessThanOrEqual(
     measurements.surfaceClientWidth + 1,
   )
-  expect(measurements.surfaceScrollHeight).toBeGreaterThan(
+  expect(measurements.surfaceScrollHeight).toBeGreaterThanOrEqual(
     measurements.surfaceClientHeight,
   )
 
@@ -270,8 +311,7 @@ async function expectGameplayAtDoubleTextSize(page: Page) {
 
   await page.getByLabel("Ada's score").scrollIntoViewIfNeeded()
   await expect(page.getByLabel("Ada's score")).toBeVisible()
-  await page.getByLabel('Match claim feedback').scrollIntoViewIfNeeded()
-  await expect(page.getByLabel('Match claim feedback')).toBeVisible()
+  await expect(page.getByLabel('Match claim feedback')).toBeAttached()
 
   await page.evaluate(() => {
     document.documentElement.style.fontSize = ''

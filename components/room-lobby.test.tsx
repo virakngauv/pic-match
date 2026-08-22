@@ -290,6 +290,10 @@ describe('RoomLobby', () => {
       screen.getByRole('main', { name: 'Game for Ada' }),
     ).toBeInTheDocument()
     expect(screen.getByLabelText("Ada's score")).toHaveTextContent('0')
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Leave room' }),
+    ).not.toBeInTheDocument()
   })
 
   it('adds room credentials to a claim and maps a stale result', async () => {
