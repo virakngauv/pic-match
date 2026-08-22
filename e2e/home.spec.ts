@@ -142,6 +142,20 @@ async function expectGameplayFitsViewport(
     const targets = Array.from(
       document.querySelectorAll<HTMLButtonElement>('button[data-symbol-id]'),
     )
+    const scoreboard = document.querySelector<HTMLElement>('.game-scoreboard')
+    const scoreViewport = document.querySelector<HTMLElement>(
+      '.game-score-viewport',
+    )
+    const scoreList =
+      document.querySelector<HTMLOListElement>('.game-score-list')
+
+    if (!scoreboard || !scoreViewport || !scoreList) {
+      throw new Error('Missing the active-game leaderboard.')
+    }
+
+    const scoreboardBounds = boundsFor(scoreboard)
+    const scoreListStyles = getComputedStyle(scoreList)
+    const scoreViewportStyles = getComputedStyle(scoreViewport)
 
     return {
       cards: cards.map(boundsFor),
@@ -155,6 +169,10 @@ async function expectGameplayFitsViewport(
       ),
       scrollHeight: document.documentElement.scrollHeight,
       scrollWidth: document.documentElement.scrollWidth,
+      scoreboard: scoreboardBounds,
+      scoreListDisplay: scoreListStyles.display,
+      scoreListFlexWrap: scoreListStyles.flexWrap,
+      scoreListOverflowX: scoreViewportStyles.overflowX,
     }
   })
 
@@ -166,6 +184,16 @@ async function expectGameplayFitsViewport(
     measurements.clientWidth + 1,
   )
   expect(measurements.minTargetSize).toBeGreaterThanOrEqual(minimumTargetSize)
+  expect(measurements.scoreListDisplay).toBe('flex')
+  expect(measurements.scoreListFlexWrap).toBe('nowrap')
+  expect(measurements.scoreListOverflowX).toBe('auto')
+  expect(measurements.scoreboard.left).toBeGreaterThanOrEqual(-1)
+  expect(measurements.scoreboard.right).toBeLessThanOrEqual(
+    measurements.clientWidth + 1,
+  )
+  expect(measurements.scoreboard.bottom).toBeLessThanOrEqual(
+    Math.min(...measurements.cards.map((card) => card.top)) + 1,
+  )
 
   for (const card of measurements.cards) {
     expect(card.top).toBeGreaterThanOrEqual(-1)

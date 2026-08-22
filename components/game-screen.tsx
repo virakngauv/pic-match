@@ -8,6 +8,10 @@ import {
   type RevealedMatch,
 } from '@/components/game-card'
 import { GameNavigation } from '@/components/game-navigation'
+import {
+  GameScoreboard,
+  type GameScoreboardEntry,
+} from '@/components/game-scoreboard'
 import { getPairLayoutPlans } from '@/lib/card-layout'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
 import { getSpotItSymbolPresentation } from '@/lib/spot-it-symbols'
@@ -23,16 +27,8 @@ export type ScoredClaim = {
   pairRevision: number
 }
 
-type GamePlayer = {
-  playerId: string
-  name: string
-  role: 'host' | 'player'
-  position: number
-}
-
-type ScoreboardEntry = GamePlayer & {
-  score: number
-}
+type ScoreboardEntry = GameScoreboardEntry
+type GamePlayer = Omit<ScoreboardEntry, 'score'>
 
 /** Presents the shared card pair and ordered scoreboard for an active player. */
 export function GameScreen({
@@ -275,10 +271,6 @@ function GameRound({
     feedback === 'stale'
   const cardLayoutPlans =
     cards.length === 2 ? getPairLayoutPlans(cards, pairRevision) : null
-  const orderedScoreboard = [...scoreboard].sort(
-    (left, right) => left.position - right.position,
-  )
-
   useEffect(() => {
     if (incorrectFeedbackUntil === null) {
       return
@@ -361,67 +353,12 @@ function GameRound({
 
   return (
     <>
-      <aside
-        className="game-scoreboard bg-card border shadow-sm"
-        aria-labelledby="scoreboard-heading"
-      >
-        <div className="game-scoreboard-heading">
-          <h2
-            id="scoreboard-heading"
-            className="sr-only text-xl font-semibold lg:not-sr-only"
-          >
-            Scoreboard
-          </h2>
-          <span className="text-muted-foreground shrink-0 text-[0.65rem] font-bold tracking-[0.1em] uppercase lg:text-xs lg:tracking-[0.12em]">
-            <span className="game-short-round" aria-hidden="true">
-              R{pairRevision + 1} ·{' '}
-            </span>
-            First to 12
-          </span>
-        </div>
-        <ol className="game-score-list">
-          {orderedScoreboard.map((entry) => {
-            const isLocalPlayer = entry.playerId === player.playerId
-            const isRevealScorer = entry.playerId === revealScorerId
-
-            return (
-              <li
-                key={entry.playerId}
-                className={cn(
-                  'game-score-entry border',
-                  isLocalPlayer
-                    ? 'border-accent bg-accent/10'
-                    : 'bg-background',
-                )}
-                aria-current={isLocalPlayer ? 'true' : undefined}
-                data-player-position={entry.position}
-                data-scored={isRevealScorer ? 'true' : undefined}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold lg:text-base">
-                    {entry.name}
-                  </span>
-                  <span className="text-muted-foreground block truncate text-[0.65rem] lg:text-xs">
-                    {isLocalPlayer
-                      ? entry.role === 'host'
-                        ? 'You · Host'
-                        : 'You'
-                      : entry.role === 'host'
-                        ? 'Host'
-                        : 'Player'}
-                  </span>
-                </span>
-                <output
-                  className="bg-foreground text-background inline-flex size-8 shrink-0 items-center justify-center rounded-full px-2 font-mono text-sm font-bold lg:h-10 lg:min-w-10 lg:px-3 lg:text-lg"
-                  aria-label={`${entry.name}'s score`}
-                >
-                  {entry.score}
-                </output>
-              </li>
-            )
-          })}
-        </ol>
-      </aside>
+      <GameScoreboard
+        localPlayerId={player.playerId}
+        pairRevision={pairRevision}
+        scoreboard={scoreboard}
+        revealScorerId={revealScorerId}
+      />
 
       {cards.length === 2 ? (
         <section className="game-board" aria-label="Shared game board">
