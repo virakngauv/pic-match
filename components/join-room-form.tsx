@@ -1,6 +1,12 @@
 'use client'
 
-import { useState, type ComponentProps, type FormEvent } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type FormEvent,
+} from 'react'
 
 import { useGameSocket } from '@/components/game-socket-provider'
 import { Button } from '@/components/ui/button'
@@ -24,6 +30,16 @@ export function JoinRoomForm({
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isJoining, setIsJoining] = useState(false)
+  const roomCodeInputRef = useRef<HTMLInputElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const target = roomCodeLocked
+      ? nameInputRef.current
+      : roomCodeInputRef.current
+
+    target?.focus({ preventScroll: true })
+  }, [roomCodeLocked])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -70,7 +86,7 @@ export function JoinRoomForm({
           label="Room code"
           id="room-code"
           name="roomCode"
-          placeholder="bcdf2"
+          ref={roomCodeInputRef}
           value={enteredRoomCode}
           onChange={(event) => setEnteredRoomCode(event.target.value)}
           maxLength={5}
@@ -78,7 +94,6 @@ export function JoinRoomForm({
           autoCorrect="off"
           spellCheck={false}
           className="font-mono tracking-[0.15em] lowercase"
-          autoFocus={!roomCodeLocked}
           readOnly={roomCodeLocked}
           required
           disabled={isJoining}
@@ -88,11 +103,11 @@ export function JoinRoomForm({
           id="name"
           name="name"
           placeholder="Your name"
+          ref={nameInputRef}
           value={name}
           onChange={(event) => setName(event.target.value)}
           autoComplete="name"
           maxLength={50}
-          autoFocus={roomCodeLocked}
           required
           disabled={isJoining}
         />

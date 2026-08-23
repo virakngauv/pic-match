@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ComponentProps } from 'react'
 
 import { JoinRoomForm } from './join-room-form'
 
@@ -17,6 +18,19 @@ vi.mock('@/components/game-socket-provider', () => ({
   }),
 }))
 
+type JoinRoomFormProps = ComponentProps<typeof JoinRoomForm>
+
+function renderForm(props: JoinRoomFormProps = {}) {
+  const view = render(<JoinRoomForm {...props} />)
+
+  return {
+    ...view,
+    rerenderForm(nextProps: JoinRoomFormProps = {}) {
+      view.rerender(<JoinRoomForm {...nextProps} />)
+    },
+  }
+}
+
 describe('JoinRoomForm', () => {
   beforeEach(() => {
     mocks.connectionStatus = 'connected'
@@ -30,23 +44,45 @@ describe('JoinRoomForm', () => {
   })
 
   it('locks a room code supplied by the room route', () => {
-    render(<JoinRoomForm roomCode="frvg7" />)
+    renderForm({ roomCode: 'frvg7' })
 
     expect(screen.getByLabelText('Room code')).toHaveValue('frvg7')
     expect(screen.getByLabelText('Room code')).toHaveAttribute('readonly')
+    expect(screen.getByLabelText('Room code')).not.toHaveAttribute(
+      'placeholder',
+    )
     expect(screen.getByLabelText('Name')).toHaveFocus()
   })
 
   it('keeps the room code editable in the standard join flow', () => {
-    render(<JoinRoomForm />)
+    renderForm()
 
     expect(screen.getByLabelText('Room code')).not.toHaveAttribute('readonly')
+    expect(screen.getByLabelText('Room code')).not.toHaveAttribute(
+      'placeholder',
+    )
+    expect(screen.getByLabelText('Room code')).toHaveFocus()
+    expect(screen.getByLabelText('Name')).toHaveAttribute(
+      'placeholder',
+      'Your name',
+    )
+  })
+
+  it('keeps focus stable across connection status transitions', () => {
+    mocks.connectionStatus = 'connecting'
+    const { rerenderForm } = renderForm()
+
+    expect(screen.getByLabelText('Room code')).toHaveFocus()
+
+    mocks.connectionStatus = 'connected'
+    rerenderForm()
+
     expect(screen.getByLabelText('Room code')).toHaveFocus()
   })
 
   it('waits for the game socket before allowing a join', () => {
     mocks.connectionStatus = 'connecting'
-    render(<JoinRoomForm />)
+    renderForm()
 
     expect(screen.getByLabelText('Room code')).toBeEnabled()
     expect(screen.getByLabelText('Name')).toBeEnabled()
@@ -59,7 +95,7 @@ describe('JoinRoomForm', () => {
   it('invokes onJoined with the room after a successful join', async () => {
     const user = userEvent.setup()
 
-    render(<JoinRoomForm roomCode="frvg7" onJoined={mocks.onJoined} />)
+    renderForm({ roomCode: 'frvg7', onJoined: mocks.onJoined })
 
     await user.type(screen.getByLabelText('Name'), 'Browser player')
     await user.click(screen.getByRole('button', { name: 'Join' }))
@@ -73,7 +109,7 @@ describe('JoinRoomForm', () => {
   it('leaves the parent in charge when onJoined is omitted', async () => {
     const user = userEvent.setup()
 
-    render(<JoinRoomForm roomCode="frvg7" />)
+    renderForm({ roomCode: 'frvg7' })
 
     await user.type(screen.getByLabelText('Name'), 'Browser player')
     await user.click(screen.getByRole('button', { name: 'Join' }))
@@ -93,7 +129,7 @@ describe('JoinRoomForm', () => {
       message: 'This room is full.',
     })
 
-    render(<JoinRoomForm roomCode="frvg7" onJoined={mocks.onJoined} />)
+    renderForm({ roomCode: 'frvg7', onJoined: mocks.onJoined })
 
     await user.type(screen.getByLabelText('Name'), 'Late player')
     await user.click(screen.getByRole('button', { name: 'Join' }))
@@ -112,7 +148,7 @@ describe('JoinRoomForm', () => {
       message: 'This game has already started.',
     })
 
-    render(<JoinRoomForm roomCode="frvg7" onJoined={mocks.onJoined} />)
+    renderForm({ roomCode: 'frvg7', onJoined: mocks.onJoined })
 
     await user.type(screen.getByLabelText('Name'), 'Late player')
     await user.click(screen.getByRole('button', { name: 'Join' }))
