@@ -197,12 +197,19 @@ describe('GameRoom', () => {
     ])
   })
 
-  it('requires an active host and two members to start', () => {
+  it('starts a solo game with only the host', () => {
     const room = createRoom()
-    expect(room.start(hostToken, 1_001)).toMatchObject({ status: 'invalid' })
-    room.join(guestToken, 'Grace', 1_002)
-    expect(room.start(guestToken, 1_003)).toMatchObject({ status: 'forbidden' })
-    expect(room.start(hostToken, 1_004)).toEqual({ status: 'success' })
+    expect(room.start(hostToken, 1_001)).toEqual({ status: 'success' })
+    expect(playing(room).scoreboard).toEqual([
+      expect.objectContaining({ name: 'Ada', score: 0, position: 0 }),
+    ])
+  })
+
+  it('requires an active host to start', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    expect(room.start(guestToken, 1_002)).toMatchObject({ status: 'forbidden' })
+    expect(room.start(hostToken, 1_003)).toEqual({ status: 'success' })
     expect(playing(room).scoreboard).toEqual([
       expect.objectContaining({ name: 'Ada', score: 0, position: 0 }),
       expect.objectContaining({ name: 'Grace', score: 0, position: 1 }),
@@ -328,6 +335,39 @@ describe('GameRoom', () => {
     expect(room.snapshotFor(hostToken)).toMatchObject({
       status: 'lobby',
       members: [{ name: 'Ada' }, { name: 'Grace' }],
+    })
+  })
+
+  it('finishes a solo game at the winning score and rematches alone', () => {
+    const room = createRoom()
+    room.start(hostToken, 1_001)
+
+    for (
+      let score = 0;
+      score < FIRST_PLAYABLE_CONFIGURATION.winningScore;
+      score += 1
+    ) {
+      const snapshot = playing(room)
+      expect(
+        room.claim(
+          hostToken,
+          claim(snapshot, `solowinning${score}`),
+          2_000 + score,
+        ),
+      ).toEqual({
+        status: 'success',
+      })
+    }
+
+    expect(room.snapshotFor(hostToken)).toMatchObject({
+      status: 'finished',
+      winner: { name: 'Ada', score: FIRST_PLAYABLE_CONFIGURATION.winningScore },
+      scoreboard: [{ name: 'Ada' }],
+    })
+    expect(room.prepareRematch(hostToken, 3_000)).toEqual({ status: 'success' })
+    expect(room.snapshotFor(hostToken)).toMatchObject({
+      status: 'lobby',
+      members: [{ name: 'Ada', role: 'host' }],
     })
   })
 

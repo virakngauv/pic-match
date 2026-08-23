@@ -154,6 +154,19 @@ describe('RoomLobby', () => {
     expect(mocks.startGame).toHaveBeenCalledWith('frvg7')
   })
 
+  it('lets a solo host start the game without other players', async () => {
+    const user = userEvent.setup()
+    mocks.snapshot = { ...lobby(), members: [host] }
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.getByText('1 player')).toBeInTheDocument()
+    expect(screen.queryByText(/players are needed/i)).not.toBeInTheDocument()
+    const startButton = screen.getByRole('button', { name: 'Start game' })
+    expect(startButton).toBeEnabled()
+    await user.click(startButton)
+    expect(mocks.startGame).toHaveBeenCalledWith('frvg7')
+  })
+
   it('offers host-only removal with an accessible cancelable confirmation', async () => {
     const user = userEvent.setup()
     render(<RoomLobby roomCode="frvg7" />)
@@ -427,6 +440,20 @@ describe('RoomLobby', () => {
       '0',
       '2',
     ])
+  })
+
+  it('presents a solo result without winner framing', () => {
+    mocks.snapshot = {
+      ...finished(),
+      scoreboard: [{ ...host, position: 0, score: 12 }],
+    }
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(screen.getByText('Solo game complete!')).toBeInTheDocument()
+    expect(screen.getByText('You scored 12 points, Ada.')).toBeInTheDocument()
+    expect(screen.queryByText('You won!')).not.toBeInTheDocument()
+    expect(screen.queryByText('Winner · You')).not.toBeInTheDocument()
+    expect(screen.getByText('You', { exact: true })).toBeInTheDocument()
   })
 
   it('lets only the finished-game host prepare a rematch', async () => {

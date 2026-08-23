@@ -201,10 +201,10 @@ export class GameRoom {
     }
 
     const members = this.activeMembers()
-    if (members.length < 2) {
+    if (members.length < 1) {
       return {
         status: 'invalid',
-        message: 'At least 2 players are required to start the game.',
+        message: 'At least 1 player is required to start the game.',
       }
     }
 

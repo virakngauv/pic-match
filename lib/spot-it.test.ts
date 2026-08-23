@@ -25,11 +25,12 @@ describe('first playable Spot It configuration', () => {
   })
 
   it('accepts the full supported participant range', () => {
+    expect(() => assertSupportedParticipantCount(1)).not.toThrow()
     expect(() => assertSupportedParticipantCount(2)).not.toThrow()
     expect(() => assertSupportedParticipantCount(64)).not.toThrow()
   })
 
-  it.each([1, 65, 2.5])(
+  it.each([0, 65, 2.5])(
     'rejects unsupported participant count %s',
     (participantCount) => {
       expect(() => assertSupportedParticipantCount(participantCount)).toThrow()

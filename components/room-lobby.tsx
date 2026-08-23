@@ -232,7 +232,6 @@ function ConnectedRoomLobby({
   onStart: () => void
 }) {
   const isHost = view.player.role === 'host'
-  const canStart = view.members.length >= 2
   const [removalTarget, setRemovalTarget] = useState<
     LobbyView['members'][number] | null
   >(null)
@@ -348,22 +347,11 @@ function ConnectedRoomLobby({
             <>
               <Button
                 type="button"
-                disabled={isLeaving || isStarting || !canStart}
+                disabled={isLeaving || isStarting}
                 onClick={onStart}
-                aria-describedby={
-                  !canStart ? 'start-game-requirement' : undefined
-                }
               >
                 {isStarting ? 'Starting…' : 'Start game'}
               </Button>
-              {!canStart ? (
-                <p
-                  id="start-game-requirement"
-                  className="text-muted-foreground text-center text-sm"
-                >
-                  At least 2 players are needed to start.
-                </p>
-              ) : null}
             </>
           ) : (
             <p className="text-muted-foreground text-center text-sm">
@@ -585,6 +573,7 @@ function FinishedRoom({
   scoreboard: readonly FinishedScoreboardEntry[]
   onPrepareRematch: () => Promise<void>
 }) {
+  const isSoloGame = scoreboard.length === 1
   const isWinner = player.playerId === winner.playerId
   const isHost = player.role === 'host'
   const orderedScoreboard = [...scoreboard].sort(
@@ -623,12 +612,18 @@ function FinishedRoom({
           Game finished.
         </h1>
         <p className="mt-4 text-2xl font-semibold tracking-[-0.03em]">
-          {isWinner ? 'You won!' : `${winner.name} wins!`}
+          {isSoloGame
+            ? 'Solo game complete!'
+            : isWinner
+              ? 'You won!'
+              : `${winner.name} wins!`}
         </p>
         <p className="text-muted-foreground mt-2 text-sm leading-6 sm:text-base">
-          {isWinner
-            ? `Great match, ${player.name}.`
-            : `Thanks for playing, ${player.name}.`}
+          {isSoloGame
+            ? `You scored ${winner.score} points, ${player.name}.`
+            : isWinner
+              ? `Great match, ${player.name}.`
+              : `Thanks for playing, ${player.name}.`}
         </p>
 
         <div className="mt-8 text-left">
@@ -654,15 +649,17 @@ function FinishedRoom({
                       {entry.name}
                     </span>
                     <span className="text-muted-foreground block text-xs">
-                      {isWinningPlayer
-                        ? isLocalPlayer
-                          ? 'Winner · You'
-                          : 'Winner'
-                        : isLocalPlayer
-                          ? 'You'
-                          : entry.role === 'host'
-                            ? 'Host'
-                            : 'Player'}
+                      {isSoloGame
+                        ? 'You'
+                        : isWinningPlayer
+                          ? isLocalPlayer
+                            ? 'Winner · You'
+                            : 'Winner'
+                          : isLocalPlayer
+                            ? 'You'
+                            : entry.role === 'host'
+                              ? 'Host'
+                              : 'Player'}
                     </span>
                   </span>
                   <output
