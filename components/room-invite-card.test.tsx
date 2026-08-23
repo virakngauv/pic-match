@@ -48,6 +48,17 @@ describe('RoomInviteCard', () => {
       'https://playtest.example/a%2Fb%3Fc',
     )
   })
+
+  it('renders the QR code with phone-scannable sizing classes', async () => {
+    render(<RoomInviteCard roomCode="frvg7" />)
+
+    const qr = await screen.findByRole('img', {
+      name: 'Scan to join room frvg7',
+    })
+
+    expect(qr).toHaveClass('size-48')
+    expect(qr.parentElement).toHaveClass('p-2')
+  })
 })
 
 describe('RoomInviteActions', () => {

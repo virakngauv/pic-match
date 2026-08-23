@@ -52,10 +52,26 @@ test('moves a room from creation into a reconnectable game', async ({
     await expect(
       hostPage.getByRole('img', { name: `Scan to join room ${roomCode}` }),
     ).toBeVisible()
-    await expect(hostPage.getByTestId('invite-qr')).toHaveAttribute(
+    const inviteQr = hostPage.getByTestId('invite-qr')
+    await expect(inviteQr).toHaveAttribute(
       'data-invite-url',
       `${new URL(hostPage.url()).origin}/${roomCode}`,
     )
+    const qrGeometry = await inviteQr.evaluate((element) => {
+      const qr = element.getBoundingClientRect()
+      const tile = element.parentElement?.getBoundingClientRect()
+
+      return {
+        qrWidth: qr.width,
+        qrHeight: qr.height,
+        quietZoneWidth: tile ? tile.width - qr.width : 0,
+        quietZoneHeight: tile ? tile.height - qr.height : 0,
+      }
+    })
+    expect(qrGeometry.qrWidth).toBeGreaterThanOrEqual(176)
+    expect(qrGeometry.qrHeight).toBeGreaterThanOrEqual(176)
+    expect(qrGeometry.quietZoneWidth).toBeGreaterThanOrEqual(16)
+    expect(qrGeometry.quietZoneHeight).toBeGreaterThanOrEqual(16)
     await hostPage.getByRole('button', { name: 'Copy invite link' }).click()
     await expect(
       hostPage.getByRole('button', { name: 'Copied ✓' }),

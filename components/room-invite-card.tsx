@@ -38,7 +38,7 @@ export function RoomInviteCard({ roomCode }: { roomCode: string }) {
         {roomCode}
       </output>
       <div className="flex flex-col items-center gap-2">
-        <div className="flex size-44 items-center justify-center rounded-2xl border bg-white p-2 shadow-sm">
+        <div className="flex items-center justify-center rounded-2xl border bg-white p-2 shadow-sm">
           {inviteUrl ? (
             <QRCodeSVG
               value={inviteUrl}
@@ -46,7 +46,7 @@ export function RoomInviteCard({ roomCode }: { roomCode: string }) {
               aria-label={`Scan to join room ${roomCode}`}
               data-testid="invite-qr"
               data-invite-url={inviteUrl}
-              className="size-full"
+              className="size-48"
             />
           ) : null}
         </div>
