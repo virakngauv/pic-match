@@ -236,10 +236,9 @@ test('replays a complete shared race across browser sessions', async ({
 
     await outsiderPage.goto(`/${roomCode}`)
     await expect(
-      outsiderPage.getByRole('heading', {
-        name: 'This game has already started.',
-      }),
+      outsiderPage.getByRole('heading', { name: 'Join your friends.' }),
     ).toBeVisible()
+    await expect(outsiderPage.getByLabel('Room code')).toHaveValue(roomCode)
 
     await lateJoinerPage.goto('/join')
     await expect(
@@ -250,9 +249,13 @@ test('replays a complete shared race across browser sessions', async ({
     await lateJoinerPage
       .getByRole('button', { name: 'Join', exact: true })
       .click()
-    await expect(lateJoinerPage.locator('form [role="alert"]')).toHaveText(
-      'This game has already started.',
-    )
+    await expect(lateJoinerPage).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
+    await expectPlaying(lateJoinerPage, playerNames.replacement)
+    await expectScore(lateJoinerPage, playerNames.guest, 1)
+    await expectScore(hostPage, playerNames.replacement, 0)
+    await expect
+      .poll(async () => await playingSnapshot(lateJoinerPage))
+      .toEqual(await playingSnapshot(hostPage))
 
     const beforeIncorrectClaim = await playingSnapshot(hostPage)
     const incorrectSelection = await submitIncorrectClaim(
@@ -405,6 +408,7 @@ test('replays a complete shared race across browser sessions', async ({
       { name: playerNames.host, score: 12, position: 0 },
       { name: playerNames.guest, score: guestFinalScore, position: 1 },
       { name: playerNames.third, score: thirdFinalScore, position: 2 },
+      { name: playerNames.replacement, score: 0, position: 3 },
     ]
     await expectFinalScoreboardOrder(hostPage, expectedFinalOrder)
     await expectFinalScoreboardOrder(guestPage, expectedFinalOrder)
@@ -436,7 +440,8 @@ test('replays a complete shared race across browser sessions', async ({
       hostPage.getByRole('listitem').filter({ hasText: playerNames.guest }),
     ).toHaveCount(0)
 
-    await joinRoom(lateJoinerPage, roomCode, playerNames.replacement)
+    await lateJoinerPage.goto(`/${roomCode}`)
+    await expectLobby(lateJoinerPage, roomCode)
     await expect(
       hostPage
         .getByRole('listitem')
@@ -504,6 +509,10 @@ test('replays a complete shared race across browser sessions', async ({
       hostPage.getByText(playerNames.replacement, { exact: true }),
     ).toBeVisible()
 
+    await submitSharedMatch(lateJoinerPage)
+    await expectScore(lateJoinerPage, playerNames.replacement, 1)
+    await expectScore(hostPage, playerNames.replacement, 1)
+
     await submitSharedMatch(hostPage)
     await expectScore(hostPage, playerNames.host, 2)
     await expectNoHorizontalOverflow(hostPage)
@@ -516,9 +525,7 @@ test('replays a complete shared race across browser sessions', async ({
 
     await outsiderPage.reload()
     await expect(
-      outsiderPage.getByRole('heading', {
-        name: 'This game has already started.',
-      }),
+      outsiderPage.getByRole('heading', { name: 'Join your friends.' }),
     ).toBeVisible()
   } finally {
     await Promise.all([

@@ -112,10 +112,12 @@ test('moves a room from creation into a reconnectable game', async ({
     await lateJoinerPage
       .getByRole('button', { name: 'Join', exact: true })
       .click()
-    await expect(lateJoinerPage.locator('form [role="alert"]')).toHaveText(
-      'This game has already started.',
-    )
-    await expect(lateJoinerPage).toHaveURL(/\/join$/)
+    await expect(lateJoinerPage).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
+    await expect(
+      lateJoinerPage.getByRole('main', { name: 'Game for Linus' }),
+    ).toBeVisible()
+    await expect(lateJoinerPage.getByText('Ada')).toBeVisible()
+    await expect(lateJoinerPage.getByText('Grace')).toBeVisible()
   } finally {
     await Promise.all([
       lateJoinerContext.close(),

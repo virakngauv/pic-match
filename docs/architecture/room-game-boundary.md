@@ -27,10 +27,11 @@ DigitalOcean Droplet
 rooms. It does not contain gameplay rules.
 
 Each `GameRoom` is a synchronous actor for one room. It owns membership, host
-role, phase, frozen participant roster, deterministic game seed, pair revision,
-scores, per-player cooldown deadlines, winner, command deduplication, room
-revision, and meaningful-activity time. Its methods contain no `await` and do
-not import Socket.IO, so one Node event loop serializes competing claims.
+role, phase, one live member roster that carries per-game seats (position,
+score, cooldown), deterministic game seed, pair revision, winner, command
+deduplication, room revision, and meaningful-activity time. Its methods
+contain no `await` and do not import Socket.IO, so one Node event loop
+serializes competing claims.
 
 The protocol layer validates every untrusted handshake and command, applies
 rate limits, joins sockets to transport rooms, and emits a complete personalized
@@ -45,8 +46,13 @@ capability and is never broadcast or logged. A socket ID is transport-only.
 Creating or joining establishes membership. Disconnect only detaches a
 transport. Membership ends through explicit leave, idle room expiration, or
 process exit. In the lobby, an explicitly departing host transfers ownership to
-the longest-tenured remaining member. Once play starts, the participant roster
-is frozen.
+the longest-tenured remaining member.
+
+Joining stays open while a game is playing: a new identity takes the next
+scoreboard position at zero, and a returning member restores their seat, score,
+and cooldown. Departed mid-game players keep their seat as a score-bearing
+tombstone so the final scoreboard stays truthful; seats and scores reset when
+the host prepares a rematch. Joining closes once the game finishes.
 
 Multiple sockets with one token resolve to one member. A reconnect requests a
 fresh snapshot, so correctness does not depend on event replay or Socket.IO
