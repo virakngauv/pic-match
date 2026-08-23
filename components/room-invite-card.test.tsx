@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QRCodeSVG } from 'qrcode.react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,21 +16,18 @@ describe('RoomInviteCard', () => {
     })
   })
 
-  it('renders the room code and a QR code of the invite URL', () => {
+  it('renders the room code and a QR code of the invite URL', async () => {
     render(<RoomInviteCard roomCode="frvg7" />)
 
     expect(screen.getByLabelText('Room code frvg7')).toHaveTextContent('frvg7')
     expect(
-      screen.getByRole('img', { name: 'Scan to join room frvg7' }),
+      await screen.findByRole('img', { name: 'Scan to join room frvg7' }),
     ).toBeInTheDocument()
-    const qr = screen
-      .getByRole('img', { name: 'Scan to join room frvg7' })
-      .closest('svg')
-    expect(qr).toBeTruthy()
   })
 
-  it('encodes the canonical origin plus room code', () => {
+  it('encodes the canonical origin plus room code', async () => {
     const { container } = render(<RoomInviteCard roomCode="frvg7" />)
+    await screen.findByRole('img', { name: 'Scan to join room frvg7' })
     const { container: reference } = render(
       <QRCodeSVG value="https://playtest.example/frvg7" />,
     )
@@ -58,8 +55,12 @@ describe('RoomInviteActions', () => {
     })
 
     render(<RoomInviteActions roomCode="frvg7" />)
+    const copyButton = await screen.findByRole('button', {
+      name: 'Copy invite link',
+    })
+    await waitFor(() => expect(copyButton).toBeEnabled())
 
-    await user.click(screen.getByRole('button', { name: 'Copy invite link' }))
+    await user.click(copyButton)
 
     expect(writeText).toHaveBeenCalledWith('https://playtest.example/frvg7')
     expect(screen.getByRole('button', { name: 'Copied ✓' })).toBeInTheDocument()
@@ -77,8 +78,12 @@ describe('RoomInviteActions', () => {
     })
 
     render(<RoomInviteActions roomCode="frvg7" />)
+    const copyButton = await screen.findByRole('button', {
+      name: 'Copy invite link',
+    })
+    await waitFor(() => expect(copyButton).toBeEnabled())
 
-    await user.click(screen.getByRole('button', { name: 'Copy invite link' }))
+    await user.click(copyButton)
 
     expect(
       screen.getByRole('button', { name: 'Copy invite link' }),
