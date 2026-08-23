@@ -22,7 +22,7 @@ function usePageOrigin() {
 function useInviteUrl(roomCode: string) {
   const origin = usePageOrigin()
 
-  return origin === null ? null : `${origin}/${roomCode}`
+  return origin === null ? null : `${origin}/${encodeURIComponent(roomCode)}`
 }
 
 /** Presents the room code beside a scannable QR code of the invite URL. */
