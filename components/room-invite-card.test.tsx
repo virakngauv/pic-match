@@ -1,0 +1,90 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { QRCodeSVG } from 'qrcode.react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import {
+  RoomInviteActions,
+  RoomInviteCard,
+} from '@/components/room-invite-card'
+
+describe('RoomInviteCard', () => {
+  beforeEach(() => {
+    vi.stubGlobal('location', {
+      ...window.location,
+      origin: 'https://playtest.example',
+    })
+  })
+
+  it('renders the room code and a QR code of the invite URL', () => {
+    render(<RoomInviteCard roomCode="frvg7" />)
+
+    expect(screen.getByLabelText('Room code frvg7')).toHaveTextContent('frvg7')
+    expect(
+      screen.getByRole('img', { name: 'Scan to join room frvg7' }),
+    ).toBeInTheDocument()
+    const qr = screen
+      .getByRole('img', { name: 'Scan to join room frvg7' })
+      .closest('svg')
+    expect(qr).toBeTruthy()
+  })
+
+  it('encodes the canonical origin plus room code', () => {
+    const { container } = render(<RoomInviteCard roomCode="frvg7" />)
+    const { container: reference } = render(
+      <QRCodeSVG value="https://playtest.example/frvg7" />,
+    )
+
+    const path = container.querySelector('svg path')?.getAttribute('d')
+    const expected = reference.querySelector('svg path')?.getAttribute('d')
+    expect(path).toBe(expected)
+  })
+})
+
+describe('RoomInviteActions', () => {
+  beforeEach(() => {
+    vi.stubGlobal('location', {
+      ...window.location,
+      origin: 'https://playtest.example',
+    })
+  })
+
+  it('copies the invite link and announces success', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', {
+      ...window.navigator,
+      clipboard: { writeText },
+    })
+
+    render(<RoomInviteActions roomCode="frvg7" />)
+
+    await user.click(screen.getByRole('button', { name: 'Copy invite link' }))
+
+    expect(writeText).toHaveBeenCalledWith('https://playtest.example/frvg7')
+    expect(screen.getByRole('button', { name: 'Copied ✓' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Invite link copied: https://playtest.example/frvg7',
+    )
+  })
+
+  it('falls back to showing the URL when copying fails', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockRejectedValue(new Error('denied'))
+    vi.stubGlobal('navigator', {
+      ...window.navigator,
+      clipboard: { writeText },
+    })
+
+    render(<RoomInviteActions roomCode="frvg7" />)
+
+    await user.click(screen.getByRole('button', { name: 'Copy invite link' }))
+
+    expect(
+      screen.getByRole('button', { name: 'Copy invite link' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Copy failed. Share this link instead: https://playtest.example/frvg7',
+    )
+  })
+})

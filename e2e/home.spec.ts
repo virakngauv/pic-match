@@ -16,6 +16,9 @@ test('moves a room from creation into a reconnectable game', async ({
   const hostContext = await browser.newContext()
   const guestContext = await browser.newContext()
   const lateJoinerContext = await browser.newContext()
+  if (browser.browserType().name() === 'chromium') {
+    await hostContext.grantPermissions(['clipboard-read', 'clipboard-write'])
+  }
   const hostPage = await hostContext.newPage()
   const guestPage = await guestContext.newPage()
   const lateJoinerPage = await lateJoinerContext.newPage()
@@ -46,6 +49,17 @@ test('moves a room from creation into a reconnectable game', async ({
     await expect(hostPage.locator('output')).toHaveText(roomCode, {
       ignoreCase: true,
     })
+    await expect(
+      hostPage.getByRole('img', { name: `Scan to join room ${roomCode}` }),
+    ).toBeVisible()
+    await expect(hostPage.getByTestId('invite-qr')).toHaveAttribute(
+      'data-invite-url',
+      `${new URL(hostPage.url()).origin}/${roomCode}`,
+    )
+    await hostPage.getByRole('button', { name: 'Copy invite link' }).click()
+    await expect(
+      hostPage.getByRole('button', { name: 'Copied ✓' }),
+    ).toBeVisible()
     await expect(hostPage.getByText('Ada')).toBeVisible()
     await expect(hostPage.getByText('You · Host')).toBeVisible()
 

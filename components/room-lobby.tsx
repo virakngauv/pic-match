@@ -12,6 +12,10 @@ import {
   useRoomSnapshot,
 } from '@/components/game-socket-provider'
 import { JoinRoomScreen } from '@/components/join-room-screen'
+import {
+  RoomInviteActions,
+  RoomInviteCard,
+} from '@/components/room-invite-card'
 import { Button } from '@/components/ui/button'
 import {
   isMemberSnapshot,
@@ -274,12 +278,10 @@ function ConnectedRoomLobby({
             Ready to play.
           </h1>
           <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-            Share this room code with the people you want to play with, or join
-            when you’re ready.
+            Share the code or have players scan the QR code to join this room.
           </p>
-          <output className="bg-foreground text-background mt-8 block rounded-2xl px-5 py-6 font-mono text-3xl font-bold tracking-[0.22em] uppercase sm:text-4xl">
-            {view.roomCode}
-          </output>
+          <RoomInviteCard roomCode={view.roomCode} />
+          <RoomInviteActions roomCode={view.roomCode} />
         </div>
 
         <div className="mt-8 border-t pt-7">
