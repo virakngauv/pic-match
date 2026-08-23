@@ -24,12 +24,10 @@ type Member = {
   role: PlayerRole
   joinedAt: number
   active: boolean
+  game: GameSeat | null
 }
 
-type Participant = {
-  playerId: string
-  name: string
-  role: PlayerRole
+type GameSeat = {
   position: number
   score: number
   cooldownUntil: number | null
@@ -39,7 +37,6 @@ type GameState = {
   seed: string
   pairRevision: number
   matchup: ReturnType<typeof generateTwoCardMatchup> | null
-  participants: Participant[]
   lastAcceptedClaim: {
     scorerId: string
     scorerName: string
@@ -91,10 +88,10 @@ export class GameRoom {
       return { status: 'success' }
     }
 
-    if (this.phase !== 'lobby') {
+    if (this.phase === 'finished') {
       return {
         status: 'game_in_progress',
-        message: 'This game has already started.',
+        message: 'This game has already finished.',
       }
     }
 
@@ -105,8 +102,11 @@ export class GameRoom {
     if (existing) {
       existing.name = name
       existing.active = true
+      existing.game ??= this.createSeat()
     } else {
-      this.members.push(this.createMember(token, name, 'player', now))
+      const member = this.createMember(token, name, 'player', now)
+      member.game = this.phase === 'playing' ? this.createSeat() : null
+      this.members.push(member)
     }
 
     this.changed(now)
@@ -120,18 +120,8 @@ export class GameRoom {
     member.active = false
     if (member.role === 'host') {
       member.role = 'player'
-      const departingParticipant = this.game?.participants.find(
-        (candidate) => candidate.playerId === member.playerId,
-      )
-      if (departingParticipant) departingParticipant.role = 'player'
       const successor = this.activeMembers()[0]
-      if (successor) {
-        successor.role = 'host'
-        const participant = this.game?.participants.find(
-          (candidate) => candidate.playerId === successor.playerId,
-        )
-        if (participant) participant.role = 'host'
-      }
+      if (successor) successor.role = 'host'
     }
 
     this.commandResults.delete(token)
@@ -208,18 +198,17 @@ export class GameRoom {
       }
     }
 
+    for (const member of this.members) member.game = null
+    let position = 0
+    for (const member of members) {
+      member.game = { position, score: 0, cooldownUntil: null }
+      position += 1
+    }
+
     this.game = {
       seed: `${this.initialSeed}:${this.revision}:${now}`,
       pairRevision: 0,
       matchup: null,
-      participants: members.map((member, position) => ({
-        playerId: member.playerId,
-        name: member.name,
-        role: member.role,
-        position,
-        score: 0,
-        cooldownUntil: null,
-      })),
       lastAcceptedClaim: null,
       winnerPlayerId: null,
     }
@@ -236,8 +225,9 @@ export class GameRoom {
     const previous = this.commandResults.get(token)?.get(claim.commandId)
     if (previous) return previous
 
-    const participant = this.participantForToken(token)
-    if (!participant || this.phase !== 'playing' || !this.game) {
+    const member = this.findActiveMember(token)
+    const seat = member?.game ?? null
+    if (!member || !seat || this.phase !== 'playing' || !this.game) {
       return {
         status: 'forbidden',
         message: 'Only current game participants can submit a match.',
@@ -245,11 +235,11 @@ export class GameRoom {
     }
 
     this.touch(now)
-    if (participant.cooldownUntil && participant.cooldownUntil > now) {
+    if (seat.cooldownUntil && seat.cooldownUntil > now) {
       return this.remember(token, claim.commandId, {
         status: 'cooldown',
         message: 'Wait for your cooldown to finish.',
-        cooldownUntil: participant.cooldownUntil,
+        cooldownUntil: seat.cooldownUntil,
       })
     }
 
@@ -267,26 +257,26 @@ export class GameRoom {
       claim.firstSymbolId === claim.secondSymbolId
 
     if (!correct) {
-      participant.cooldownUntil = now + INCORRECT_CLAIM_COOLDOWN_MS
+      seat.cooldownUntil = now + INCORRECT_CLAIM_COOLDOWN_MS
       this.changed(now)
       return this.remember(token, claim.commandId, {
         status: 'incorrect',
         message: 'Incorrect match.',
-        cooldownUntil: participant.cooldownUntil,
+        cooldownUntil: seat.cooldownUntil,
       })
     }
 
-    participant.score += 1
-    participant.cooldownUntil = null
+    seat.score += 1
+    seat.cooldownUntil = null
     this.game.lastAcceptedClaim = {
-      scorerId: participant.playerId,
-      scorerName: participant.name,
+      scorerId: member.playerId,
+      scorerName: member.name,
       symbolId: claim.firstSymbolId,
       pairRevision: this.game.pairRevision,
     }
 
-    if (participant.score >= FIRST_PLAYABLE_CONFIGURATION.winningScore) {
-      this.game.winnerPlayerId = participant.playerId
+    if (seat.score >= FIRST_PLAYABLE_CONFIGURATION.winningScore) {
+      this.game.winnerPlayerId = member.playerId
       this.phase = 'finished'
     } else {
       this.game.pairRevision += 1
@@ -299,8 +289,7 @@ export class GameRoom {
 
   prepareRematch(token: string, now = Date.now()): CommandResult {
     const actor = this.findActiveMember(token)
-    const participant = this.participantForToken(token)
-    if (!actor || actor.role !== 'host' || !participant) {
+    if (!actor || actor.role !== 'host' || !actor.game) {
       return {
         status: 'forbidden',
         message: 'Only the host can prepare a rematch.',
@@ -313,7 +302,9 @@ export class GameRoom {
     this.phase = 'lobby'
     this.game = null
     for (let index = this.members.length - 1; index >= 0; index -= 1) {
-      if (!this.members[index]?.active) this.members.splice(index, 1)
+      const member = this.members[index]
+      if (!member?.active) this.members.splice(index, 1)
+      else member.game = null
     }
     this.commandResults.clear()
     this.changed(now)
@@ -324,7 +315,7 @@ export class GameRoom {
     const member = this.findActiveMember(token)
     if (!member) {
       return {
-        status: this.phase === 'lobby' ? 'joinable' : 'game_in_progress',
+        status: this.phase === 'finished' ? 'game_in_progress' : 'joinable',
         roomCode: this.code,
       }
     }
@@ -349,19 +340,14 @@ export class GameRoom {
     }
 
     const game = this.requireGame()
-    const participant = game.participants.find(
-      (candidate) => candidate.playerId === member.playerId,
-    )
-    if (!participant) {
-      return { status: 'game_in_progress', roomCode: this.code }
-    }
-
-    const scoreboard = game.participants.map(toScoreboardEntry)
+    const seat = member.game
+    if (!seat) throw new Error('Active member is missing a game seat.')
+    const scoreboard = this.gameScoreboard()
     const player = {
-      playerId: participant.playerId,
-      name: participant.name,
-      role: participant.role,
-      position: participant.position,
+      playerId: member.playerId,
+      name: member.name,
+      role: member.role,
+      position: seat.position,
     }
 
     if (this.phase === 'finished') {
@@ -393,7 +379,7 @@ export class GameRoom {
       })),
       scoreboard,
       lastAcceptedClaim: game.lastAcceptedClaim,
-      cooldownUntil: participant.cooldownUntil,
+      cooldownUntil: seat.cooldownUntil,
     }
   }
 
@@ -414,6 +400,7 @@ export class GameRoom {
       role,
       joinedAt,
       active: true,
+      game: null,
     }
   }
 
@@ -432,13 +419,27 @@ export class GameRoom {
     return member?.active ? member : null
   }
 
-  private participantForToken(token: string) {
-    const member = this.findActiveMember(token)
-    return member && this.game
-      ? (this.game.participants.find(
-          (participant) => participant.playerId === member.playerId,
-        ) ?? null)
-      : null
+  private createSeat(): GameSeat {
+    let maxPosition = -1
+    for (const member of this.members) {
+      if (member.game && member.game.position > maxPosition) {
+        maxPosition = member.game.position
+      }
+    }
+    return { position: maxPosition + 1, score: 0, cooldownUntil: null }
+  }
+
+  private gameScoreboard(): ScoreboardEntry[] {
+    return this.members
+      .filter((member) => member.game)
+      .sort((left, right) => left.game!.position - right.game!.position)
+      .map((member) => ({
+        playerId: member.playerId,
+        name: member.name,
+        role: member.role,
+        position: member.game!.position,
+        score: member.game!.score,
+      }))
   }
 
   private requireGame() {
@@ -478,15 +479,5 @@ export class GameRoom {
       results.delete(oldest)
     }
     return result
-  }
-}
-
-function toScoreboardEntry(participant: Participant): ScoreboardEntry {
-  return {
-    playerId: participant.playerId,
-    name: participant.name,
-    role: participant.role,
-    position: participant.position,
-    score: participant.score,
   }
 }

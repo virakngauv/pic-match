@@ -198,6 +198,35 @@ describe('Socket.IO game protocol', () => {
     }
   })
 
+  it('admits a late joiner while the game is playing and broadcasts the roster', async () => {
+    const host = await connect(hostToken)
+    const guest = await connect(guestToken)
+    const created = await host.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error('Unable to create room.')
+    const roomCode = created.roomCode
+
+    const startedPromise = nextSnapshot(host, 'playing')
+    await host.emitWithAck('game:start', { roomCode })
+    await startedPromise
+
+    const hostUpdated = nextSnapshot(host, 'playing')
+    const guestPlaying = nextSnapshot(guest, 'playing')
+    expect(
+      await guest.emitWithAck('room:join', { roomCode, name: 'Grace' }),
+    ).toEqual({ status: 'success', roomCode })
+    const [hostSnapshot, guestSnapshot] = await Promise.all([
+      hostUpdated,
+      guestPlaying,
+    ])
+
+    expect(hostSnapshot.scoreboard.map((entry) => entry.name)).toEqual([
+      'Ada',
+      'Grace',
+    ])
+    expect(guestSnapshot.scoreboard).toEqual(hostSnapshot.scoreboard)
+    expect(guestSnapshot.player.position).toBe(1)
+  })
+
   it('lets the host remove every socket for a lobby player', async () => {
     const host = await connect(hostToken)
     const guest = await connect(guestToken)

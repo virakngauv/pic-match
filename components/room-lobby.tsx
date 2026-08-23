@@ -144,7 +144,7 @@ function PresentRoomLobby({
         />
       )
     case 'game_in_progress':
-      return <GameInProgress roomCode={displayedRoomView.roomCode} />
+      return <GameClosed roomCode={displayedRoomView.roomCode} />
     case 'lobby':
       return (
         <ConnectedRoomLobby
@@ -527,7 +527,7 @@ function RemovePlayerDialog({
   )
 }
 
-function GameInProgress({ roomCode }: { roomCode: string }) {
+function GameClosed({ roomCode }: { roomCode: string }) {
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
@@ -535,10 +535,11 @@ function GameInProgress({ roomCode }: { roomCode: string }) {
           Room {roomCode}
         </p>
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          This game has already started.
+          This game has already finished.
         </h1>
         <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-          New players can’t join after the participant list is locked.
+          Joining is closed once a game ends. If the host starts a rematch, the
+          room opens again from the lobby.
         </p>
         <Button asChild className="mt-8">
           <Link href="/home">Go home</Link>

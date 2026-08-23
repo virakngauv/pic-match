@@ -150,7 +150,7 @@ describe('GameRoom', () => {
     })
   })
 
-  it('frees a removed seat and excludes that player from the frozen game roster', () => {
+  it('frees a removed seat before the game starts', () => {
     const room = createRoom()
     room.join(guestToken, 'Grace', 1_001)
     for (let index = 2; index < MAX_ROOM_MEMBERS; index += 1) {
@@ -371,20 +371,177 @@ describe('GameRoom', () => {
     })
   })
 
-  it('keeps a frozen game roster when a participant explicitly leaves', () => {
+  it("keeps a departed player's seat and restores it on mid-game rejoin", () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    room.start(hostToken, 1_002)
+    const snapshot = playing(room)
+    const wrong = {
+      ...claim(snapshot, 'wrongclaim3'),
+      secondSymbolId:
+        snapshot.cards[1]?.symbolIds.find(
+          (symbol) => symbol !== sharedSymbol(snapshot),
+        ) ?? 'moon',
+    }
+    expect(room.claim(guestToken, wrong, 2_000)).toMatchObject({
+      status: 'incorrect',
+    })
+    expect(
+      room.claim(hostToken, claim(playing(room), 'hostscore1'), 2_001),
+    ).toEqual({ status: 'success' })
+    room.leave(guestToken, 2_002)
+
+    expect(
+      playing(room).scoreboard.map(({ name, score }) => ({ name, score })),
+    ).toEqual([
+      { name: 'Ada', score: 1 },
+      { name: 'Grace', score: 0 },
+    ])
+    expect(room.snapshotFor(guestToken)).toEqual({
+      status: 'joinable',
+      roomCode: 'bcdf2',
+    })
+
+    expect(room.join(guestToken, 'Grace', 2_500)).toEqual({ status: 'success' })
+    const restored = playing(room, guestToken)
+    expect(restored.player.position).toBe(1)
+    expect(restored.cooldownUntil).toBe(2_000 + INCORRECT_CLAIM_COOLDOWN_MS)
+    expect(restored.scoreboard).toEqual([
+      expect.objectContaining({ name: 'Ada', score: 1, position: 0 }),
+      expect.objectContaining({ name: 'Grace', score: 0, position: 1 }),
+    ])
+  })
+
+  it('admits a new player mid-game at the next scoreboard position', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    room.start(hostToken, 1_002)
+    const newcomerToken = 'c'.repeat(32)
+
+    expect(room.join(newcomerToken, 'Linus', 2_000)).toEqual({
+      status: 'success',
+    })
+
+    const newcomerView = playing(room, newcomerToken)
+    expect(newcomerView.player.position).toBe(2)
+    expect(newcomerView.cooldownUntil).toBeNull()
+    expect(newcomerView.scoreboard.map(({ name }) => name)).toEqual([
+      'Ada',
+      'Grace',
+      'Linus',
+    ])
+    expect(
+      room.claim(
+        newcomerToken,
+        claim(playing(room, newcomerToken), 'newcomerclaim1'),
+        2_001,
+      ),
+    ).toEqual({ status: 'success' })
+    expect(
+      playing(room).scoreboard.map(({ name, score }) => ({ name, score })),
+    ).toEqual([
+      { name: 'Ada', score: 0 },
+      { name: 'Grace', score: 0 },
+      { name: 'Linus', score: 1 },
+    ])
+  })
+
+  it('never reassigns positions after mid-game departures', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    room.join('c'.repeat(32), 'Linus', 1_002)
+    room.start(hostToken, 1_003)
+    room.leave(guestToken, 1_004)
+
+    const replacementToken = 'd'.repeat(32)
+    expect(room.join(replacementToken, 'Margaret', 1_005)).toEqual({
+      status: 'success',
+    })
+    expect(playing(room, replacementToken).player.position).toBe(3)
+  })
+
+  it('frees a departed mid-game seat for a different identity', () => {
     const room = createRoom()
     room.join(guestToken, 'Grace', 1_001)
     room.start(hostToken, 1_002)
     room.leave(guestToken, 1_003)
 
-    expect(playing(room).scoreboard.map((entry) => entry.name)).toEqual([
+    const replacementToken = 'c'.repeat(32)
+    expect(room.join(replacementToken, 'Linus', 1_004)).toEqual({
+      status: 'success',
+    })
+    expect(playing(room).scoreboard.map(({ name }) => name)).toEqual([
       'Ada',
       'Grace',
+      'Linus',
     ])
-    expect(room.snapshotFor(guestToken)).toEqual({
+  })
+
+  it('rejects joins after the game finishes until the rematch', () => {
+    const room = createRoom()
+    room.start(hostToken, 1_001)
+    for (
+      let score = 0;
+      score < FIRST_PLAYABLE_CONFIGURATION.winningScore;
+      score += 1
+    ) {
+      expect(
+        room.claim(
+          hostToken,
+          claim(playing(room), `closedwinning${score}`),
+          2_000 + score,
+        ),
+      ).toEqual({ status: 'success' })
+    }
+
+    const outsiderToken = 'd'.repeat(32)
+    expect(room.snapshotFor(outsiderToken)).toEqual({
       status: 'game_in_progress',
       roomCode: 'bcdf2',
     })
+    expect(room.join(outsiderToken, 'Late', 3_000)).toEqual({
+      status: 'game_in_progress',
+      message: 'This game has already finished.',
+    })
+
+    expect(room.prepareRematch(hostToken, 3_001)).toEqual({ status: 'success' })
+    expect(room.join(outsiderToken, 'Late', 3_002)).toEqual({
+      status: 'success',
+    })
+  })
+
+  it('returns late joiners and departed seats to a clean lobby at rematch', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    room.start(hostToken, 1_002)
+    const newcomerToken = 'c'.repeat(32)
+    room.join(newcomerToken, 'Linus', 2_000)
+    room.leave(guestToken, 2_001)
+
+    for (
+      let score = 0;
+      score < FIRST_PLAYABLE_CONFIGURATION.winningScore;
+      score += 1
+    ) {
+      expect(
+        room.claim(
+          hostToken,
+          claim(playing(room), `latejoinwinning${score}`),
+          2_100 + score,
+        ),
+      ).toEqual({ status: 'success' })
+    }
+    expect(room.prepareRematch(hostToken, 3_000)).toEqual({ status: 'success' })
+
+    expect(room.snapshotFor(hostToken)).toMatchObject({
+      status: 'lobby',
+      members: [{ name: 'Ada', role: 'host' }, { name: 'Linus' }],
+    })
+    expect(room.start(hostToken, 3_001)).toEqual({ status: 'success' })
+    expect(playing(room).scoreboard).toEqual([
+      expect.objectContaining({ name: 'Ada', score: 0, position: 0 }),
+      expect.objectContaining({ name: 'Linus', score: 0, position: 1 }),
+    ])
   })
 
   it('transfers host during play so the remaining player can rematch', () => {
