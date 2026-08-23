@@ -36,6 +36,18 @@ describe('RoomInviteCard', () => {
     const expected = reference.querySelector('svg path')?.getAttribute('d')
     expect(path).toBe(expected)
   })
+
+  it('encodes a reserved-character room code as one path segment', async () => {
+    render(<RoomInviteCard roomCode="a/b?c" />)
+
+    const qr = await screen.findByRole('img', {
+      name: 'Scan to join room a/b?c',
+    })
+    expect(qr).toHaveAttribute(
+      'data-invite-url',
+      'https://playtest.example/a%2Fb%3Fc',
+    )
+  })
 })
 
 describe('RoomInviteActions', () => {
