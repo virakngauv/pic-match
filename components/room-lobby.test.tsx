@@ -177,7 +177,7 @@ describe('RoomLobby', () => {
     await user.click(trigger)
     const dialog = screen.getByRole('dialog', { name: 'Remove Grace?' })
     expect(dialog).toHaveAttribute('aria-modal', 'true')
-    expect(dialog).toHaveTextContent('need to join the room again')
+    expect(dialog).toHaveTextContent('won’t be able to rejoin this room')
     const cancel = screen.getByRole('button', { name: 'Keep player' })
     const confirm = screen.getByRole('button', { name: 'Remove Grace' })
     expect(cancel).toHaveFocus()
@@ -410,9 +410,29 @@ describe('RoomLobby', () => {
       }),
     ).toBeInTheDocument()
     expect(screen.getByText(/host removed you from the lobby/i)).toBeVisible()
+    expect(screen.getByText(/can’t rejoin this room/i)).toBeVisible()
+    expect(
+      screen.getByRole('link', { name: 'Create a new room' }),
+    ).toBeVisible()
     expect(
       screen.getByRole('link', { name: 'Join another room' }),
     ).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Go home' })).toBeVisible()
+  })
+
+  it('keeps the removed screen after a reload via the snapshot status', () => {
+    mocks.snapshot = { status: 'removed_from_room', roomCode: 'frvg7' }
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'You were removed from this room.',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/can’t rejoin this room/i)).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Join' }),
+    ).not.toBeInTheDocument()
   })
 
   it('orders the finished scoreboard by score with a seat-position tie-break', () => {

@@ -23,6 +23,7 @@ export type RoomSnapshot =
   | { status: 'not_found'; roomCode: string }
   | { status: 'joinable'; roomCode: string }
   | { status: 'game_in_progress'; roomCode: string }
+  | { status: 'removed_from_room'; roomCode: string }
   | {
       status: 'lobby'
       roomCode: string
@@ -69,6 +70,7 @@ export type CommandFailureStatus =
   | 'room_not_found'
   | 'room_full'
   | 'game_in_progress'
+  | 'removed_from_room'
   | 'stale'
   | 'incorrect'
   | 'cooldown'

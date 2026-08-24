@@ -149,6 +149,10 @@ function PresentRoomLobby({
       )
     case 'game_in_progress':
       return <GameClosed roomCode={displayedRoomView.roomCode} />
+    case 'removed_from_room':
+      return (
+        <RoomEnded roomCode={displayedRoomView.roomCode} reason="removed" />
+      )
     case 'lobby':
       return (
         <ConnectedRoomLobby
@@ -493,7 +497,8 @@ function RemovePlayerDialog({
           id={descriptionId}
           className="text-muted-foreground mt-3 text-sm leading-6"
         >
-          They’ll leave this lobby and will need to join the room again to play.
+          They’ll be removed from this lobby and won’t be able to rejoin this
+          room.
         </p>
         {removeError ? (
           <p className="mt-4 text-sm font-semibold text-red-700" role="alert">
@@ -784,7 +789,7 @@ function RoomEnded({
         </h1>
         <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
           {wasRemoved
-            ? 'The host removed you from the lobby. You can join another room or ask the host before joining this one again.'
+            ? 'The host removed you from the lobby. You can’t rejoin this room, even with a different name. Create a new room or join another one to keep playing.'
             : reason === 'expired'
               ? 'The room expired after a period without game activity.'
               : 'The game server restarted, so its temporary rooms were cleared.'}
@@ -796,6 +801,11 @@ function RoomEnded({
           <Button asChild variant="outline">
             <Link href="/join">Join another room</Link>
           </Button>
+          {wasRemoved ? (
+            <Button asChild variant="outline">
+              <Link href="/home">Go home</Link>
+            </Button>
+          ) : null}
         </div>
       </section>
     </main>
