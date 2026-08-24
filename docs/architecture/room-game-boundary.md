@@ -58,6 +58,25 @@ Multiple sockets with one token resolve to one member. A reconnect requests a
 fresh snapshot, so correctness does not depend on event replay or Socket.IO
 connection-state recovery.
 
+## Host removal
+
+The lobby host may remove another member. A successful removal records the
+member's private token fingerprint (SHA-256) in a room-scoped deny set before
+releasing the seat, so the room never retains a reusable bearer credential.
+Denied identities receive a typed `removed_from_room` result from join and a
+`removed_from_room` snapshot on resume, before any phase, reactivation, or
+capacity logic runs; repeated attempts allocate no player ID, seat, revision,
+or activity update. The denial is private server state — never included in
+snapshots, events, or logs — and lasts until the room is deleted or expires,
+surviving game start, finish, and rematch. Only successful authorized removals
+mutate the deny set.
+
+Identity limitation: without authenticated accounts, a denial is only as
+durable as the client token in `localStorage`. Clearing browser storage or
+joining from another browser or device mints a different token that the server
+cannot reliably recognize as the same person. IP addresses, device
+fingerprints, and network-level blocking are intentionally not introduced.
+
 ## Claims and snapshots
 
 A claim includes a unique command ID, the viewed pair revision, and one selected

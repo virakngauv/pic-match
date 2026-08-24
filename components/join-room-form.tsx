@@ -66,7 +66,9 @@ export function JoinRoomForm({
         setError(
           result.status === 'room_not_found'
             ? 'We couldn’t find that room. Check the code and try again.'
-            : result.message,
+            : result.status === 'removed_from_room'
+              ? 'The host removed you from this room. You can’t rejoin it.'
+              : result.message,
         )
         return
       }

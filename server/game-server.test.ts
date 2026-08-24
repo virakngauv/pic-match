@@ -72,7 +72,15 @@ describe('GameServer', () => {
       removedToken: guest,
     })
     expect(server.snapshot(guest, roomCode)).toEqual({
-      status: 'joinable',
+      status: 'removed_from_room',
+      roomCode,
+    })
+    expect(server.joinRoom(guest, roomCode, 'Grace II', 1_003)).toEqual({
+      status: 'removed_from_room',
+      message: 'The host removed you from this room. You can’t rejoin it.',
+    })
+    expect(server.joinRoom('c'.repeat(32), roomCode, 'Linus', 1_004)).toEqual({
+      status: 'success',
       roomCode,
     })
   })

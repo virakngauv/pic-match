@@ -104,6 +104,12 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
           ...rooms,
           [snapshot.roomCode]: 'server_restart',
         }))
+      } else if (snapshot.status === 'removed_from_room') {
+        memberRooms.delete(snapshot.roomCode)
+        setEndedRooms((rooms) => ({
+          ...rooms,
+          [snapshot.roomCode]: 'removed',
+        }))
       }
       setSnapshots((current) => {
         return { ...current, [snapshot.roomCode]: snapshot }
@@ -125,7 +131,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
       setEndedRooms((current) => ({ ...current, [roomCode]: 'removed' }))
       setSnapshots((current) => ({
         ...current,
-        [roomCode]: { status: 'joinable', roomCode },
+        [roomCode]: { status: 'removed_from_room', roomCode },
       }))
     }
     const handleShutdown = () => {

@@ -227,7 +227,7 @@ describe('Socket.IO game protocol', () => {
     expect(guestSnapshot.player.position).toBe(1)
   })
 
-  it('lets the host remove every socket for a lobby player', async () => {
+  it('removes every socket for a lobby player and denies their rejoin', async () => {
     const host = await connect(hostToken)
     const guest = await connect(guestToken)
     const guestSecondSocket = await connect(guestToken)
@@ -297,7 +297,28 @@ describe('Socket.IO game protocol', () => {
       await guest.emitWithAck('session:resume', { roomCode }),
     ).toMatchObject({
       status: 'success',
-      snapshot: { status: 'joinable', roomCode },
+      snapshot: { status: 'removed_from_room', roomCode },
+    })
+    expect(
+      await guest.emitWithAck('room:join', { roomCode, name: 'Grace II' }),
+    ).toEqual({
+      status: 'removed_from_room',
+      message: 'The host removed you from this room. You can’t rejoin it.',
+    })
+    expect(
+      JSON.stringify(socketServer.gameServer.snapshot(guestToken, roomCode)),
+    ).not.toContain(guestToken)
+
+    const replacement = await connect('c'.repeat(32))
+    const replacementLobby = nextSnapshot(replacement, 'lobby')
+    expect(
+      await replacement.emitWithAck('room:join', { roomCode, name: 'Linus' }),
+    ).toEqual({ status: 'success', roomCode })
+    await expect(replacementLobby).resolves.toMatchObject({
+      members: [
+        { name: 'Ada', role: 'host' },
+        { name: 'Linus', role: 'player' },
+      ],
     })
   })
 

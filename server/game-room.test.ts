@@ -141,13 +141,122 @@ describe('GameRoom', () => {
       members: [{ name: 'Ada', role: 'host' }],
     })
     expect(room.snapshotFor(guestToken)).toEqual({
-      status: 'joinable',
+      status: 'removed_from_room',
       roomCode: 'bcdf2',
     })
     expect(room.removePlayer(hostToken, guestId, 1_005)).toEqual({
       status: 'stale',
       message: 'That player is no longer in the lobby.',
     })
+  })
+
+  it('denies a removed identity from rejoining even with a new name', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    const guestId = (
+      room.snapshotFor(hostToken) as Extract<RoomSnapshot, { status: 'lobby' }>
+    ).members[1]?.playerId
+    if (!guestId) throw new Error('Expected guest player id.')
+    expect(room.removePlayer(hostToken, guestId, 1_002).status).toBe('success')
+
+    const denial = {
+      status: 'removed_from_room',
+      message: 'The host removed you from this room. You can’t rejoin it.',
+    }
+    expect(room.join(guestToken, 'Grace', 1_003)).toEqual(denial)
+    expect(room.join(guestToken, 'Grace II', 1_004)).toEqual(denial)
+    expect(room.snapshotFor(guestToken)).toEqual({
+      status: 'removed_from_room',
+      roomCode: 'bcdf2',
+    })
+    expect((room as unknown as { members: unknown[] }).members).toHaveLength(1)
+  })
+
+  it('does not mutate room state on denied rejoin attempts', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    const guestId = (
+      room.snapshotFor(hostToken) as Extract<RoomSnapshot, { status: 'lobby' }>
+    ).members[1]?.playerId
+    if (!guestId) throw new Error('Expected guest player id.')
+    expect(room.removePlayer(hostToken, guestId, 1_002).status).toBe('success')
+
+    const revision = room.revision
+    const activityAt = room.lastMeaningfulActivityAt
+    const fingerprints = (
+      room as unknown as { removedTokenFingerprints: Set<string> }
+    ).removedTokenFingerprints
+
+    expect(room.join(guestToken, 'Grace', 5_000)).toMatchObject({
+      status: 'removed_from_room',
+    })
+    expect(room.snapshotFor(guestToken).status).toBe('removed_from_room')
+
+    expect(room.revision).toBe(revision)
+    expect(room.lastMeaningfulActivityAt).toBe(activityAt)
+    expect((room as unknown as { members: unknown[] }).members).toHaveLength(1)
+    expect(fingerprints.size).toBe(1)
+  })
+
+  it('keeps the removal denial through a rematch', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    const guestId = (
+      room.snapshotFor(hostToken) as Extract<RoomSnapshot, { status: 'lobby' }>
+    ).members[1]?.playerId
+    if (!guestId) throw new Error('Expected guest player id.')
+    expect(room.removePlayer(hostToken, guestId, 1_002).status).toBe('success')
+    expect(room.start(hostToken, 1_003)).toEqual({ status: 'success' })
+
+    for (
+      let score = 0;
+      score < FIRST_PLAYABLE_CONFIGURATION.winningScore;
+      score += 1
+    ) {
+      expect(
+        room.claim(
+          hostToken,
+          claim(playing(room), `deniedwinning${score}`),
+          2_000 + score,
+        ),
+      ).toEqual({ status: 'success' })
+    }
+    expect(room.prepareRematch(hostToken, 3_000)).toEqual({ status: 'success' })
+
+    expect(room.snapshotFor(guestToken)).toEqual({
+      status: 'removed_from_room',
+      roomCode: 'bcdf2',
+    })
+    expect(room.join(guestToken, 'Grace', 3_001)).toMatchObject({
+      status: 'removed_from_room',
+    })
+  })
+
+  it('does not deny a member after invalid removal attempts', () => {
+    const room = createRoom()
+    room.join(guestToken, 'Grace', 1_001)
+    const lobby = room.snapshotFor(hostToken)
+    if (lobby.status !== 'lobby') throw new Error('Expected lobby.')
+    const guestId = lobby.members[1]?.playerId
+    if (!guestId) throw new Error('Expected guest player id.')
+
+    expect(room.removePlayer(guestToken, guestId, 1_002)).toMatchObject({
+      status: 'forbidden',
+    })
+    expect(room.removePlayer(hostToken, 'missing', 1_003)).toMatchObject({
+      status: 'stale',
+    })
+    expect(room.removePlayer(hostToken, lobby.player.playerId, 1_004)).toEqual({
+      status: 'forbidden',
+      message: 'The host cannot be removed from the room.',
+    })
+    expect(
+      (room as unknown as { removedTokenFingerprints: Set<string> })
+        .removedTokenFingerprints.size,
+    ).toBe(0)
+
+    expect(room.leave(guestToken, 1_005)).toEqual({ status: 'success' })
+    expect(room.join(guestToken, 'Grace', 1_006)).toEqual({ status: 'success' })
   })
 
   it('frees a removed seat before the game starts', () => {

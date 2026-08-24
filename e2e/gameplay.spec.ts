@@ -12,6 +12,7 @@ const playerNames = {
   guest: 'Grace',
   third: 'Margaret Hamilton',
   replacement: 'Linus',
+  removed: 'Kay',
 } as const
 
 type CardSnapshot = {
@@ -36,43 +37,72 @@ test('replays a complete shared race across browser sessions', async ({
   const thirdContext = await browser.newContext({ baseURL })
   const outsiderContext = await browser.newContext({ baseURL })
   const lateJoinerContext = await browser.newContext({ baseURL })
+  const removedContext = await browser.newContext({ baseURL })
   const hostPage = await hostContext.newPage()
   let guestPage = await guestContext.newPage()
   const thirdPage = await thirdContext.newPage()
   const outsiderPage = await outsiderContext.newPage()
   const lateJoinerPage = await lateJoinerContext.newPage()
+  const removedPage = await removedContext.newPage()
 
   try {
     const roomCode = await createRoom(hostPage, playerNames.host)
-    await joinRoom(guestPage, roomCode, playerNames.guest)
+    await joinRoom(removedPage, roomCode, playerNames.removed)
 
     await expect(
-      hostPage.getByText(playerNames.guest, { exact: true }),
+      hostPage.getByText(playerNames.removed, { exact: true }),
     ).toBeVisible()
     await hostPage
       .getByRole('button', {
-        name: `Remove ${playerNames.guest} from room`,
+        name: `Remove ${playerNames.removed} from room`,
       })
       .click()
     const removeDialog = hostPage.getByRole('dialog', {
-      name: `Remove ${playerNames.guest}?`,
+      name: `Remove ${playerNames.removed}?`,
     })
-    await expect(removeDialog).toContainText('need to join the room again')
+    await expect(removeDialog).toContainText(
+      'won’t be able to rejoin this room',
+    )
     await removeDialog
-      .getByRole('button', { name: `Remove ${playerNames.guest}` })
+      .getByRole('button', { name: `Remove ${playerNames.removed}` })
       .click()
     await expect(
-      hostPage.getByRole('listitem').filter({ hasText: playerNames.guest }),
+      hostPage.getByRole('listitem').filter({ hasText: playerNames.removed }),
     ).toHaveCount(0)
     await expect(
-      guestPage.getByRole('heading', {
+      removedPage.getByRole('heading', {
         name: 'You were removed from this room.',
       }),
     ).toBeVisible()
-    await guestPage.reload()
+
+    await removedPage.reload()
     await expect(
-      guestPage.getByRole('heading', { name: 'Join your friends.' }),
+      removedPage.getByRole('heading', {
+        name: 'You were removed from this room.',
+      }),
     ).toBeVisible()
+    await expect(removedPage.getByText(/can’t rejoin this room/i)).toBeVisible()
+    await expect(
+      removedPage.getByRole('link', { name: 'Create a new room' }),
+    ).toBeVisible()
+    await expect(
+      removedPage.getByRole('link', { name: 'Join another room' }),
+    ).toBeVisible()
+    await expect(
+      removedPage.getByRole('link', { name: 'Go home' }),
+    ).toBeVisible()
+
+    await removedPage.goto('/join')
+    await removedPage.getByLabel('Room code').fill(roomCode)
+    await removedPage.getByLabel('Name').fill(`${playerNames.removed} II`)
+    await removedPage.getByRole('button', { name: 'Join', exact: true }).click()
+    await expect(
+      removedPage.getByText('The host removed you from this room.'),
+    ).toBeVisible()
+    await expect(
+      removedPage.getByRole('button', { name: 'Join', exact: true }),
+    ).toBeEnabled()
+
     await joinRoom(guestPage, roomCode, playerNames.guest)
     await expect(
       hostPage.getByText(playerNames.guest, { exact: true }),
@@ -534,6 +564,7 @@ test('replays a complete shared race across browser sessions', async ({
       thirdContext.close(),
       guestContext.close(),
       hostContext.close(),
+      removedContext.close(),
     ])
   }
 })

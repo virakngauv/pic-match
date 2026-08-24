@@ -12,6 +12,7 @@ import {
   FIRST_PLAYABLE_CONFIGURATION,
   generateTwoCardMatchup,
 } from '../lib/spot-it'
+import { fingerprintClientToken } from './token-fingerprint'
 
 export const MAX_ROOM_MEMBERS = FIRST_PLAYABLE_CONFIGURATION.participantCapacity
 export const INCORRECT_CLAIM_COOLDOWN_MS = 1_000
@@ -59,6 +60,7 @@ export class GameRoom {
   lastMeaningfulActivityAt: number
 
   private readonly members: Member[]
+  private readonly removedTokenFingerprints = new Set<string>()
   private game: GameState | null = null
   private readonly createPlayerId: () => string
   private readonly initialSeed: string
@@ -81,6 +83,13 @@ export class GameRoom {
   }
 
   join(token: string, name: string, now = Date.now()): CommandResult {
+    if (this.isRemovedToken(token)) {
+      return {
+        status: 'removed_from_room',
+        message: 'The host removed you from this room. You can’t rejoin it.',
+      }
+    }
+
     const existing = this.findMember(token)
 
     if (existing?.active) {
@@ -168,6 +177,7 @@ export class GameRoom {
       }
     }
 
+    this.removedTokenFingerprints.add(fingerprintClientToken(target.token))
     const index = this.members.indexOf(target)
     this.members.splice(index, 1)
     this.commandResults.delete(target.token)
@@ -314,6 +324,9 @@ export class GameRoom {
   snapshotFor(token: string): RoomSnapshot {
     const member = this.findActiveMember(token)
     if (!member) {
+      if (this.isRemovedToken(token)) {
+        return { status: 'removed_from_room', roomCode: this.code }
+      }
       return {
         status: this.phase === 'finished' ? 'game_in_progress' : 'joinable',
         roomCode: this.code,
@@ -417,6 +430,10 @@ export class GameRoom {
   private findActiveMember(token: string) {
     const member = this.findMember(token)
     return member?.active ? member : null
+  }
+
+  private isRemovedToken(token: string) {
+    return this.removedTokenFingerprints.has(fingerprintClientToken(token))
   }
 
   private createSeat(): GameSeat {
