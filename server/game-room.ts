@@ -17,6 +17,7 @@ import { fingerprintClientToken } from './token-fingerprint'
 export const MAX_ROOM_MEMBERS = FIRST_PLAYABLE_CONFIGURATION.participantCapacity
 export const INCORRECT_CLAIM_COOLDOWN_MS = 1_000
 const MAX_REMEMBERED_COMMANDS_PER_PLAYER = 100
+const MAX_REMEMBERED_REMOVALS = 256
 
 type Member = {
   playerId: string
@@ -178,6 +179,11 @@ export class GameRoom {
     }
 
     this.removedTokenFingerprints.add(fingerprintClientToken(target.token))
+    while (this.removedTokenFingerprints.size > MAX_REMEMBERED_REMOVALS) {
+      const oldest = this.removedTokenFingerprints.values().next().value
+      if (oldest === undefined) break
+      this.removedTokenFingerprints.delete(oldest)
+    }
     const index = this.members.indexOf(target)
     this.members.splice(index, 1)
     this.commandResults.delete(target.token)

@@ -232,6 +232,39 @@ describe('GameRoom', () => {
     })
   })
 
+  it('bounds the deny set and expires the oldest entry at the cap', () => {
+    const room = createRoom()
+    let firstRemovedToken = ''
+    for (let index = 0; index < 257; index += 1) {
+      const token = (index + 1).toString(16).padStart(32, '0')
+      expect(room.join(token, `Cycle ${index}`, 1_000 + index)).toEqual({
+        status: 'success',
+      })
+      const guestId = (
+        room.snapshotFor(hostToken) as Extract<
+          RoomSnapshot,
+          { status: 'lobby' }
+        >
+      ).members[1]?.playerId
+      if (!guestId) throw new Error('Expected cycle player id.')
+      expect(room.removePlayer(hostToken, guestId, 1_001 + index).status).toBe(
+        'success',
+      )
+      if (index === 0) firstRemovedToken = token
+    }
+
+    const fingerprints = (
+      room as unknown as { removedTokenFingerprints: Set<string> }
+    ).removedTokenFingerprints
+    expect(fingerprints.size).toBe(256)
+    expect(room.join(firstRemovedToken, 'Cycle 0 again', 2_000)).toEqual({
+      status: 'success',
+    })
+    expect(
+      room.join('101'.padStart(32, '0'), 'Cycle 256 again', 2_001),
+    ).toMatchObject({ status: 'removed_from_room' })
+  })
+
   it('does not deny a member after invalid removal attempts', () => {
     const room = createRoom()
     room.join(guestToken, 'Grace', 1_001)

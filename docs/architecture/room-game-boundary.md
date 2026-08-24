@@ -69,7 +69,9 @@ capacity logic runs; repeated attempts allocate no player ID, seat, revision,
 or activity update. The denial is private server state — never included in
 snapshots, events, or logs — and lasts until the room is deleted or expires,
 surviving game start, finish, and rematch. Only successful authorized removals
-mutate the deny set.
+mutate the deny set, and the set is bounded (256 entries, oldest first) so a
+long-lived room cannot grow it without limit; beyond that bound the earliest
+removals are forgotten.
 
 Identity limitation: without authenticated accounts, a denial is only as
 durable as the client token in `localStorage`. Clearing browser storage or
