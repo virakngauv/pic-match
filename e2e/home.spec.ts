@@ -83,7 +83,7 @@ test('moves a room from creation into a reconnectable game', async ({
 
     await guestPage.goto(`/${roomCode}`)
     await expect(
-      guestPage.getByRole('heading', { name: 'room join.' }),
+      guestPage.getByRole('heading', { name: 'join a room.' }),
     ).toBeVisible()
     await expect(guestPage.getByLabel('Room code')).toHaveValue(roomCode)
     await expect(guestPage.getByLabel('Name')).toBeFocused()

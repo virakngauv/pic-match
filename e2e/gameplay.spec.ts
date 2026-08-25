@@ -266,7 +266,7 @@ test('replays a complete shared race across browser sessions', async ({
 
     await outsiderPage.goto(`/${roomCode}`)
     await expect(
-      outsiderPage.getByRole('heading', { name: 'room join.' }),
+      outsiderPage.getByRole('heading', { name: 'join a room.' }),
     ).toBeVisible()
     await expect(outsiderPage.getByLabel('Room code')).toHaveValue(roomCode)
 
@@ -555,7 +555,7 @@ test('replays a complete shared race across browser sessions', async ({
 
     await outsiderPage.reload()
     await expect(
-      outsiderPage.getByRole('heading', { name: 'room join.' }),
+      outsiderPage.getByRole('heading', { name: 'join a room.' }),
     ).toBeVisible()
   } finally {
     await Promise.all([
