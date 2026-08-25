@@ -482,11 +482,7 @@ describe('Socket.IO game protocol', () => {
     await socketServer.shutdown()
     await startServer({
       expirationSweepMs: 5,
-      gameServer: new GameServer({
-        lobbyMs: 50,
-        playingMs: 1_000,
-        finishedMs: 1_000,
-      }),
+      gameServer: new GameServer({ roomIdleMs: 50 }),
     })
     const client = await connect(hostToken)
     const created = await client.emitWithAck('room:create', { name: 'Ada' })
