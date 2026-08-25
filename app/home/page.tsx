@@ -20,14 +20,10 @@ export default function HomePage() {
         aria-hidden="true"
       />
 
-      <div className="relative flex w-full max-w-lg flex-col items-center gap-10">
-        <p className="text-lg font-bold tracking-tight">
-          pic match<span className="text-accent">.</span>
-        </p>
-
+      <div className="relative flex w-full max-w-lg flex-col items-center">
         <section className="bg-card w-full rounded-[2rem] border p-7 text-center shadow-[0_24px_80px_-44px_rgba(40,30,20,0.45)] sm:p-10">
-          <h1 className="text-4xl leading-[1.05] font-semibold tracking-[-0.04em] text-balance sm:text-5xl">
-            Ready to find the match?
+          <h1 className="text-4xl leading-[1.05] font-bold tracking-[-0.04em] text-balance sm:text-5xl">
+            pic match<span className="text-accent">.</span>
           </h1>
           <div className="mt-8 grid gap-3">
             <Button asChild className="h-12 w-full text-base">
