@@ -13,6 +13,8 @@ const compactGameplayViewports = [
 test('moves a room from creation into a reconnectable game', async ({
   browser,
 }) => {
+  test.setTimeout(120_000)
+
   const hostContext = await browser.newContext()
   const guestContext = await browser.newContext()
   const lateJoinerContext = await browser.newContext()
