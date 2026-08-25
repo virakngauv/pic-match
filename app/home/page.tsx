@@ -25,14 +25,10 @@ export default function HomePage() {
           pic match<span className="text-accent">.</span>
         </p>
 
-        <section className="bg-card w-full rounded-[2rem] border p-7 shadow-[0_24px_80px_-44px_rgba(40,30,20,0.45)] sm:p-10">
+        <section className="bg-card w-full rounded-[2rem] border p-7 text-center shadow-[0_24px_80px_-44px_rgba(40,30,20,0.45)] sm:p-10">
           <h1 className="text-4xl leading-[1.05] font-semibold tracking-[-0.04em] text-balance sm:text-5xl">
             Ready to find the match?
           </h1>
-          <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-            Start a fresh room for your group, or enter a room code to join a
-            game already in progress.
-          </p>
           <div className="mt-8 grid gap-3">
             <Button asChild className="h-12 w-full text-base">
               <Link href="/create">Create a room</Link>
