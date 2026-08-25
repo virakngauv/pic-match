@@ -6,7 +6,7 @@ import { Providers } from '@/components/providers'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Spot It',
+  title: 'Pic Match',
   description: 'Create a room, invite friends, and find the matching symbol.',
 }
 

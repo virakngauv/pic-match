@@ -1,6 +1,6 @@
-# Spot It Web
+# Pic Match
 
-A multiplayer Spot It game built with Next.js and a deliberately simple,
+A multiplayer Pic Match game built with Next.js and a deliberately simple,
 single-process Socket.IO game server.
 
 ## Architecture
@@ -62,9 +62,7 @@ retries idempotent.
 
 Default idle expiration:
 
-- lobby: 2 hours
-- playing game: 4 hours
-- finished game: 30 minutes
+- all phases: 26 hours
 
 Only meaningful room/game commands update activity. Socket.IO transport ping,
 disconnect, and reconnect do not.
@@ -83,6 +81,13 @@ pnpm test:e2e
 `pnpm test` includes pure room/server tests and isolated multi-client Socket.IO
 integration tests. Playwright uses separate browser contexts for multiplayer
 identity isolation.
+
+By default `pnpm test:e2e` boots its own `pnpm dev:e2e` stack (web on 3100,
+game server on 3200). Set `PW_REUSE_SERVER=1` to reuse an already-running
+`dev:e2e` stack, or point `PLAYWRIGHT_BASE_URL` at your own dev server (keep
+both web and game server processes running). When a reused or shared server
+makes WebKit runs flaky, retry against a fresh stack before debugging; traces
+for failing tests are kept in `test-results/`.
 
 For a deployed game server:
 

@@ -18,7 +18,7 @@ describe('player session storage', () => {
     saveClientToken(token)
 
     expect(getClientToken()).toBe(token)
-    expect(window.localStorage.getItem('spot-it:client-token')).toBe(token)
+    expect(window.localStorage.getItem('pic-match:client-token')).toBe(token)
     expect(window.sessionStorage).toHaveLength(0)
   })
 

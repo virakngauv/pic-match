@@ -1,4 +1,4 @@
-const SPOT_IT_SYMBOL_GLYPHS: Readonly<Record<string, string>> = {
+const PIC_MATCH_SYMBOL_GLYPHS: Readonly<Record<string, string>> = {
   sun: '☀️',
   moon: '🌙',
   star: '⭐',
@@ -59,9 +59,9 @@ const SPOT_IT_SYMBOL_GLYPHS: Readonly<Record<string, string>> = {
 }
 
 /** Returns the display glyph and accessible label for a persisted symbol ID. */
-export function getSpotItSymbolPresentation(symbolId: string) {
+export function getPicMatchSymbolPresentation(symbolId: string) {
   return {
-    glyph: SPOT_IT_SYMBOL_GLYPHS[symbolId] ?? '❓',
+    glyph: PIC_MATCH_SYMBOL_GLYPHS[symbolId] ?? '❓',
     label: symbolId
       .split('-')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))

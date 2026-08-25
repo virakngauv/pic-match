@@ -13,9 +13,14 @@ const compactGameplayViewports = [
 test('moves a room from creation into a reconnectable game', async ({
   browser,
 }) => {
+  test.setTimeout(120_000)
+
   const hostContext = await browser.newContext()
   const guestContext = await browser.newContext()
   const lateJoinerContext = await browser.newContext()
+  if (browser.browserType().name() === 'chromium') {
+    await hostContext.grantPermissions(['clipboard-read', 'clipboard-write'])
+  }
   const hostPage = await hostContext.newPage()
   const guestPage = await guestContext.newPage()
   const lateJoinerPage = await lateJoinerContext.newPage()
@@ -46,6 +51,33 @@ test('moves a room from creation into a reconnectable game', async ({
     await expect(hostPage.locator('output')).toHaveText(roomCode, {
       ignoreCase: true,
     })
+    await expect(
+      hostPage.getByRole('img', { name: `Scan to join room ${roomCode}` }),
+    ).toBeVisible()
+    const inviteQr = hostPage.getByTestId('invite-qr')
+    await expect(inviteQr).toHaveAttribute(
+      'data-invite-url',
+      `${new URL(hostPage.url()).origin}/${roomCode}`,
+    )
+    const qrGeometry = await inviteQr.evaluate((element) => {
+      const qr = element.getBoundingClientRect()
+      const tile = element.parentElement?.getBoundingClientRect()
+
+      return {
+        qrWidth: qr.width,
+        qrHeight: qr.height,
+        quietZoneWidth: tile ? tile.width - qr.width : 0,
+        quietZoneHeight: tile ? tile.height - qr.height : 0,
+      }
+    })
+    expect(qrGeometry.qrWidth).toBeGreaterThanOrEqual(176)
+    expect(qrGeometry.qrHeight).toBeGreaterThanOrEqual(176)
+    expect(qrGeometry.quietZoneWidth).toBeGreaterThanOrEqual(16)
+    expect(qrGeometry.quietZoneHeight).toBeGreaterThanOrEqual(16)
+    await hostPage.getByRole('button', { name: 'Copy invite link' }).click()
+    await expect(
+      hostPage.getByRole('button', { name: 'Copied ✓' }),
+    ).toBeVisible()
     await expect(hostPage.getByText('Ada')).toBeVisible()
     await expect(hostPage.getByText('You · Host')).toBeVisible()
 

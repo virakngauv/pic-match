@@ -1,6 +1,6 @@
-const CLIENT_TOKEN_KEY = 'spot-it:client-token'
+const CLIENT_TOKEN_KEY = 'pic-match:client-token'
 const CLIENT_TOKEN_PATTERN = /^[0-9a-f]{32}$/
-const CLIENT_TOKEN_CHANGED_EVENT = 'spot-it:client-token-changed'
+const CLIENT_TOKEN_CHANGED_EVENT = 'pic-match:client-token-changed'
 
 export function generateClientToken() {
   const bytes = crypto.getRandomValues(new Uint8Array(16))

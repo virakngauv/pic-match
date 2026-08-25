@@ -159,4 +159,23 @@ describe('JoinRoomForm', () => {
     expect(mocks.onJoined).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Join' })).toBeEnabled()
   })
+
+  it('shows when the host removed the local player from the room', async () => {
+    const user = userEvent.setup()
+    mocks.joinRoom.mockResolvedValue({
+      status: 'removed_from_room',
+      message: 'The host removed you from this room. You can’t rejoin it.',
+    })
+
+    renderForm({ roomCode: 'frvg7', onJoined: mocks.onJoined })
+
+    await user.type(screen.getByLabelText('Name'), 'Grace II')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The host removed you from this room. You can’t rejoin it.',
+    )
+    expect(mocks.onJoined).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Join' })).toBeEnabled()
+  })
 })

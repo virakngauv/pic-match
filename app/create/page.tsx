@@ -5,7 +5,7 @@ import { CreateRoomForm } from '@/components/create-room-form'
 import { Button } from '@/components/ui/button'
 
 export const metadata: Metadata = {
-  title: 'Create a Room — Spot It',
+  title: 'Create a Room — Pic Match',
 }
 
 export default function CreateRoomPage() {

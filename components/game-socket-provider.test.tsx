@@ -241,10 +241,31 @@ describe('GameSocketProvider', () => {
 
     act(() => mocks.handlers.get('room:removed')?.({ roomCode } as never))
 
-    expect(screen.getByTestId('status')).toHaveTextContent('joinable')
+    expect(screen.getByTestId('status')).toHaveTextContent('removed_from_room')
     expect(screen.getByTestId('ended')).toHaveTextContent('removed')
 
     act(() => mocks.handlers.get('server:shutdown')?.())
+    expect(screen.getByTestId('ended')).toHaveTextContent('removed')
+  })
+
+  it('classifies a removed_from_room snapshot after reload as terminal', async () => {
+    const roomCode = 'bcdf2'
+    render(
+      <GameSocketProvider>
+        <RoomProbe roomCode={roomCode} />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalled())
+    act(() => mocks.handlers.get('connect')?.())
+
+    act(() => {
+      mocks.handlers.get('room:snapshot')?.({
+        status: 'removed_from_room',
+        roomCode,
+      } as never)
+    })
+
+    expect(screen.getByTestId('status')).toHaveTextContent('removed_from_room')
     expect(screen.getByTestId('ended')).toHaveTextContent('removed')
   })
 
