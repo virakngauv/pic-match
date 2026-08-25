@@ -362,7 +362,7 @@ describe('Socket.IO game protocol', () => {
     )
   })
 
-  it('rate limits entry commands by Caddy-forwarded client address', async () => {
+  it('rate limits entry commands by trusted-proxy-forwarded client address', async () => {
     const first = await connect(hostToken, '203.0.113.10')
     const second = await connect(guestToken, '203.0.113.11')
 

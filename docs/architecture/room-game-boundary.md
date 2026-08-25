@@ -12,9 +12,9 @@ Vercel / browser
 └── GameSocketProvider
     └── one Socket.IO connection per browser tab
 
-DigitalOcean Droplet
-└── Caddy (TLS)
-    └── one Node.js process
+DigitalOcean App Platform
+└── ingress (TLS)
+    └── one Node.js container instance
         ├── GET /healthz
         ├── Socket.IO protocol boundary
         └── GameServer

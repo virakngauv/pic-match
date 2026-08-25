@@ -1,0 +1,18 @@
+FROM node:22-slim
+
+WORKDIR /app
+
+RUN corepack enable
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+
+COPY lib lib
+COPY server server
+
+ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+
+EXPOSE 8080
+
+CMD ["node", "--import", "tsx", "server/index.ts"]

@@ -99,9 +99,11 @@ pnpm deploy:smoke
 
 ## Deployment
 
-The supported production topology is one Ubuntu DigitalOcean Droplet, one
-systemd service, and one Caddy reverse proxy. Do not use cluster mode, multiple
-containers, overlapping app processes, a load balancer, or horizontal scaling.
+The supported production topology is one DigitalOcean App Platform service
+running exactly one instance of the game-server container, with the frontend on
+Vercel. Do not scale the service beyond one instance or enable autoscaling:
+rooms live in one process's memory and multiple instances silently split room
+state.
 
 See [DigitalOcean game server operations](docs/deployment/first-public-playtest.md)
 and [the room/game boundary](docs/architecture/room-game-boundary.md).
@@ -114,7 +116,7 @@ components/          Application and UI components
 lib/                 Shared protocol and deterministic game logic
 server/              In-memory game server and tests
 e2e/                 Playwright multiplayer browser coverage
-deploy/              systemd and Caddy examples
+deploy/              App Platform Dockerfile and app spec example
 docs/                Architecture and operations notes
 scripts/             Deployment checks and smoke tests
 ```
