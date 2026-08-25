@@ -33,10 +33,7 @@ container listens on `0.0.0.0:8080` and is never reachable except through App
 Platform's ingress. App Platform supports WebSockets, so Socket.IO upgrades
 work without extra configuration.
 
-You do not manage a server, SSH keys, a firewall, systemd, or a TLS proxy. If
-you previously followed the Droplet-based version of this runbook, see
-[Migrating from the Droplet deployment](#migrating-from-the-droplet-deployment)
-near the end.
+You do not manage a server, SSH keys, a firewall, systemd, or a TLS proxy.
 
 ### Terms used in this guide
 
@@ -69,12 +66,12 @@ You need:
 
 Choose and write down these values before continuing:
 
-| Name                         | Example                       | Your value |
-| ---------------------------- | ----------------------------- | ---------- |
-| App name                     | `pic-match-game`              |            |
-| Region                       | `nyc`                         |            |
-| Vercel production origin     | `https://your-app.vercel.app` |            |
-| Approved full Git commit SHA | `0123456789abcdef...`         |            |
+| Name                         | Example                        | Your value |
+| ---------------------------- | ------------------------------ | ---------- |
+| App name                     | `pic-match-game`               |            |
+| Region                       | `nyc`                          |            |
+| Vercel production origin     | `https://pic-match.vercel.app` |            |
+| Approved full Git commit SHA | `0123456789abcdef...`          |            |
 
 App names must be 2–32 characters, start with a letter, and use only lowercase
 letters, numbers, and dashes. The app name becomes part of the default
@@ -111,18 +108,10 @@ commit already merged to `main`.
 
 ## 1. Create the app
 
-On your **local computer**, copy the example app spec so you can paste your own
-values:
-
-```bash
-sed 's#https://your-app.vercel.app#YOUR_VERCEL_ORIGIN#' \
-  deploy/app-spec.example.yaml > /tmp/pic-match-app-spec.yaml
-```
-
-Replace `YOUR_VERCEL_ORIGIN` with your planned Vercel production origin,
-including the `https://` prefix. Do not add a trailing slash. If you have not created the Vercel project yet, decide
-the project name now and use its future origin, such as
-`https://pic-match.vercel.app`.
+The example spec at `deploy/app-spec.example.yaml` is ready to use: it points
+at this repository's `main` branch, builds `deploy/Dockerfile.game-server`,
+pins one instance, and allows the production frontend origin
+`https://pic-match.vercel.app`. Review it before continuing.
 
 In the DigitalOcean control panel:
 
@@ -131,7 +120,7 @@ In the DigitalOcean control panel:
    select this repository with the `main` branch.
 3. Open the spec editor (the **Edit Spec** / **App Spec** option in the create
    flow) and replace the generated YAML with the contents of
-   `/tmp/pic-match-app-spec.yaml`.
+   `deploy/app-spec.example.yaml`.
 4. Confirm the service settings match the table below, then create the app.
 
 | Setting           | Required value                                   |
@@ -161,7 +150,7 @@ If you prefer the terminal, `doctl` can create the same app after
 `doctl auth init`:
 
 ```bash
-doctl apps create --spec /tmp/pic-match-app-spec.yaml
+doctl apps create --spec deploy/app-spec.example.yaml
 ```
 
 ### Never scale this app
@@ -212,7 +201,7 @@ For either a new or existing project, configure these Production variables:
 The game server's `ALLOWED_ORIGINS` value must exactly match the frontend's
 production origin, with no path or trailing slash. These are different values:
 
-- frontend origin: `https://your-app.vercel.app`
+- frontend origin: `https://pic-match.vercel.app`
 - game server URL: `https://<app-name>.ondigitalocean.app`
 
 If you created the app with a guessed Vercel origin and the real one differs,
@@ -232,7 +221,7 @@ dependencies installed:
 
 ```bash
 GAME_SERVER_URL=https://<app-name>.ondigitalocean.app \
-GAME_SERVER_ORIGIN=https://your-app.vercel.app \
+GAME_SERVER_ORIGIN=https://pic-match.vercel.app \
 pnpm deploy:smoke
 ```
 
@@ -309,27 +298,6 @@ no room or player data.
 
 There are no application-data backups because there is no durable application
 data. Delete and recreate the app from this runbook if necessary.
-
-## Migrating from the Droplet deployment
-
-If you previously deployed the game server on a Droplet with systemd and
-Caddy, complete this runbook first and verify the new App Platform deployment
-with the smoke test and manual two-browser check. Then retire the Droplet:
-
-1. In the Vercel project, update `NEXT_PUBLIC_GAME_SERVER_URL` to the
-   `ondigitalocean.app` URL and redeploy production.
-2. Update `ALLOWED_ORIGINS` on the app if the frontend origin changed, then
-   redeploy the app.
-3. Retest create/join/start/score/reconnect from two browsers against the new
-   URL.
-4. Shut down the Droplet: `sudo systemctl disable --now pic-match-game`
-   (or the older `spot-it-game` name), then destroy the Droplet and its
-   attached cloud firewall when you no longer need rollback.
-
-The cutover ends all active rooms on both old and new servers. Two differences
-to expect on App Platform: all players now share one rate-limit bucket (see
-the note above), and deploys replace the container instead of restarting a
-systemd service.
 
 ## Roll back
 

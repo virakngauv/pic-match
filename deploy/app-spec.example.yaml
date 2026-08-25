@@ -20,7 +20,7 @@ services:
         value: 0.0.0.0
         scope: RUN_TIME
       - key: ALLOWED_ORIGINS
-        value: https://your-app.vercel.app
+        value: https://pic-match.vercel.app
         scope: RUN_TIME
       - key: LOG_LEVEL
         value: info
