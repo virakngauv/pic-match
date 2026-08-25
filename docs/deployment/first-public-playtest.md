@@ -26,10 +26,11 @@ Player's browser
                                              (rooms in memory)
 ```
 
-DigitalOcean App Platform builds the container image from this repository's
-`deploy/Dockerfile.game-server`, runs exactly one instance of it, terminates
-TLS for you, and routes public HTTPS/WSS traffic to the container. The
-container listens on `0.0.0.0:8080` and is never reachable except through App
+DigitalOcean App Platform builds the game server from this repository's `main`
+branch using its Node.js buildpack, runs exactly one instance, terminates TLS
+for you, and routes public HTTPS/WSS traffic to it. The service runs
+`pnpm start:server`, which starts `tsx server/index.ts` on the injected port
+8080 with `HOST=0.0.0.0`. The container is never reachable except through App
 Platform's ingress. App Platform supports WebSockets, so Socket.IO upgrades
 work without extra configuration.
 
@@ -43,8 +44,10 @@ You do not manage a server, SSH keys, a firewall, systemd, or a TLS proxy.
   single service named `game`.
 - **Instance:** one running copy of the service's container. This app must
   always run exactly one.
-- **Build:** App Platform builds the Docker image on its own build machines
-  using the Dockerfile in the repository.
+- **Build:** App Platform builds the service on its own build machines using
+  its Node.js buildpack. It detects `pnpm-lock.yaml`, installs dependencies
+  with pnpm, and runs the repository's default `pnpm build` (the Next.js
+  build; unused by the game server but harmless).
 - **App spec:** a YAML file that describes the whole app (source, instance
   size, environment variables, health check). The example lives at
   `deploy/app-spec.example.yaml`.
@@ -109,9 +112,9 @@ commit already merged to `main`.
 ## 1. Create the app
 
 The example spec at `deploy/app-spec.example.yaml` is ready to use: it points
-at this repository's `main` branch, builds `deploy/Dockerfile.game-server`,
-pins one instance, and allows the production frontend origin
-`https://pic-match.vercel.app`. Review it before continuing.
+at this repository's `main` branch, builds with the Node.js buildpack, runs
+`pnpm start:server`, pins one instance, and allows the production frontend
+origin `https://pic-match.vercel.app`. Review it before continuing.
 
 In the DigitalOcean control panel:
 
@@ -123,21 +126,31 @@ In the DigitalOcean control panel:
    `deploy/app-spec.example.yaml`.
 4. Confirm the service settings match the table below, then create the app.
 
-| Setting           | Required value                                   |
-| ----------------- | ------------------------------------------------ |
-| Source            | GitHub, this repository, `main` branch           |
-| Dockerfile path   | `deploy/Dockerfile.game-server`                  |
-| HTTP port         | `8080`                                           |
-| Health check      | HTTP path `/healthz`                             |
-| Instance count    | `1`                                              |
-| Autoscaling       | Off                                              |
-| Instance size     | 512 MiB (`apps-s-1vcpu-0.5gb`)                   |
-| Deploy on push    | Enabled                                          |
-| `ALLOWED_ORIGINS` | Your Vercel production origin, no trailing slash |
+| Setting           | Required value                                                         |
+| ----------------- | ---------------------------------------------------------------------- |
+| Source            | GitHub, this repository, `main` branch                                 |
+| Source directory  | `/`                                                                    |
+| Environment       | Node.js (buildpack; detects `pnpm-lock.yaml`)                          |
+| Build command     | None (buildpack installs deps and builds)                              |
+| Run command       | `pnpm start:server`                                                    |
+| HTTP port         | `8080`                                                                 |
+| Health check      | Readiness, HTTP path `/healthz`                                        |
+| Instance count    | `1`                                                                    |
+| Autoscaling       | Off                                                                    |
+| Instance size     | 512 MiB (`apps-s-1vcpu-0.5gb`, $5/mo, 1 shared vCPU, 50 GiB bandwidth) |
+| Deploy on push    | Enabled                                                                |
+| `HOST`            | `0.0.0.0`                                                              |
+| `ALLOWED_ORIGINS` | `https://pic-match.vercel.app`, no trailing slash                      |
+| `LOG_LEVEL`       | `info`                                                                 |
 
-The first build takes a few minutes. Watch the build logs in the control panel;
-they mirror the Dockerfile steps (`pnpm install --frozen-lockfile --prod`,
-copying `lib/` and `server/`). When the deployment goes live, open:
+No `PORT` variable is needed: App Platform injects `PORT=8080` to match the
+HTTP port, and the server honors it. Do not set `NODE_ENV` or any other
+variable; the three above are all the service needs.
+
+The first build takes a few minutes. Watch the build logs in the control panel:
+the Node.js buildpack detects the pnpm lockfile, installs dependencies, and
+runs the repository's default `pnpm build` (the Next.js build; its output is
+unused by the game server). When the deployment goes live, open:
 
 ```text
 https://<app-name>.ondigitalocean.app/healthz
@@ -152,6 +165,14 @@ If you prefer the terminal, `doctl` can create the same app after
 ```bash
 doctl apps create --spec deploy/app-spec.example.yaml
 ```
+
+### Configure alert notifications
+
+After the app is live, open **Settings > Alert Policies** (or the App-level
+**Alerts** section) and enable email notifications at minimum for
+**Deployment failed** and **Domain failed**. The example app spec already
+declares both. They are free email alerts and are the fastest way to learn
+that an autodeploy broke the playtest server.
 
 ### Never scale this app
 
@@ -287,18 +308,19 @@ doctl apps logs YOUR_APP_ID --type run
 ```
 
 The game server writes structured JSON and does not log client tokens or room
-contents. The build log (**Build Logs** during a deployment) shows Dockerfile
-and `pnpm install` output. `/healthz` reports process health only; it exposes
-no room or player data.
+contents. The build log (**Build Logs** during a deployment) shows buildpack
+dependency installation and `pnpm build` output. `/healthz` reports process
+health only; it exposes no room or player data.
 
 | Symptom                                        | Most likely checks                                                                                                                              |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Build fails                                    | Open the build log; confirm the Dockerfile path is `deploy/Dockerfile.game-server` and the repo/branch are correct.                             |
+| Build fails                                    | Open the build log; confirm the source repo/branch are correct and the run command is `pnpm start:server`.                                      |
 | Deploy never goes live                         | Check the runtime log for a startup crash and confirm the health check uses HTTP path `/healthz` on port 8080.                                  |
 | Website loads but multiplayer does not connect | Confirm the Vercel `NEXT_PUBLIC_GAME_SERVER_URL`, the exact `ALLOWED_ORIGINS` value, and that Vercel was redeployed after its variable changed. |
 | Entry commands rejected for many players       | The shared ingress rate-limit bucket is exhausted; see the rate-limiting note above and slow down joining.                                      |
 | Players in the same room cannot see each other | Instance count is above 1 or autoscaling is on. Set instance count back to 1, disable autoscaling, and redeploy; affected rooms end.            |
 | Rooms disappear during a deploy                | Expected: rooms live only in the one container's memory. Ask players to create a new room.                                                      |
+| Panel shows the old `spot-it-web` repository   | Apps created before the repository rename keep the original clone URL; GitHub redirects it, so no action is required.                           |
 | Need older logs                                | Use **Insights** or forward logs with `log_destinations` in the app spec.                                                                       |
 
 There are no application-data backups because there is no durable application

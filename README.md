@@ -116,7 +116,7 @@ components/          Application and UI components
 lib/                 Shared protocol and deterministic game logic
 server/              In-memory game server and tests
 e2e/                 Playwright multiplayer browser coverage
-deploy/              App Platform Dockerfile and app spec example
+deploy/              App Platform app spec example
 docs/                Architecture and operations notes
 scripts/             Deployment checks and smoke tests
 ```
