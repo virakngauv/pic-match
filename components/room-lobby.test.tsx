@@ -141,7 +141,7 @@ describe('RoomLobby', () => {
     mocks.snapshot = { status: 'joinable', roomCode: 'frvg7' }
     render(<RoomLobby roomCode="frvg7" />)
     expect(
-      screen.getByRole('heading', { name: 'Join your friends.' }),
+      screen.getByRole('heading', { name: 'room join.' }),
     ).toBeInTheDocument()
   })
 
