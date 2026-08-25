@@ -4,9 +4,14 @@ import { describe, expect, it } from 'vitest'
 import HomePage from './page'
 
 describe('HomePage', () => {
-  it('links to the create and join room flows', () => {
+  it('shows the combined call to action with both room flows', () => {
     render(<HomePage />)
 
+    expect(
+      screen.getByRole('heading', { name: 'Ready to find the match?' }),
+    ).toBeVisible()
+    expect(screen.queryByText('Play together')).not.toBeInTheDocument()
+    expect(screen.queryByText(/prototype/i)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Create a room' })).toHaveAttribute(
       'href',
       '/create',

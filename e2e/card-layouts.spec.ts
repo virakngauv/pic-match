@@ -18,7 +18,7 @@ test('renders every fixed card template without collisions or movement', async (
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1_000 })
-  await page.goto('/wiring-lab/card-layouts')
+  await page.goto('/dev/card-layouts')
 
   await expect(
     page.getByRole('heading', { name: 'Card layout gallery' }),

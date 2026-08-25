@@ -30,7 +30,7 @@ test('moves a room from creation into a reconnectable game', async ({
 
     await expect(hostPage).toHaveURL(/\/home$/)
     await expect(
-      hostPage.getByRole('heading', { name: 'Ready to spot the match?' }),
+      hostPage.getByRole('heading', { name: 'Ready to find the match?' }),
     ).toBeVisible()
 
     await hostPage.getByRole('link', { name: 'Create a room' }).click()

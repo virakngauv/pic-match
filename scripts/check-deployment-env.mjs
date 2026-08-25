@@ -8,7 +8,6 @@ const optionalVercelVariables = [
   'CLERK_SECRET_KEY',
   'NEXT_PUBLIC_POSTHOG_KEY',
   'NEXT_PUBLIC_POSTHOG_HOST',
-  'ARCJET_KEY',
 ]
 
 const isConfigured = (name) => Boolean(process.env[name]?.trim())
