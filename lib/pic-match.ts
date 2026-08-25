@@ -68,7 +68,7 @@ const SUPPORTED_PARTICIPANT_CAPACITY = 64
 export const FIRST_PLAYABLE_WINNING_SCORE = 12
 const MIN_PARTICIPANTS = 1
 
-export type SpotItConfiguration = Readonly<{
+export type PicMatchConfiguration = Readonly<{
   order: number
   symbolsPerCard: number
   participantCapacity: number
@@ -82,28 +82,28 @@ export const FIRST_PLAYABLE_CONFIGURATION = {
   participantCapacity: SUPPORTED_PARTICIPANT_CAPACITY,
   winningScore: FIRST_PLAYABLE_WINNING_SCORE,
   symbolIds: FIRST_PLAYABLE_SYMBOL_IDS,
-} as const satisfies SpotItConfiguration
+} as const satisfies PicMatchConfiguration
 
-export type SpotItCard = Readonly<{
+export type PicMatchCard = Readonly<{
   id: string
   symbolIds: readonly string[]
 }>
 
-export type SpotItDeck = Readonly<{
+export type PicMatchDeck = Readonly<{
   seed: string
-  cards: readonly SpotItCard[]
+  cards: readonly PicMatchCard[]
 }>
 
 export type TwoCardMatchup = Readonly<{
   id: string
   revision: number
-  cards: readonly [SpotItCard, SpotItCard]
+  cards: readonly [PicMatchCard, PicMatchCard]
 }>
 
-export function generateSpotItDeck(
-  configuration: SpotItConfiguration,
+export function generatePicMatchDeck(
+  configuration: PicMatchConfiguration,
   seed: string,
-): SpotItDeck {
+): PicMatchDeck {
   validateConfiguration(configuration)
   validateSeed(seed)
 
@@ -121,13 +121,13 @@ export function generateSpotItDeck(
 }
 
 export function generateTwoCardMatchup(
-  configuration: SpotItConfiguration,
+  configuration: PicMatchConfiguration,
   seed: string,
   revision: number,
 ): TwoCardMatchup {
   assertNonNegativeInteger(revision, 'Matchup revision')
 
-  const deck = generateSpotItDeck(configuration, seed)
+  const deck = generatePicMatchDeck(configuration, seed)
   const pairsPerCycle = (deck.cards.length * (deck.cards.length - 1)) / 2
   const cycle = Math.floor(revision / pairsPerCycle)
   const indexWithinCycle = revision % pairsPerCycle
@@ -151,15 +151,15 @@ export function generateTwoCardMatchup(
     id: `matchup-${revision}`,
     revision,
     cards: Object.freeze([leftCard, rightCard]) as readonly [
-      SpotItCard,
-      SpotItCard,
+      PicMatchCard,
+      PicMatchCard,
     ],
   })
 }
 
 export function assertSupportedParticipantCount(
   participantCount: number,
-  configuration: SpotItConfiguration = FIRST_PLAYABLE_CONFIGURATION,
+  configuration: PicMatchConfiguration = FIRST_PLAYABLE_CONFIGURATION,
 ): void {
   validateConfiguration(configuration)
   assertInteger(participantCount, 'Participant count')
@@ -175,7 +175,7 @@ export function assertSupportedParticipantCount(
 }
 
 export function getMaximumAcceptedClaims(
-  configuration: SpotItConfiguration = FIRST_PLAYABLE_CONFIGURATION,
+  configuration: PicMatchConfiguration = FIRST_PLAYABLE_CONFIGURATION,
 ): number {
   validateConfiguration(configuration)
 
@@ -184,7 +184,7 @@ export function getMaximumAcceptedClaims(
   )
 }
 
-function validateConfiguration(configuration: SpotItConfiguration): void {
+function validateConfiguration(configuration: PicMatchConfiguration): void {
   if (configuration.order !== SUPPORTED_ORDER) {
     throw new Error(
       `Unsupported card order: expected ${SUPPORTED_ORDER}, received ${configuration.order}.`,
@@ -240,7 +240,7 @@ function validateSeed(seed: string): void {
   }
 }
 
-function buildCanonicalCards(configuration: SpotItConfiguration): string[][] {
+function buildCanonicalCards(configuration: PicMatchConfiguration): string[][] {
   const { order, symbolIds } = configuration
   const cards: string[][] = []
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This note defines the first complete Spot It gameplay loop. It is the contract
+This note defines the first complete Pic Match gameplay loop. It is the contract
 for the ordered implementation issues in the `First playable round` milestone.
 Each issue should deliver one reviewable slice without changing the room and
 participant boundary defined in `room-game-boundary.md`.
@@ -130,7 +130,7 @@ Socket protocol changes must also pass the isolated multi-client server tests.
 The following should not block the first playable game:
 
 - round timers;
-- alternate Spot It game modes;
+- alternate Pic Match game modes;
 - configurable winning scores;
 - spectators;
 - audio polish and additional animation polish.

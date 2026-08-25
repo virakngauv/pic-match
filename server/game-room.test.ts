@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { MatchClaimCommand, RoomSnapshot } from '../lib/game-protocol'
-import { FIRST_PLAYABLE_CONFIGURATION } from '../lib/spot-it'
+import { FIRST_PLAYABLE_CONFIGURATION } from '../lib/pic-match'
 import {
   GameRoom,
   INCORRECT_CLAIM_COOLDOWN_MS,

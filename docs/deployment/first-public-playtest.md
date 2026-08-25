@@ -52,7 +52,7 @@ traffic, and forwards that traffic to Node on the Droplet. Node listens only on
 - **TLS / HTTPS / WSS:** encryption for web pages and WebSockets. Caddy manages
   this automatically after DNS and the firewall are correct.
 - **Origin:** the protocol and hostname where a webpage runs, for example
-  `https://spot-it-web.vercel.app`. A trailing slash is not part of the origin.
+  `https://pic-match.vercel.app`. A trailing slash is not part of the origin.
 
 ## Before you begin
 
@@ -66,12 +66,12 @@ You need:
 
 Choose and write down these values before running commands:
 
-| Name                                      | Example                          | Your value |
-| ----------------------------------------- | -------------------------------- | ---------- |
-| Droplet IP                                | `203.0.113.10`                   |            |
-| Game hostname                             | `games.example.com`              |            |
-| Planned/existing Vercel production origin | `https://spot-it-web.vercel.app` |            |
-| Approved full Git commit SHA              | `0123456789abcdef...`            |            |
+| Name                                      | Example                        | Your value |
+| ----------------------------------------- | ------------------------------ | ---------- |
+| Droplet IP                                | `203.0.113.10`                 |            |
+| Game hostname                             | `games.example.com`            |            |
+| Planned/existing Vercel production origin | `https://pic-match.vercel.app` |            |
+| Approved full Git commit SHA              | `0123456789abcdef...`          |            |
 
 Commands below use names such as `YOUR_DROPLET_IP` and
 `YOUR_APPROVED_COMMIT_SHA`. Replace the entire name with your value. Do not type
@@ -129,7 +129,7 @@ If it does not exist, create one and accept the default file location. A
 passphrase is recommended.
 
 ```bash
-ssh-keygen -t ed25519 -C "spot-it-digitalocean"
+ssh-keygen -t ed25519 -C "pic-match-digitalocean"
 cat ~/.ssh/id_ed25519.pub
 ```
 
@@ -150,7 +150,7 @@ In the DigitalOcean control panel:
 6. Enable monitoring. Backups are optional for this ephemeral server because
    rooms are not stored on disk, but a backup can still make server recovery
    easier.
-7. Give the Droplet a recognizable name, such as `spot-it-game-1`, and create
+7. Give the Droplet a recognizable name, such as `pic-match-game-1`, and create
    it.
 8. Copy its public IPv4 address into the worksheet above.
 
@@ -250,40 +250,40 @@ ssh root@YOUR_DROPLET_IP
 The first connection asks whether you trust the host. Check that the IP is the
 one DigitalOcean assigned, type `yes`, and press Enter.
 
-On the **Droplet**, create a normal user named `spotit`. Use this exact username
+On the **Droplet**, create a normal user named `picmatch`. Use this exact username
 for the beginner path: the included systemd service is configured with
-`User=spotit` and `Group=spotit`. `adduser` asks you to choose a password; use a
+`User=picmatch` and `Group=picmatch`. `adduser` asks you to choose a password; use a
 strong unique one. The profile questions can be left blank by pressing Enter.
 
 ```bash
-adduser spotit
-usermod -aG sudo spotit
-install -d -m 700 -o spotit -g spotit /home/spotit/.ssh
-cp /root/.ssh/authorized_keys /home/spotit/.ssh/authorized_keys
-chown spotit:spotit /home/spotit/.ssh/authorized_keys
-chmod 600 /home/spotit/.ssh/authorized_keys
+adduser picmatch
+usermod -aG sudo picmatch
+install -d -m 700 -o picmatch -g picmatch /home/picmatch/.ssh
+cp /root/.ssh/authorized_keys /home/picmatch/.ssh/authorized_keys
+chown picmatch:picmatch /home/picmatch/.ssh/authorized_keys
+chmod 600 /home/picmatch/.ssh/authorized_keys
 ```
 
 Keep this root terminal open temporarily. In a **second local terminal**, test
 the safer account:
 
 ```bash
-ssh spotit@YOUR_DROPLET_IP
+ssh picmatch@YOUR_DROPLET_IP
 sudo -v
 ```
 
-Enter the `spotit` password when `sudo` asks. Continue only when both commands
-succeed. Use the `spotit` SSH account for the rest of this guide; you can close
+Enter the `picmatch` password when `sudo` asks. Continue only when both commands
+succeed. Use the `picmatch` SSH account for the rest of this guide; you can close
 the root terminal.
 
 If you deliberately use another deployment username, you must consistently
-replace `spotit` in the SSH commands, home-directory paths, `/srv/spot-it-web`
-ownership, and `/etc/spot-it-game.env` group ownership. You must also change
+replace `picmatch` in the SSH commands, home-directory paths, `/srv/pic-match`
+ownership, and `/etc/pic-match-game.env` group ownership. You must also change
 both `User=` and `Group=` in the installed systemd unit as described in step 8.
 
 ## 6. Update Ubuntu and install the tools
 
-Run this section on the **Droplet** as `spotit`.
+Run this section on the **Droplet** as `picmatch`.
 
 First install Ubuntu updates and reboot:
 
@@ -297,7 +297,7 @@ Your SSH connection will close. Wait about a minute, then reconnect from your
 **local computer**:
 
 ```bash
-ssh spotit@YOUR_DROPLET_IP
+ssh picmatch@YOUR_DROPLET_IP
 ```
 
 ### Optional: add swap on a 512 MiB or 1 GiB Droplet
@@ -330,8 +330,8 @@ if ! sudo swapon --show=NAME --noheadings | grep -Fxq /swapfile; then
   sudo swapon /swapfile
 fi
 
-if [ ! -f /etc/fstab.before-spot-it-swap ]; then
-  sudo cp /etc/fstab /etc/fstab.before-spot-it-swap
+if [ ! -f /etc/fstab.before-pic-match-swap ]; then
+  sudo cp /etc/fstab /etc/fstab.before-pic-match-swap
 fi
 
 if ! grep -qE '^/swapfile[[:space:]]+none[[:space:]]+swap[[:space:]]' /etc/fstab; then
@@ -413,9 +413,9 @@ token, or deploy key.
 On the **Droplet**:
 
 ```bash
-sudo install -d -o spotit -g spotit /srv/spot-it-web
-git clone https://github.com/virakngauv/spot-it-web.git /srv/spot-it-web
-cd /srv/spot-it-web
+sudo install -d -o picmatch -g picmatch /srv/pic-match
+git clone https://github.com/virakngauv/pic-match.git /srv/pic-match
+cd /srv/pic-match
 git checkout --detach YOUR_APPROVED_COMMIT_SHA
 pnpm install --prod --frozen-lockfile
 ```
@@ -436,10 +436,10 @@ smoke test. Do not continue if the production dependency install fails.
 Create the server's environment file on the **Droplet**:
 
 ```bash
-sudo touch /etc/spot-it-game.env
-sudo chown root:spotit /etc/spot-it-game.env
-sudo chmod 640 /etc/spot-it-game.env
-sudo nano /etc/spot-it-game.env
+sudo touch /etc/pic-match-game.env
+sudo chown root:picmatch /etc/pic-match-game.env
+sudo chmod 640 /etc/pic-match-game.env
+sudo nano /etc/pic-match-game.env
 ```
 
 Paste the following, replacing the Vercel example with your exact production
@@ -460,33 +460,33 @@ not add localhost origins to the production server.
 Install the included systemd service:
 
 ```bash
-cd /srv/spot-it-web
-sudo cp deploy/spot-it-game.service /etc/systemd/system/spot-it-game.service
+cd /srv/pic-match
+sudo cp deploy/pic-match-game.service /etc/systemd/system/pic-match-game.service
 ```
 
-The unit copied above requires the `spotit` user and group. If you intentionally
+The unit copied above requires the `picmatch` user and group. If you intentionally
 used another account, pause here and edit the installed unit before enabling it:
 
 ```bash
-sudo nano /etc/systemd/system/spot-it-game.service
+sudo nano /etc/systemd/system/pic-match-game.service
 ```
 
-Change both `User=spotit` and `Group=spotit` to the exact account and group
+Change both `User=picmatch` and `Group=picmatch` to the exact account and group
 reported by `id YOUR_DEPLOYMENT_USERNAME`. Also make the application and
 environment file readable by that identity:
 
 ```bash
-sudo chown -R YOUR_DEPLOYMENT_USERNAME:YOUR_DEPLOYMENT_USERNAME /srv/spot-it-web
-sudo chown root:YOUR_DEPLOYMENT_USERNAME /etc/spot-it-game.env
+sudo chown -R YOUR_DEPLOYMENT_USERNAME:YOUR_DEPLOYMENT_USERNAME /srv/pic-match
+sudo chown root:YOUR_DEPLOYMENT_USERNAME /etc/pic-match-game.env
 ```
 
-Do not run these customization commands when following the normal `spotit`
+Do not run these customization commands when following the normal `picmatch`
 path. For either path, now load the unit, start it, and verify Node directly:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now spot-it-game
-sudo systemctl status spot-it-game --no-pager
+sudo systemctl enable --now pic-match-game
+sudo systemctl status pic-match-game --no-pager
 curl --fail http://127.0.0.1:3200/healthz
 ```
 
@@ -508,8 +508,8 @@ On the **Droplet**, back up Caddy's default configuration, install the included
 example, and open it for editing:
 
 ```bash
-sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.before-spot-it
-sudo cp /srv/spot-it-web/deploy/Caddyfile.example /etc/caddy/Caddyfile
+sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.before-pic-match
+sudo cp /srv/pic-match/deploy/Caddyfile.example /etc/caddy/Caddyfile
 sudo nano /etc/caddy/Caddyfile
 ```
 
@@ -538,7 +538,7 @@ header.
 If this repository does not have a Vercel project yet:
 
 1. From the Vercel dashboard, select **Add New > Project**.
-2. Find `virakngauv/spot-it-web` and select **Import**. If it is absent, review
+2. Find `virakngauv/pic-match` and select **Import**. If it is absent, review
    the GitHub permissions Vercel offers to update.
 3. Choose a unique project name. The expected default production origin is
    `https://YOUR_PROJECT_NAME.vercel.app`; record it in the worksheet and use
@@ -562,8 +562,8 @@ For either a new or existing project, configure these Production variables:
    environment-variable changes do not affect an already-built deployment.
 
 Copy the resulting production URL. If its origin differs from the one in
-`/etc/spot-it-game.env`, edit `ALLOWED_ORIGINS` on the Droplet and run
-`sudo systemctl restart spot-it-game` before testing. Do not include a path or
+`/etc/pic-match-game.env`, edit `ALLOWED_ORIGINS` on the Droplet and run
+`sudo systemctl restart pic-match-game` before testing. Do not include a path or
 trailing slash in the origin.
 
 The game server's `ALLOWED_ORIGINS` value from step 8 must exactly match the
@@ -608,7 +608,7 @@ players work.
 7. Refresh A, then B, one at a time. Confirm each reconnects to the room.
 8. Finish the game and test rematch.
 9. Test an explicit leave and confirm host transfer when the host leaves.
-10. Restart the service with `sudo systemctl restart spot-it-game`. Confirm
+10. Restart the service with `sudo systemctl restart pic-match-game`. Confirm
     both browsers explain that the room ended instead of becoming stuck.
 
 When Codex performs this check, use the Codex in-app Browser for player one and
@@ -625,14 +625,14 @@ Deploys intentionally end active rooms. Update the files while the existing
 process continues to run, then perform one ordinary systemd restart:
 
 ```bash
-ssh spotit@YOUR_DROPLET_IP
-cd /srv/spot-it-web
+ssh picmatch@YOUR_DROPLET_IP
+cd /srv/pic-match
 git status --short
 git fetch --prune origin
 git checkout --detach YOUR_NEW_APPROVED_COMMIT_SHA
 pnpm install --prod --frozen-lockfile
-sudo systemctl restart spot-it-game
-sudo systemctl status spot-it-game --no-pager
+sudo systemctl restart pic-match-game
+sudo systemctl status pic-match-game --no-pager
 curl --fail http://127.0.0.1:3200/healthz
 curl --fail https://games.example.com/healthz
 ```
@@ -645,13 +645,42 @@ a graceful stop and then see the room-ended recovery UI.
 If the frontend/server protocol also changed, deploy the matching frontend
 commit to Vercel.
 
+### Migrating a Droplet deployed before the Pic Match rename
+
+A server provisioned while this project was named Spot It uses the `spotit`
+user, `/srv/spot-it-web`, `/etc/spot-it-game.env`, and the `spot-it-game`
+systemd unit. Because rooms live only in memory, the simplest migration is to
+destroy and re-provision the Droplet from this runbook. To rename an existing
+server in place instead, run on the **Droplet**:
+
+```bash
+sudo systemctl disable --now spot-it-game
+sudo mv /etc/systemd/system/spot-it-game.service /tmp/old-spot-it-game.service
+sudo mv /etc/spot-it-game.env /etc/pic-match-game.env
+sudo mv /srv/spot-it-web /srv/pic-match
+sudo groupmod -n picmatch spotit
+sudo usermod -l picmatch -d /home/picmatch -m spotit
+cd /srv/pic-match
+git fetch --prune origin
+git checkout --detach YOUR_APPROVED_COMMIT_SHA
+pnpm install --prod --frozen-lockfile
+sudo cp deploy/pic-match-game.service /etc/systemd/system/pic-match-game.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now pic-match-game
+curl --fail http://127.0.0.1:3200/healthz
+```
+
+This ends all active rooms. `usermod -m` moves the old home directory, so the
+`picmatch` account keeps the same SSH authorized keys. Reconnect afterward as
+`ssh picmatch@YOUR_DROPLET_IP`.
+
 ## Logs and troubleshooting
 
 Start with these read-only commands on the **Droplet**:
 
 ```bash
-sudo systemctl status spot-it-game --no-pager
-sudo journalctl -u spot-it-game --since '30 minutes ago' --no-pager
+sudo systemctl status pic-match-game --no-pager
+sudo journalctl -u pic-match-game --since '30 minutes ago' --no-pager
 sudo systemctl status caddy --no-pager
 sudo journalctl -u caddy --since '30 minutes ago' --no-pager
 curl --fail http://127.0.0.1:3200/healthz
@@ -693,21 +722,21 @@ Droplet.
 `Group=` configured in the unit. Check both sides:
 
 ```bash
-id spotit
-sudo systemctl cat spot-it-game
+id picmatch
+sudo systemctl cat pic-match-game
 ```
 
-For the normal path, create/use the exact `spotit` account. For a deliberate
-custom account, make `User=`, `Group=`, `/srv/spot-it-web` ownership, and the
-group on `/etc/spot-it-game.env` match as described in step 8. Then run
+For the normal path, create/use the exact `picmatch` account. For a deliberate
+custom account, make `User=`, `Group=`, `/srv/pic-match` ownership, and the
+group on `/etc/pic-match-game.env` match as described in step 8. Then run
 `sudo systemctl daemon-reload` and restart the service.
 
 **The private health check cannot connect:** check the Node service before
 changing Caddy:
 
 ```bash
-sudo systemctl status spot-it-game --no-pager
-sudo journalctl -u spot-it-game -n 50 --no-pager
+sudo systemctl status pic-match-game --no-pager
+sudo journalctl -u pic-match-game -n 50 --no-pager
 curl --fail http://127.0.0.1:3200/healthz
 ```
 
@@ -736,11 +765,11 @@ data. Recreate the server from this runbook if necessary.
 Rollback also ends active rooms. On the **Droplet**:
 
 ```bash
-cd /srv/spot-it-web
+cd /srv/pic-match
 git checkout --detach YOUR_PREVIOUS_GOOD_COMMIT_SHA
 pnpm install --prod --frozen-lockfile
-sudo systemctl restart spot-it-game
-sudo systemctl status spot-it-game --no-pager
+sudo systemctl restart pic-match-game
+sudo systemctl status pic-match-game --no-pager
 curl --fail http://127.0.0.1:3200/healthz
 curl --fail https://games.example.com/healthz
 ```

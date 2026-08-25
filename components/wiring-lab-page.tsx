@@ -17,9 +17,9 @@ export function WiringLabPage() {
         <a
           href="#top"
           className="text-lg font-bold tracking-tight"
-          aria-label="Spot It home"
+          aria-label="Pic Match home"
         >
-          spot it<span className="text-accent">.</span>
+          pic match<span className="text-accent">.</span>
         </a>
         <span className="bg-card text-muted-foreground rounded-full border px-3 py-1.5 text-xs font-semibold">
           wiring lab / v0.1

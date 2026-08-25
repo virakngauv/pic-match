@@ -15,7 +15,7 @@ describe('GET /api/health', () => {
     expect(response.headers.get('Cache-Control')).toBe('no-store')
     await expect(response.json()).resolves.toEqual({
       status: 'ok',
-      service: 'spot-it-web',
+      service: 'pic-match',
       commitSha: 'candidate-commit-sha',
     })
   })

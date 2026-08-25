@@ -309,10 +309,10 @@ test('replays a complete shared race across browser sessions', async ({
     await expectComputedCursor(firstIncorrectSymbol, 'default')
     await expectComputedCursor(secondIncorrectSymbol, 'default')
     await expect(
-      firstIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+      firstIncorrectSymbol.locator('.pic-match-incorrect-mark'),
     ).toBeVisible()
     await expect(
-      secondIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+      secondIncorrectSymbol.locator('.pic-match-incorrect-mark'),
     ).toBeVisible()
     expect(await playingSnapshot(hostPage)).toEqual(beforeIncorrectClaim)
     await expect
@@ -332,10 +332,10 @@ test('replays a complete shared race across browser sessions', async ({
       'false',
     )
     await expect(
-      firstIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+      firstIncorrectSymbol.locator('.pic-match-incorrect-mark'),
     ).toHaveCount(0)
     await expect(
-      secondIncorrectSymbol.locator('.spot-it-incorrect-mark'),
+      secondIncorrectSymbol.locator('.pic-match-incorrect-mark'),
     ).toHaveCount(0)
 
     await beginDisabledCursorObservation(hostPage)
@@ -514,7 +514,7 @@ test('replays a complete shared race across browser sessions', async ({
       'Incorrect match. Try again in a moment.',
     )
     const staticErrorMark = hostPage
-      .locator('button[data-incorrect="true"] .spot-it-incorrect-mark')
+      .locator('button[data-incorrect="true"] .pic-match-incorrect-mark')
       .first()
     await expect(staticErrorMark).toBeVisible()
     expect(await playingSnapshot(hostPage)).toEqual(secondGameInitialState)

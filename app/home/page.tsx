@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
 export const metadata: Metadata = {
-  title: 'Home — Spot It',
-  description: 'Create a new Spot It room or join your friends.',
+  title: 'Home — Pic Match',
+  description: 'Create a new Pic Match room or join your friends.',
 }
 
 export default function HomePage() {
@@ -25,9 +25,9 @@ export default function HomePage() {
           <Link
             href="/home"
             className="text-lg font-bold tracking-tight"
-            aria-label="Spot It home"
+            aria-label="Pic Match home"
           >
-            spot it<span className="text-accent">.</span>
+            pic match<span className="text-accent">.</span>
           </Link>
           <span className="text-muted-foreground text-xs font-semibold tracking-[0.14em] uppercase">
             Play together
@@ -77,7 +77,7 @@ export default function HomePage() {
         </section>
 
         <footer className="text-muted-foreground flex items-center justify-between gap-4 border-t py-5 text-xs">
-          <span>Spot It room prototype</span>
+          <span>Pic Match room prototype</span>
           <Link
             href="/wiring-lab"
             className="font-semibold underline-offset-4 hover:underline"
