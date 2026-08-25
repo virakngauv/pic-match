@@ -43,7 +43,7 @@ test('moves a room from creation into a reconnectable game', async ({
 
     await expect(hostPage).toHaveURL(/\/[bcdfghkpqrstvz]{4}[2-9y]$/)
     await expect(
-      hostPage.getByRole('heading', { name: 'Ready to play.' }),
+      hostPage.getByRole('heading', { name: 'lobby.' }),
     ).toBeVisible()
 
     const roomCode = new URL(hostPage.url()).pathname.slice(1)
@@ -95,7 +95,7 @@ test('moves a room from creation into a reconnectable game', async ({
     await guestPage.getByRole('button', { name: 'Join', exact: true }).click()
     await expect(guestPage).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
     await expect(
-      guestPage.getByRole('heading', { name: 'Ready to play.' }),
+      guestPage.getByRole('heading', { name: 'lobby.' }),
     ).toBeVisible()
     await expect(guestPage.getByText('Ada')).toBeVisible()
     await expect(guestPage.getByText('Grace')).toBeVisible()
