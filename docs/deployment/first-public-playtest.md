@@ -115,12 +115,12 @@ On your **local computer**, copy the example app spec so you can paste your own
 values:
 
 ```bash
-sed 's#https://your-app.vercel.app#https://YOUR_VERCEL_ORIGIN#' \
+sed 's#https://your-app.vercel.app#YOUR_VERCEL_ORIGIN#' \
   deploy/app-spec.example.yaml > /tmp/pic-match-app-spec.yaml
 ```
 
-Replace `YOUR_VERCEL_ORIGIN` with your planned Vercel production origin. Do not
-add a trailing slash. If you have not created the Vercel project yet, decide
+Replace `YOUR_VERCEL_ORIGIN` with your planned Vercel production origin,
+including the `https://` prefix. Do not add a trailing slash. If you have not created the Vercel project yet, decide
 the project name now and use its future origin, such as
 `https://pic-match.vercel.app`.
 
