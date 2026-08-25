@@ -4,15 +4,15 @@ import {
   assertSupportedParticipantCount,
   FIRST_PLAYABLE_CONFIGURATION,
   FIRST_PLAYABLE_SYMBOL_IDS,
-  generateSpotItDeck,
+  generatePicMatchDeck,
   generateTwoCardMatchup,
   getMaximumAcceptedClaims,
-  type SpotItConfiguration,
-} from './spot-it'
+  type PicMatchConfiguration,
+} from './pic-match'
 
 const SEED = 'first-playable-round'
 
-describe('first playable Spot It configuration', () => {
+describe('first playable Pic Match configuration', () => {
   it('defines eight symbols per card, 57 symbols, 64 players, and 12 points', () => {
     expect(FIRST_PLAYABLE_CONFIGURATION).toMatchObject({
       order: 7,
@@ -43,16 +43,16 @@ describe('first playable Spot It configuration', () => {
   })
 })
 
-describe('generateSpotItDeck', () => {
+describe('generatePicMatchDeck', () => {
   it('returns the same ordered deck for the same configuration and seed', () => {
-    expect(generateSpotItDeck(FIRST_PLAYABLE_CONFIGURATION, SEED)).toEqual(
-      generateSpotItDeck(FIRST_PLAYABLE_CONFIGURATION, SEED),
+    expect(generatePicMatchDeck(FIRST_PLAYABLE_CONFIGURATION, SEED)).toEqual(
+      generatePicMatchDeck(FIRST_PLAYABLE_CONFIGURATION, SEED),
     )
   })
 
   it('uses the seed to change the ordered deck', () => {
-    const firstDeck = generateSpotItDeck(FIRST_PLAYABLE_CONFIGURATION, SEED)
-    const secondDeck = generateSpotItDeck(
+    const firstDeck = generatePicMatchDeck(FIRST_PLAYABLE_CONFIGURATION, SEED)
+    const secondDeck = generatePicMatchDeck(
       FIRST_PLAYABLE_CONFIGURATION,
       'another-seed',
     )
@@ -63,7 +63,7 @@ describe('generateSpotItDeck', () => {
   })
 
   it('generates 57 cards with eight distinct symbols each', () => {
-    const deck = generateSpotItDeck(FIRST_PLAYABLE_CONFIGURATION, SEED)
+    const deck = generatePicMatchDeck(FIRST_PLAYABLE_CONFIGURATION, SEED)
 
     expect(deck.cards).toHaveLength(57)
     for (const card of deck.cards) {
@@ -73,7 +73,7 @@ describe('generateSpotItDeck', () => {
   })
 
   it('makes every pair of distinct cards share exactly one symbol', () => {
-    const deck = generateSpotItDeck(FIRST_PLAYABLE_CONFIGURATION, SEED)
+    const deck = generatePicMatchDeck(FIRST_PLAYABLE_CONFIGURATION, SEED)
 
     for (let leftIndex = 0; leftIndex < deck.cards.length - 1; leftIndex += 1) {
       const leftCard = deck.cards[leftIndex]
@@ -141,10 +141,10 @@ describe('generateSpotItDeck', () => {
       },
       SEED,
     ],
-  ] satisfies Array<[string, SpotItConfiguration, string]>)(
+  ] satisfies Array<[string, PicMatchConfiguration, string]>)(
     'rejects an invalid configuration: %s',
     (_name, configuration, seed) => {
-      expect(() => generateSpotItDeck(configuration, seed)).toThrow()
+      expect(() => generatePicMatchDeck(configuration, seed)).toThrow()
     },
   )
 })

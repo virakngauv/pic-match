@@ -1,6 +1,6 @@
-# Spot It Web
+# Pic Match
 
-A multiplayer Spot It game built with Next.js and a deliberately simple,
+A multiplayer Pic Match game built with Next.js and a deliberately simple,
 single-process Socket.IO game server.
 
 ## Architecture

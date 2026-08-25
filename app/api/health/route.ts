@@ -2,7 +2,7 @@ export function GET() {
   return Response.json(
     {
       status: 'ok',
-      service: 'spot-it-web',
+      service: 'pic-match',
       commitSha:
         process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? null,
     },

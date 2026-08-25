@@ -2,7 +2,7 @@
 
 ## Intent
 
-Spot It uses a single in-memory authority because a multiplayer match benefits
+Pic Match uses a single in-memory authority because a multiplayer match benefits
 from low-latency coherent snapshots more than this pre-production project
 benefits from durable state. The tradeoff is explicit: rooms disappear whenever
 the process exits.

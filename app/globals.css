@@ -217,7 +217,7 @@ body {
   }
 }
 
-.spot-it-score-reveal {
+.pic-match-score-reveal {
   animation: score-reveal-in 0.18s ease-out;
 }
 
@@ -242,7 +242,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spot-it-score-reveal,
+  .pic-match-score-reveal,
   .game-score-entry[data-scored='true'] {
     animation: none;
   }

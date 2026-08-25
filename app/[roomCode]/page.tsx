@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { RoomLobby } from '@/components/room-lobby'
 
 export const metadata: Metadata = {
-  title: 'Room — Spot It',
+  title: 'Room — Pic Match',
 }
 
 export default async function RoomLobbyPage({

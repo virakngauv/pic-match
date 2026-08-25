@@ -13,7 +13,7 @@ import {
 } from '@/components/game-scoreboard'
 import { getPairLayoutPlans } from '@/lib/card-layout'
 import type { MatchClaimPayload, MatchClaimResult } from '@/lib/match-claim'
-import { getSpotItSymbolPresentation } from '@/lib/spot-it-symbols'
+import { getPicMatchSymbolPresentation } from '@/lib/pic-match-symbols'
 
 const INCORRECT_FEEDBACK_MS = 1_000
 const SCORE_REVEAL_MS = 1_500
@@ -193,7 +193,7 @@ function useDisplayedRound({
 
 /** Builds the polite screen-reader announcement for an accepted claim. */
 function getScoreRevealMessage(claim: ScoredClaim, localPlayerId: string) {
-  const symbolLabel = getSpotItSymbolPresentation(claim.symbolId).label
+  const symbolLabel = getPicMatchSymbolPresentation(claim.symbolId).label
 
   return claim.scorerId === localPlayerId
     ? `You matched ${symbolLabel} for a point.`

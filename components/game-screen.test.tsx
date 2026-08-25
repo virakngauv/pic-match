@@ -491,7 +491,7 @@ describe('GameScreen', () => {
     expect(secondSelection).toHaveAttribute('data-incorrect', 'true')
     const incorrectMark = within(firstSelection).getByText('×')
 
-    expect(incorrectMark).toHaveClass('spot-it-incorrect-mark')
+    expect(incorrectMark).toHaveClass('pic-match-incorrect-mark')
     expect(firstSelection).toHaveClass(
       'border-red-700/70',
       'bg-red-100/80',
@@ -507,7 +507,7 @@ describe('GameScreen', () => {
         .filter,
     ).toBe('none')
     expect(within(secondSelection).getByText('×')).toHaveClass(
-      'spot-it-incorrect-mark',
+      'pic-match-incorrect-mark',
     )
     fireEvent.click(firstSelection)
     expect(firstSelection).toHaveAttribute('aria-pressed', 'true')
@@ -850,7 +850,7 @@ describe('GameScreen score reveal', () => {
     )
     expect(symbolFilter(firstSun).style.filter).toBe('saturate(0)')
     expect(firstBadge).toHaveTextContent('Firefox host')
-    expect(firstBadge).toHaveClass('spot-it-score-reveal')
+    expect(firstBadge).toHaveClass('pic-match-score-reveal')
     expect(firstBadge?.firstElementChild).toHaveClass(
       'line-clamp-2',
       'break-words',

@@ -11,7 +11,7 @@ import {
 import {
   FIRST_PLAYABLE_CONFIGURATION,
   generateTwoCardMatchup,
-} from '../lib/spot-it'
+} from '../lib/pic-match'
 import { fingerprintClientToken } from './token-fingerprint'
 
 export const MAX_ROOM_MEMBERS = FIRST_PLAYABLE_CONFIGURATION.participantCapacity

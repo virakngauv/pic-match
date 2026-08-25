@@ -4,7 +4,7 @@ import {
   SELECTED_SYMBOL_SCALE,
   getSelectedSymbolRotationOffset,
 } from '@/lib/card-selection'
-import { getSpotItSymbolPresentation } from '@/lib/spot-it-symbols'
+import { getPicMatchSymbolPresentation } from '@/lib/pic-match-symbols'
 import type { CardLayoutPlan } from '@/lib/card-layout'
 import { cn } from '@/lib/utils'
 
@@ -63,7 +63,7 @@ export function GameCard({
         Card {cardNumber} contains {card.symbolIds.length} symbols.
       </p>
       {card.symbolIds.map((symbolId) => {
-        const symbol = getSpotItSymbolPresentation(symbolId)
+        const symbol = getPicMatchSymbolPresentation(symbolId)
         const layout = symbolLayouts.get(symbolId)
         const isSelected = selectedSymbolId === symbolId
         const isIncorrect = isSelected && showIncorrectFeedback
@@ -146,7 +146,7 @@ export function GameCard({
             {isIncorrect ? (
               <span
                 aria-hidden="true"
-                className="spot-it-incorrect-mark pointer-events-none absolute inset-0 z-10 inline-flex items-center justify-center text-5xl font-black text-red-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]"
+                className="pic-match-incorrect-mark pointer-events-none absolute inset-0 z-10 inline-flex items-center justify-center text-5xl font-black text-red-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]"
               >
                 ×
               </span>
@@ -155,7 +155,7 @@ export function GameCard({
               <span
                 aria-hidden="true"
                 data-score-reveal=""
-                className="spot-it-score-reveal pointer-events-none absolute inset-0 z-10 inline-flex items-center justify-center overflow-hidden p-[6%]"
+                className="pic-match-score-reveal pointer-events-none absolute inset-0 z-10 inline-flex items-center justify-center overflow-hidden p-[6%]"
               >
                 <span className="line-clamp-2 max-w-full rounded-lg bg-white/95 px-[0.25em] py-[0.125em] text-center text-[clamp(0.55rem,0.3em,1.1rem)] leading-[1.15] font-bold break-words hyphens-auto text-emerald-900 shadow-sm ring-1 ring-emerald-700/30">
                   {revealedMatch.scorerName}

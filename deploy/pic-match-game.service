@@ -1,15 +1,15 @@
 [Unit]
-Description=Spot It single-process game server
+Description=Pic Match single-process game server
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=spotit
-Group=spotit
-WorkingDirectory=/srv/spot-it-web
-EnvironmentFile=/etc/spot-it-game.env
-ExecStart=/usr/bin/node --import tsx /srv/spot-it-web/server/index.ts
+User=picmatch
+Group=picmatch
+WorkingDirectory=/srv/pic-match
+EnvironmentFile=/etc/pic-match-game.env
+ExecStart=/usr/bin/node --import tsx /srv/pic-match/server/index.ts
 Restart=on-failure
 RestartSec=3
 KillSignal=SIGTERM
