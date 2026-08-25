@@ -193,7 +193,12 @@ For either a new or existing project, configure these Production variables:
    `https://<app-name>.ondigitalocean.app`.
 3. Apply it to **Production**.
 4. Add `FIRST_PUBLIC_PLAYTEST_CONFIRMED=true` to Production only after the
-   release owner explicitly approves making the playtest public.
+   release owner explicitly approves making the playtest public. Before
+   setting it, open the app's **Deployments** tab in the DigitalOcean control
+   panel and confirm the active deployment's commit matches
+   `YOUR_APPROVED_COMMIT_SHA` from step 0. If they differ, stop: deploy-on-push
+   has shipped newer commits than the ones you verified, so review and approve
+   the newer commit first.
 5. Deploy the new project, or open **Deployments** and redeploy the existing
    production deployment. Vercel environment-variable changes do not affect an
    already-built deployment.
