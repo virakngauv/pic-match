@@ -661,16 +661,26 @@ sudo mv /srv/spot-it-web /srv/pic-match
 sudo groupmod -n picmatch spotit
 sudo usermod -l picmatch -d /home/picmatch -m spotit
 cd /srv/pic-match
+git remote set-url origin https://github.com/virakngauv/pic-match.git
 git fetch --prune origin
 git checkout --detach YOUR_APPROVED_COMMIT_SHA
 pnpm install --prod --frozen-lockfile
 sudo cp deploy/pic-match-game.service /etc/systemd/system/pic-match-game.service
 sudo systemctl daemon-reload
+grep '^ALLOWED_ORIGINS=' /etc/pic-match-game.env
 sudo systemctl enable --now pic-match-game
 curl --fail http://127.0.0.1:3200/healthz
 ```
 
-This ends all active rooms. `usermod -m` moves the old home directory, so the
+The `grep` prints the preserved `ALLOWED_ORIGINS` value. Confirm it still
+contains the deployed frontend origin exactly (no trailing slash) before
+enabling the service; the private health check cannot detect an origin
+mismatch.
+
+This ends all active rooms. The rename also changes the browser storage key for
+player identity, so returning browsers receive a fresh player identity; because
+the restart has already emptied every room, that reset has no lasting effect
+pre-production. `usermod -m` moves the old home directory, so the
 `picmatch` account keeps the same SSH authorized keys. Reconnect afterward as
 `ssh picmatch@YOUR_DROPLET_IP`.
 
