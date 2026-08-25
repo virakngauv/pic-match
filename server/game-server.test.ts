@@ -17,11 +17,7 @@ describe('GameServer', () => {
   })
 
   it('expires rooms from meaningful activity without connectivity traffic', () => {
-    const server = new GameServer({
-      lobbyMs: 100,
-      playingMs: 200,
-      finishedMs: 50,
-    })
+    const server = new GameServer({ roomIdleMs: 100 })
     const { roomCode } = createdRoom(server, 'a'.repeat(32), 'Ada', 1_000)
 
     expect(server.snapshot('a'.repeat(32), roomCode).status).toBe('lobby')
@@ -34,8 +30,8 @@ describe('GameServer', () => {
     })
   })
 
-  it('uses the active-game idle window and starts a new process empty', () => {
-    const expiration = { lobbyMs: 100, playingMs: 200, finishedMs: 50 }
+  it('expires every phase after the same shared idle window and starts a new process empty', () => {
+    const expiration = { roomIdleMs: 200 }
     const server = new GameServer(expiration)
     const host = 'a'.repeat(32)
     const guest = 'b'.repeat(32)

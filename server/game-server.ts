@@ -12,15 +12,11 @@ const MAX_CODE_ATTEMPTS = 25
 export const MAX_ACTIVE_ROOMS = 5_000
 
 export type RoomExpirationPolicy = {
-  lobbyMs: number
-  playingMs: number
-  finishedMs: number
+  roomIdleMs: number
 }
 
 export const DEFAULT_ROOM_EXPIRATION: RoomExpirationPolicy = {
-  lobbyMs: 2 * 60 * 60 * 1_000,
-  playingMs: 4 * 60 * 60 * 1_000,
-  finishedMs: 30 * 60 * 1_000,
+  roomIdleMs: 26 * 60 * 60 * 1_000,
 }
 
 export class GameServer {
@@ -116,8 +112,7 @@ export class GameServer {
   expireRooms(now = Date.now()) {
     const expired: string[] = []
     for (const [roomCode, room] of this.rooms) {
-      const idleLimit = this.expiration[`${room.phase}Ms`]
-      if (now - room.lastMeaningfulActivityAt >= idleLimit) {
+      if (now - room.lastMeaningfulActivityAt >= this.expiration.roomIdleMs) {
         this.rooms.delete(roomCode)
         expired.push(roomCode)
       }
