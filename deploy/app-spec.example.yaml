@@ -1,0 +1,28 @@
+name: pic-match-game
+region: nyc
+services:
+  - name: game
+    github:
+      repo: virakngauv/pic-match
+      branch: main
+      deploy_on_push: true
+    environment_slug: node-js
+    run_command: pnpm start:server
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    http_port: 8080
+    health_check:
+      http_path: /healthz
+    envs:
+      - key: HOST
+        value: 0.0.0.0
+        scope: RUN_TIME
+      - key: ALLOWED_ORIGINS
+        value: https://pic-match.vercel.app
+        scope: RUN_TIME
+      - key: LOG_LEVEL
+        value: info
+        scope: RUN_TIME
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
