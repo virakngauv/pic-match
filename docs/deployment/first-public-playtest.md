@@ -131,7 +131,7 @@ In the DigitalOcean control panel:
 | Health check      | HTTP path `/healthz`                             |
 | Instance count    | `1`                                              |
 | Autoscaling       | Off                                              |
-| Instance size     | Basic 512 MB (`basic-xxs`)                       |
+| Instance size     | 512 MiB (`apps-s-1vcpu-0.5gb`)                   |
 | Deploy on push    | Enabled                                          |
 | `ALLOWED_ORIGINS` | Your Vercel production origin, no trailing slash |
 
