@@ -66,10 +66,13 @@ export function GameScreen({
       data-displayed-round={displayedRound.pairRevision}
     >
       <div className="game-shell">
-        <header className="game-header" aria-labelledby="game-heading">
+        <header
+          className="game-header justify-center"
+          aria-labelledby="game-heading"
+        >
           <h1
             id="game-heading"
-            className="truncate text-xl leading-none font-bold tracking-[-0.04em] sm:text-2xl lg:mt-2 lg:text-4xl"
+            className="truncate text-center text-xl leading-none font-bold tracking-[-0.04em] sm:text-2xl lg:text-4xl"
           >
             find the match<span className="text-accent">.</span>
           </h1>
