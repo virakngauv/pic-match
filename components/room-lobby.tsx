@@ -169,7 +169,6 @@ function PresentRoomLobby({
     case 'playing':
       return (
         <GameScreen
-          roomCode={displayedRoomView.roomCode}
           player={displayedRoomView.player}
           pairRevision={displayedRoomView.pairRevision}
           cards={displayedRoomView.cards}

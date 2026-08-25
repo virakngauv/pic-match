@@ -30,7 +30,6 @@ type GamePlayer = Omit<ScoreboardEntry, 'score'>
 
 /** Presents the shared card pair and ordered scoreboard for an active player. */
 export function GameScreen({
-  roomCode,
   player,
   pairRevision,
   cards,
@@ -39,7 +38,6 @@ export function GameScreen({
   cooldownUntil,
   onSubmitClaim,
 }: {
-  roomCode: string
   player: GamePlayer
   pairRevision: number
   cards: readonly GameCardModel[]
@@ -65,31 +63,16 @@ export function GameScreen({
       className="game-surface"
       aria-label={`Game for ${player.name}`}
       data-player-position={player.position}
+      data-displayed-round={displayedRound.pairRevision}
     >
       <div className="game-shell">
         <header className="game-header" aria-labelledby="game-heading">
-          <div className="game-header-copy flex min-w-0 flex-1 items-baseline justify-between gap-3 lg:block">
-            <p className="text-accent shrink-0 text-[0.65rem] font-bold tracking-[0.14em] uppercase sm:text-xs lg:tracking-[0.18em]">
-              <span className="sr-only">
-                Room {roomCode}, round {displayedRound.pairRevision + 1}
-              </span>
-              <span className="sm:hidden" aria-hidden="true">
-                {roomCode} · R{displayedRound.pairRevision + 1}
-              </span>
-              <span className="hidden sm:inline" aria-hidden="true">
-                Room {roomCode} · Round {displayedRound.pairRevision + 1}
-              </span>
-            </p>
-            <h1
-              id="game-heading"
-              className="truncate text-xl leading-none font-semibold tracking-[-0.04em] sm:text-2xl lg:mt-2 lg:text-4xl"
-            >
-              Find the match.
-            </h1>
-          </div>
-          <p className="text-muted-foreground game-header-instructions sr-only max-w-xs text-sm leading-6 lg:not-sr-only">
-            The same symbol appears once on each card.
-          </p>
+          <h1
+            id="game-heading"
+            className="truncate text-xl leading-none font-bold tracking-[-0.04em] sm:text-2xl lg:mt-2 lg:text-4xl"
+          >
+            find the match<span className="text-accent">.</span>
+          </h1>
         </header>
         <p
           role="status"

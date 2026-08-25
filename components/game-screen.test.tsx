@@ -158,7 +158,6 @@ describe('GameScreen', () => {
 
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={0}
         cards={cards}
@@ -282,9 +281,10 @@ describe('GameScreen', () => {
     expect(onSubmitClaim).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Match claim feedback')).toBeEmptyDOMElement()
     expect(screen.queryByText(/first to/i)).not.toBeInTheDocument()
-    expect(
-      screen.getByText('Room frvg7, round 1', { selector: 'span.sr-only' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute(
+      'data-displayed-round',
+      '0',
+    )
   })
 
   it('toggles an editable selection with Enter and Space', async () => {
@@ -389,7 +389,6 @@ describe('GameScreen', () => {
 
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={0}
         cards={cards}
@@ -730,7 +729,6 @@ describe('GameScreen', () => {
 
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={1}
         cards={cards}
@@ -743,9 +741,10 @@ describe('GameScreen', () => {
       />,
     )
 
-    expect(
-      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute(
+      'data-displayed-round',
+      '1',
+    )
     expect(screen.getByLabelText("Chrome player's score")).toHaveTextContent(
       '1',
     )
@@ -778,7 +777,6 @@ describe('GameScreen', () => {
   it('shows a recoverable unavailable state instead of a partial board', () => {
     render(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={0}
         cards={[cards[0]]}
@@ -809,7 +807,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={1}
         cards={nextCards}
@@ -869,15 +866,17 @@ describe('GameScreen score reveal', () => {
         .getAllByRole('listitem')
         .find((entry) => entry.textContent?.includes('Firefox host')),
     ).toHaveAttribute('data-scored', 'true')
-    expect(
-      screen.getByText('Room frvg7, round 1', { selector: 'span.sr-only' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute(
+      'data-displayed-round',
+      '0',
+    )
 
     act(() => vi.advanceTimersByTime(1_510))
 
-    expect(
-      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute(
+      'data-displayed-round',
+      '1',
+    )
     expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
       'data-card-id',
       'card-77',
@@ -904,7 +903,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={1}
         cards={nextCards}
@@ -935,7 +933,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={1}
         cards={nextCards}
@@ -946,9 +943,10 @@ describe('GameScreen score reveal', () => {
       />,
     )
 
-    expect(
-      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute(
+      'data-displayed-round',
+      '1',
+    )
     expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
       'data-card-id',
       'card-77',
@@ -960,7 +958,6 @@ describe('GameScreen score reveal', () => {
     vi.useFakeTimers()
     render(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={1}
         cards={nextCards}
@@ -971,9 +968,10 @@ describe('GameScreen score reveal', () => {
       />,
     )
 
-    expect(
-      screen.getByText('Room frvg7, round 2', { selector: 'span.sr-only' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute(
+      'data-displayed-round',
+      '1',
+    )
     expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
       'data-card-id',
       'card-77',
@@ -990,7 +988,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={2}
         cards={nextCards}
@@ -1001,9 +998,10 @@ describe('GameScreen score reveal', () => {
       />,
     )
 
-    expect(
-      screen.getByText('Room frvg7, round 3', { selector: 'span.sr-only' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute(
+      'data-displayed-round',
+      '2',
+    )
     expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
       'data-card-id',
       'card-77',
@@ -1017,7 +1015,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={1}
         cards={nextCards}
@@ -1033,7 +1030,6 @@ describe('GameScreen score reveal', () => {
     act(() => vi.advanceTimersByTime(500))
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={2}
         cards={nextCards.map((card) => ({ ...card }))}
@@ -1045,9 +1041,10 @@ describe('GameScreen score reveal', () => {
     )
 
     expect(screen.getByLabelText('Score reveal')).toHaveTextContent('')
-    expect(
-      screen.getByText('Room frvg7, round 3', { selector: 'span.sr-only' }),
-    ).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute(
+      'data-displayed-round',
+      '2',
+    )
   })
 
   it('keeps the reveal bounded when the same round rerenders with new data', () => {
@@ -1056,7 +1053,6 @@ describe('GameScreen score reveal', () => {
 
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={1}
         cards={nextCards}
@@ -1072,7 +1068,6 @@ describe('GameScreen score reveal', () => {
     act(() => vi.advanceTimersByTime(1_000))
     rerender(
       <GameScreen
-        roomCode="frvg7"
         player={player}
         pairRevision={1}
         cards={nextCards.map((card) => ({ ...card }))}
@@ -1104,7 +1099,6 @@ function renderGame({
 } = {}) {
   return render(
     <GameScreen
-      roomCode="frvg7"
       player={player}
       pairRevision={0}
       cards={cards}
