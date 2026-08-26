@@ -140,7 +140,7 @@ function parseAllowedOrigins(value: string | undefined) {
     : ['http://localhost:3000', 'http://127.0.0.1:3000']
 }
 
-function createStructuredLogger(value: string | undefined) {
+export function createStructuredLogger(value: string | undefined) {
   const configuredLevel =
     value === 'error' || value === 'warn' || value === 'info' ? value : 'info'
   const priority = { error: 0, warn: 1, info: 2 } as const

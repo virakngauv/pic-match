@@ -11,6 +11,12 @@ import {
   type ServerToClientEvents,
 } from '../lib/game-protocol'
 import { GameServer } from './game-server'
+import { createClaimStreakTracker } from './claim-streak'
+import {
+  createTelemetry,
+  type RateLimitBudget,
+  type Telemetry,
+} from './telemetry'
 import { isPrivateNetworkOrigin } from './origins'
 import { isTrustedProxy } from './proxy-trust'
 import {
@@ -52,6 +58,7 @@ export type GameSocketServerOptions = {
   trustedProxyAddresses?: string[]
   gameServer?: GameServer
   expirationSweepMs?: number
+  telemetryFlushIntervalMs?: number
   entryCommandLimits?: EntryCommandLimits
   logger?: Pick<Console, 'info' | 'warn' | 'error'>
 }
@@ -82,6 +89,10 @@ export function createGameSocketServer(
     ...DEFAULT_ENTRY_COMMAND_LIMITS,
     ...options.entryCommandLimits,
   }
+  const telemetry: Telemetry = createTelemetry(logger, {
+    flushIntervalMs: options.telemetryFlushIntervalMs,
+  })
+  const claimStreaks = createClaimStreakTracker()
   const socketCommands = new SlidingWindowRateLimiter(40, 10_000)
   const playerCommands = new SlidingWindowRateLimiter(80, 10_000)
   const addressCommands = new SlidingWindowRateLimiter(400, 10_000)
@@ -113,13 +124,18 @@ export function createGameSocketServer(
       },
     },
     allowRequest(request, callback) {
-      callback(null, isOriginAllowed(request.headers.origin))
+      const allowed = isOriginAllowed(request.headers.origin)
+      if (!allowed) telemetry.handshakeRejected('origin_not_allowed')
+      callback(null, allowed)
     },
   })
 
   io.use((socket, next) => {
     const auth = parseHandshakeAuth(socket.handshake.auth)
-    if (!auth) return next(new Error('Unsupported or invalid game session.'))
+    if (!auth) {
+      telemetry.handshakeRejected('invalid_auth')
+      return next(new Error('Unsupported or invalid game session.'))
+    }
     socket.data.token = auth.token
     socket.data.address = clientAddress(socket, trustedProxyAddresses)
     next()
@@ -131,114 +147,133 @@ export function createGameSocketServer(
     )
 
     socket.on('session:resume', (payload, acknowledge) => {
+      const ack = trackOutcome('session:resume', acknowledge)
       const parsed = parseSessionResume(payload)
-      if (!canRun(socket, acknowledge)) return
-      safely('session:resume', acknowledge, async () => {
-        if (!parsed) return acknowledge(invalid())
-        if (!parsed.roomCode) return acknowledge({ status: 'success' })
+      if (!canRun(socket, ack)) return
+      safely('session:resume', ack, async () => {
+        if (!parsed) return ack(invalid())
+        if (!parsed.roomCode) return ack({ status: 'success' })
 
         const snapshot = gameServer.snapshot(socket.data.token, parsed.roomCode)
         if (isMemberSnapshot(snapshot)) {
           await socket.join(parsed.roomCode)
         } else if (!takeEntryBudget(socket)) {
-          return acknowledge({
+          telemetry.countRateLimited('entry')
+          return ack({
             status: 'rate_limited',
             message: 'Too many commands.',
           })
         }
         socket.emit('room:snapshot', snapshot)
-        acknowledge({ status: 'success', snapshot })
+        ack({ status: 'success', snapshot })
       })
     })
 
     socket.on('room:create', (payload, acknowledge) => {
-      if (!canRun(socket, acknowledge, true)) return
-      safely('room:create', acknowledge, async () => {
+      const ack = trackOutcome('room:create', acknowledge)
+      if (!canRun(socket, ack, true)) return
+      safely('room:create', ack, async () => {
         const parsed = parseCreateRoom(payload)
-        if (!parsed) return acknowledge(invalid())
+        if (!parsed) return ack(invalid())
 
         const result = gameServer.createRoom(socket.data.token, parsed.name)
-        if (result.status !== 'success') return acknowledge(result)
+        if (result.status !== 'success') return ack(result)
         await socket.join(result.roomCode)
-        acknowledge(result)
+        ack(result)
         broadcastSnapshots(result.roomCode)
       })
     })
 
     socket.on('room:join', (payload, acknowledge) => {
-      if (!canRun(socket, acknowledge, true)) return
-      safely('room:join', acknowledge, async () => {
+      const ack = trackOutcome('room:join', acknowledge)
+      if (!canRun(socket, ack, true)) return
+      safely('room:join', ack, async () => {
         const parsed = parseJoinRoom(payload)
-        if (!parsed) return acknowledge(invalid())
+        if (!parsed) return ack(invalid())
 
         const result = gameServer.joinRoom(
           socket.data.token,
           parsed.roomCode,
           parsed.name,
         )
-        if (result.status !== 'success') return acknowledge(result)
+        if (result.status !== 'success') return ack(result)
         await socket.join(parsed.roomCode)
-        acknowledge(result)
+        ack(result)
         broadcastSnapshots(parsed.roomCode)
       })
     })
 
     socket.on('room:leave', (payload, acknowledge) => {
-      if (!canRun(socket, acknowledge)) return
-      safely('room:leave', acknowledge, async () => {
+      const ack = trackOutcome('room:leave', acknowledge)
+      if (!canRun(socket, ack)) return
+      safely('room:leave', ack, async () => {
         const parsed = parseRoomCommand(payload)
-        if (!parsed) return acknowledge(invalid())
+        if (!parsed) return ack(invalid())
 
         const result = gameServer.leaveRoom(socket.data.token, parsed.roomCode)
         await socket.leave(parsed.roomCode)
-        acknowledge(result)
+        ack(result)
         broadcastSnapshots(parsed.roomCode)
       })
     })
 
     socket.on('room:remove-player', (payload, acknowledge) => {
-      if (!canRun(socket, acknowledge)) return
-      safely('room:remove-player', acknowledge, async () => {
+      const ack = trackOutcome('room:remove-player', acknowledge)
+      if (!canRun(socket, ack)) return
+      safely('room:remove-player', ack, async () => {
         const parsed = parseRemovePlayer(payload)
-        if (!parsed) return acknowledge(invalid())
+        if (!parsed) return ack(invalid())
 
         const result = gameServer.removePlayer(
           socket.data.token,
           parsed.roomCode,
           parsed.playerId,
         )
-        if (result.status !== 'success') return acknowledge(result)
+        if (result.status !== 'success') return ack(result)
 
         try {
           await notifyRemovedPlayer(parsed.roomCode, result.removedToken)
         } catch (error) {
           logFailure('removed_player_notification_failed', error)
         }
-        acknowledge({ status: 'success' })
+        ack({ status: 'success' })
         broadcastSnapshots(parsed.roomCode)
       })
     })
 
     socket.on('game:start', (payload, acknowledge) => {
-      if (!canRun(socket, acknowledge)) return
-      safely('game:start', acknowledge, () => {
+      const ack = trackOutcome('game:start', acknowledge)
+      if (!canRun(socket, ack)) return
+      safely('game:start', ack, () => {
         const parsed = parseRoomCommand(payload)
-        if (!parsed) return acknowledge(invalid())
+        if (!parsed) return ack(invalid())
         const result = gameServer.startGame(socket.data.token, parsed.roomCode)
-        acknowledge(result)
-        if (result.status === 'success') broadcastSnapshots(parsed.roomCode)
+        ack(result)
+        if (result.status === 'success') {
+          claimStreaks.forget(parsed.roomCode)
+          broadcastSnapshots(parsed.roomCode)
+        }
       })
     })
 
     socket.on('game:claim', (payload, acknowledge) => {
-      if (!canRun(socket, acknowledge)) return
-      safely('game:claim', acknowledge, () => {
+      const ack = trackOutcome('game:claim', acknowledge)
+      if (!canRun(socket, ack)) return
+      safely('game:claim', ack, () => {
         const parsed = parseMatchClaim(payload)
-        if (!parsed) return acknowledge(invalid())
+        if (!parsed) return ack(invalid())
         const before = gameServer.snapshot(socket.data.token, parsed.roomCode)
         const result = gameServer.claim(socket.data.token, parsed)
         const after = gameServer.snapshot(socket.data.token, parsed.roomCode)
-        acknowledge(result)
+        ack(result)
+        reportClaimStreak(
+          claimStreaks.record({
+            roomCode: parsed.roomCode,
+            status: result.status,
+            pairRevision:
+              after.status === 'playing' ? after.pairRevision : null,
+          }),
+        )
         if (snapshotRevision(after) !== snapshotRevision(before)) {
           broadcastSnapshots(parsed.roomCode)
         }
@@ -246,15 +281,16 @@ export function createGameSocketServer(
     })
 
     socket.on('game:prepare-rematch', (payload, acknowledge) => {
-      if (!canRun(socket, acknowledge)) return
-      safely('game:prepare-rematch', acknowledge, () => {
+      const ack = trackOutcome('game:prepare-rematch', acknowledge)
+      if (!canRun(socket, ack)) return
+      safely('game:prepare-rematch', ack, () => {
         const parsed = parseRoomCommand(payload)
-        if (!parsed) return acknowledge(invalid())
+        if (!parsed) return ack(invalid())
         const result = gameServer.prepareRematch(
           socket.data.token,
           parsed.roomCode,
         )
-        acknowledge(result)
+        ack(result)
         if (result.status === 'success') broadcastSnapshots(parsed.roomCode)
       })
     })
@@ -272,8 +308,11 @@ export function createGameSocketServer(
   })
 
   const sweepTimer = setInterval(() => {
+    const startedAt = Date.now()
     try {
-      for (const roomCode of gameServer.expireRooms()) {
+      const expired = gameServer.expireRooms()
+      for (const roomCode of expired) {
+        claimStreaks.forget(roomCode)
         try {
           io.to(roomCode).emit('room:expired', { roomCode, reason: 'idle' })
           io.in(roomCode).socketsLeave(roomCode)
@@ -281,6 +320,7 @@ export function createGameSocketServer(
           logFailure('expiration_room_failed', error)
         }
       }
+      telemetry.expirationSweep(expired.length, Date.now() - startedAt)
     } catch (error) {
       logFailure('expiration_sweep_failed', error)
     }
@@ -341,6 +381,28 @@ export function createGameSocketServer(
     }
   }
 
+  function trackOutcome<TResult extends object>(
+    command: string,
+    acknowledge: (result: CommandResult<TResult>) => void,
+  ) {
+    return (result: CommandResult<TResult>) => {
+      if (result.status !== 'success' && result.status !== 'rate_limited') {
+        telemetry.countRejected(command, result.status)
+      }
+      acknowledge(result)
+    }
+  }
+
+  function reportClaimStreak(event: ReturnType<typeof claimStreaks.record>) {
+    if (event) {
+      telemetry.claimStreak(
+        event.roomCode,
+        event.pairRevision,
+        event.incorrectInARow,
+      )
+    }
+  }
+
   function logFailure(event: string, error: unknown, command?: string) {
     logger.error(
       JSON.stringify({
@@ -365,13 +427,23 @@ export function createGameSocketServer(
     }
 
     const now = Date.now()
-    const permitted =
-      socketCommands.take(socket.id, now) &&
-      playerCommands.take(socket.data.token, now) &&
-      addressCommands.take(socket.data.address, now)
+    const socketPermitted = socketCommands.take(socket.id, now)
+    const playerPermitted =
+      socketPermitted && playerCommands.take(socket.data.token, now)
+    const addressPermitted =
+      playerPermitted && addressCommands.take(socket.data.address, now)
+    const permitted = addressPermitted
     const entryPermitted =
       !permitted || !isEntryCommand || takeEntryBudget(socket, now)
     if (!permitted || !entryPermitted) {
+      const budget: RateLimitBudget = !socketPermitted
+        ? 'socket'
+        : !playerPermitted
+          ? 'player'
+          : !addressPermitted
+            ? 'address'
+            : 'entry'
+      telemetry.countRateLimited(budget)
       acknowledge({ status: 'rate_limited', message: 'Too many commands.' })
       return false
     }
@@ -395,11 +467,15 @@ export function createGameSocketServer(
   return {
     io,
     gameServer,
+    telemetry,
     async shutdown() {
       acceptingCommands = false
+      telemetry.shutdownStarted()
       clearInterval(sweepTimer)
       io.emit('server:shutdown')
       await new Promise<void>((resolve) => io.close(() => resolve()))
+      telemetry.dispose()
+      telemetry.shutdownCompleted()
     },
   }
 }

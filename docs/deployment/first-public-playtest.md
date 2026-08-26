@@ -308,6 +308,65 @@ room after a deploy.
 If the frontend/server protocol also changed, deploy the matching frontend
 commit to Vercel.
 
+## Monitoring events
+
+The game server writes one JSON object per line to stdout, which App Platform
+collects in the **Runtime Logs** tab. `LOG_LEVEL` (default `info`) filters them:
+`warn` keeps warnings and errors; `error` keeps errors only.
+
+Read them with:
+
+```bash
+doctl apps logs YOUR_APP_ID --type run            # live tail
+doctl apps logs YOUR_APP_ID --type run | grep claim_streak
+```
+
+### Event vocabulary
+
+| Event                    | Level | Fields                                     | Meaning and first action                                                                                             |
+| ------------------------ | ----- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `game_server_started`    | info  | `host`, `port`                             | Process came up.                                                                                                     |
+| `server_shutdown_started` / `server_shutdown_completed` | info | none              | A deploy or restart began/finished. Clients should show the room-ended recovery UX; if not, check the frontend deploy. |
+| `socket_connected` / `socket_disconnected` | info | `socketId`, `reason` | Connection churn.                                                                                          |
+| `handshake_rejected`     | warn  | `reason: origin_not_allowed \| invalid_auth` | A client could not connect. `origin_not_allowed` usually means a stale frontend URL or an `ALLOWED_ORIGINS` mismatch; `invalid_auth` means an unsupported client or protocol version. |
+| `command_rejected`       | info  | `command`, `status`, `occurrences`         | Counted (not per-occurrence) ack failures, flushed at most every 30 s. A spike in `status: room_not_found` on `room:join` suggests typos or rooms lost to a deploy; `incorrect` on `game:claim` is routine gameplay. |
+| `rate_limited`           | warn  | `budget: socket \| player \| address \| entry`, `occurrences` | Rate limiting engaged. Without `TRUSTED_PROXIES`, `address` and `entry` are the budgets shared by all players behind the ingress — see the rate-limiting note above. |
+| `claim_streak`           | warn  | `roomCode`, `pairRevision`, `incorrectInARow` | Players are failing repeatedly on one dealt pair (fires every 10 consecutive incorrect claims on the same `pairRevision`). If players report the pair is impossible, reproduce it locally from the room seed and `pairRevision` and file a bug. |
+| `expiration_sweep`       | info  | `roomsExpired`, `durationMs`               | The idle sweep removed rooms (only logged when it removed at least one). Absent while `room:expired` behavior is reported means the room ended some other way, such as a restart. |
+| `command_failed`, `snapshot_failed`, `snapshot_broadcast_failed`, `expiration_sweep_failed`, `expiration_room_failed`, `removed_player_notification_failed` | error | `command`?, `message` | A thrown server-side error. These are defects or resource problems; capture the surrounding log lines and the deployed commit. |
+
+### Distinguishing failure classes
+
+- **Frontend (Vercel):** the website fails to load at all, and the game server
+  logs show no `handshake_rejected` or connection churn. Check the Vercel
+  deployment.
+- **Ingress / TLS:** the website loads but `wss://<app>.ondigitalocean.app`
+  cannot be reached from the browser, while `/healthz` also fails externally
+  and App Platform's **Domain failed** alert may fire. Check the app's
+  networking and domain in the control panel.
+- **Game process:** `/healthz` fails or the process restarts, with
+  `game_server_error` or lifecycle events in the runtime log. Check
+  `game_server_error` details and the deployment that introduced them.
+- **Client connectivity:** only some players fail, with `handshake_rejected`
+  or disconnect churn but healthy process logs. Usually their network or a
+  stale page; ask them to reload.
+
+### Drilling the monitoring path
+
+`pnpm monitoring:drill` exercises the failure paths against a server you
+control (local or deployed):
+
+```bash
+GAME_SERVER_URL=http://127.0.0.1:3200 \
+GAME_SERVER_ORIGIN=http://localhost:3000 \
+pnpm monitoring:drill
+```
+
+It triggers a disallowed-origin handshake, an invalid-auth handshake, an entry
+rate-limit rejection, and a 10-claim incorrect streak, then prints the exact
+server log lines to verify. See `docs/deployment/monitoring-failure-drill.md`
+for the recorded drill evidence.
+
 ## Logs and troubleshooting
 
 Open the app in the DigitalOcean control panel and use the **Runtime Logs**
