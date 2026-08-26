@@ -363,8 +363,9 @@ pnpm monitoring:drill
 ```
 
 It triggers a disallowed-origin handshake, an invalid-auth handshake, an entry
-rate-limit rejection, and a 10-claim incorrect streak, then prints the exact
-server log lines to verify. See `docs/deployment/monitoring-failure-drill.md`
+rate-limit rejection, and a 10-claim incorrect streak, then prints the log
+patterns (event names plus any dynamic fields from the run, such as the room
+code) to grep for in the server logs. See `docs/deployment/monitoring-failure-drill.md`
 for the recorded drill evidence.
 
 ## Logs and troubleshooting
