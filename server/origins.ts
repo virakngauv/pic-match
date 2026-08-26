@@ -15,7 +15,6 @@ export function isPrivateNetworkOrigin(origin: string): boolean {
     hostname === 'localhost' ||
     hostname.endsWith('.localhost') ||
     hostname.endsWith('.local') ||
-    hostname === '127.0.0.1' ||
     hostname === '::1' ||
     isPrivateIpv4(hostname) ||
     isUniqueLocalIpv6(hostname)
@@ -35,6 +34,7 @@ function isPrivateIpv4(hostname: string): boolean {
   const [first, second] = values
   return (
     first === 10 ||
+    first === 127 ||
     (first === 172 && second >= 16 && second <= 31) ||
     (first === 192 && second === 168)
   )

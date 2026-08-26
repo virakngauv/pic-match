@@ -432,6 +432,7 @@ describe('defaultGameServerUrl', () => {
       'http://my-macbook.local:3200',
     )
     expect(defaultGameServerUrl('::1')).toBe('http://[::1]:3200')
+    expect(defaultGameServerUrl('[::1]')).toBe('http://[::1]:3200')
   })
 })
 

@@ -8,6 +8,7 @@ describe('isPrivateNetworkOrigin', () => {
     'https://localhost:3000',
     'http://app.localhost:3100',
     'http://127.0.0.1:3000',
+    'http://127.0.0.2:3000',
     'http://[::1]:3000',
     'http://10.0.0.5:3000',
     'http://172.16.0.1:8100',

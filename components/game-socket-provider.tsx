@@ -49,7 +49,11 @@ const COMMAND_TIMEOUT_MS = 6_000
 const DEFAULT_GAME_SERVER_PORT = 3200
 
 export function defaultGameServerUrl(hostname: string): string {
-  const host = hostname.includes(':') ? `[${hostname}]` : hostname
+  const bareHostname =
+    hostname.startsWith('[') && hostname.endsWith(']')
+      ? hostname.slice(1, -1)
+      : hostname
+  const host = bareHostname.includes(':') ? `[${bareHostname}]` : bareHostname
   return `http://${host}:${DEFAULT_GAME_SERVER_PORT}`
 }
 
