@@ -11,6 +11,7 @@ import {
   type ServerToClientEvents,
 } from '../lib/game-protocol'
 import { GameServer } from './game-server'
+import { isPrivateNetworkOrigin } from './origins'
 import {
   parseCreateRoom,
   parseHandshakeAuth,
@@ -32,6 +33,7 @@ type GameSocket = Socket<
 
 export type GameSocketServerOptions = {
   allowedOrigins: string[]
+  allowPrivateNetworkOrigins?: boolean
   trustedProxyAddresses?: string[]
   gameServer?: GameServer
   expirationSweepMs?: number
@@ -50,6 +52,11 @@ export function createGameSocketServer(
   const gameServer = options.gameServer ?? new GameServer()
   const logger = options.logger ?? console
   const allowedOrigins = new Set(options.allowedOrigins)
+  const isOriginAllowed = (origin: string | undefined) =>
+    origin === undefined ||
+    allowedOrigins.has(origin) ||
+    (options.allowPrivateNetworkOrigins === true &&
+      isPrivateNetworkOrigin(origin))
   const trustedProxyAddresses = new Set(
     options.trustedProxyAddresses ?? ['127.0.0.1', '::1', '::ffff:127.0.0.1'],
   )
@@ -69,12 +76,11 @@ export function createGameSocketServer(
     cors: {
       credentials: false,
       origin(origin, callback) {
-        callback(null, origin === undefined || allowedOrigins.has(origin))
+        callback(null, isOriginAllowed(origin))
       },
     },
     allowRequest(request, callback) {
-      const origin = request.headers.origin
-      callback(null, origin === undefined || allowedOrigins.has(origin))
+      callback(null, isOriginAllowed(request.headers.origin))
     },
   })
 

@@ -3,7 +3,11 @@ import type { AddressInfo } from 'node:net'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { parseEnvPort, startGameServer } from './index'
+import {
+  parseAllowPrivateNetworkOrigins,
+  parseEnvPort,
+  startGameServer,
+} from './index'
 
 describe('game server HTTP process', () => {
   let server: ReturnType<typeof startGameServer> | null = null
@@ -74,6 +78,15 @@ describe('game server HTTP process', () => {
     expect(parseEnvPort('')).toBe(3200)
     expect(parseEnvPort('   ')).toBe(3200)
     expect(parseEnvPort(' 3201 ')).toBe(3201)
+  })
+
+  it('allows private-network origins outside production unless overridden', () => {
+    expect(parseAllowPrivateNetworkOrigins(undefined, undefined)).toBe(true)
+    expect(parseAllowPrivateNetworkOrigins(undefined, 'development')).toBe(true)
+    expect(parseAllowPrivateNetworkOrigins(undefined, 'production')).toBe(false)
+    expect(parseAllowPrivateNetworkOrigins(' true ', 'production')).toBe(true)
+    expect(parseAllowPrivateNetworkOrigins('false', undefined)).toBe(false)
+    expect(parseAllowPrivateNetworkOrigins('garbage', 'production')).toBe(false)
   })
 
   it('logs a structured error when the listen port is already occupied', async () => {

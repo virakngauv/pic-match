@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   GameSocketProvider,
+  defaultGameServerUrl,
   useGameSocket,
   useRoomSnapshot,
 } from './game-socket-provider'
@@ -135,6 +136,34 @@ describe('GameSocketProvider', () => {
         expect.any(Object),
       ),
     )
+  })
+
+  it('derives the game server URL from a LAN page hostname when the public URL is empty', async () => {
+    vi.stubEnv('NEXT_PUBLIC_GAME_SERVER_URL', '')
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      value: { hostname: '192.168.1.172' },
+      configurable: true,
+    })
+    try {
+      render(
+        <GameSocketProvider>
+          <RoomProbe roomCode="bcdf2" />
+        </GameSocketProvider>,
+      )
+
+      await waitFor(() =>
+        expect(mocks.io).toHaveBeenCalledWith(
+          'http://192.168.1.172:3200',
+          expect.any(Object),
+        ),
+      )
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        configurable: true,
+      })
+    }
   })
 
   it('classifies a missing room after watch resume as a server restart', async () => {
@@ -389,6 +418,21 @@ describe('GameSocketProvider', () => {
     act(() => mocks.handlers.get('server:shutdown')?.())
 
     expect(screen.getByTestId('ended')).toHaveTextContent('active')
+  })
+})
+
+describe('defaultGameServerUrl', () => {
+  it('builds a same-host URL on the default game server port', () => {
+    expect(defaultGameServerUrl('localhost')).toBe('http://localhost:3200')
+    expect(defaultGameServerUrl('127.0.0.1')).toBe('http://127.0.0.1:3200')
+    expect(defaultGameServerUrl('192.168.1.172')).toBe(
+      'http://192.168.1.172:3200',
+    )
+    expect(defaultGameServerUrl('my-macbook.local')).toBe(
+      'http://my-macbook.local:3200',
+    )
+    expect(defaultGameServerUrl('::1')).toBe('http://[::1]:3200')
+    expect(defaultGameServerUrl('[::1]')).toBe('http://[::1]:3200')
   })
 })
 

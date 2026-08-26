@@ -139,13 +139,15 @@ In the DigitalOcean control panel:
 | Autoscaling       | Off                                                                    |
 | Instance size     | 512 MiB (`apps-s-1vcpu-0.5gb`, $5/mo, 1 shared vCPU, 50 GiB bandwidth) |
 | Deploy on push    | Enabled                                                                |
+| `NODE_ENV`        | `production`                                                           |
 | `HOST`            | `0.0.0.0`                                                              |
 | `ALLOWED_ORIGINS` | `https://pic-match.vercel.app`, no trailing slash                      |
 | `LOG_LEVEL`       | `info`                                                                 |
 
 No `PORT` variable is needed: App Platform injects `PORT=8080` to match the
-HTTP port, and the server honors it. Do not set `NODE_ENV` or any other
-variable; the three above are all the service needs.
+HTTP port, and the server honors it. `NODE_ENV=production` keeps origin
+checking strictly on the `ALLOWED_ORIGINS` list; do not set any other
+variables — the four above are all the service needs.
 
 The first build takes a few minutes. Watch the build logs in the control panel:
 the Node.js buildpack detects the pnpm lockfile, installs dependencies, and

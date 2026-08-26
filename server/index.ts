@@ -9,12 +9,19 @@ export function startGameServer(
     port?: number
     host?: string
     allowedOrigins?: string[]
+    allowPrivateNetworkOrigins?: boolean
   } = {},
 ) {
   const port = validatePort(options.port ?? parseEnvPort(process.env.PORT))
   const host = options.host ?? process.env.HOST ?? '127.0.0.1'
   const allowedOrigins =
     options.allowedOrigins ?? parseAllowedOrigins(process.env.ALLOWED_ORIGINS)
+  const allowPrivateNetworkOrigins =
+    options.allowPrivateNetworkOrigins ??
+    parseAllowPrivateNetworkOrigins(
+      process.env.ALLOW_PRIVATE_NETWORK_ORIGINS,
+      process.env.NODE_ENV,
+    )
   const logger = createStructuredLogger(process.env.LOG_LEVEL)
 
   const httpServer = createServer((request, response) => {
@@ -38,6 +45,7 @@ export function startGameServer(
   })
   const socketServer = createGameSocketServer(httpServer, {
     allowedOrigins,
+    allowPrivateNetworkOrigins,
     logger,
   })
 
@@ -97,6 +105,16 @@ export function startGameServer(
 export function parseEnvPort(value: string | undefined) {
   const normalized = value?.trim()
   return normalized ? Number(normalized) : 3200
+}
+
+export function parseAllowPrivateNetworkOrigins(
+  value: string | undefined,
+  nodeEnv: string | undefined,
+) {
+  const normalized = value?.trim().toLowerCase()
+  if (normalized === 'true') return true
+  if (normalized === 'false') return false
+  return nodeEnv !== 'production'
 }
 
 function validatePort(port: number) {
