@@ -125,7 +125,7 @@ export function createGameSocketServer(
     },
     allowRequest(request, callback) {
       const allowed = isOriginAllowed(request.headers.origin)
-      if (!allowed) telemetry.handshakeRejected('origin_not_allowed')
+      if (!allowed) telemetry.countHandshakeRejected('origin_not_allowed')
       callback(null, allowed)
     },
   })
@@ -133,7 +133,7 @@ export function createGameSocketServer(
   io.use((socket, next) => {
     const auth = parseHandshakeAuth(socket.handshake.auth)
     if (!auth) {
-      telemetry.handshakeRejected('invalid_auth')
+      telemetry.countHandshakeRejected('invalid_auth')
       return next(new Error('Unsupported or invalid game session.'))
     }
     socket.data.token = auth.token

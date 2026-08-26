@@ -60,12 +60,37 @@ describe('server telemetry', () => {
     })
   })
 
+  it('aggregates handshake rejections by reason', () => {
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const telemetry = createTelemetry(logger, { flushIntervalMs: 0 })
+
+    telemetry.countHandshakeRejected('origin_not_allowed')
+    telemetry.countHandshakeRejected('invalid_auth')
+    telemetry.countHandshakeRejected('origin_not_allowed')
+    expect(logger.warn).not.toHaveBeenCalled()
+
+    telemetry.flush()
+
+    const events = logger.warn.mock.calls.map(parseCall)
+    expect(events).toContainEqual({
+      event: 'handshake_rejected',
+      reason: 'origin_not_allowed',
+      occurrences: 2,
+    })
+    expect(events).toContainEqual({
+      event: 'handshake_rejected',
+      reason: 'invalid_auth',
+      occurrences: 1,
+    })
+
+    telemetry.flush()
+    expect(logger.warn).toHaveBeenCalledTimes(2)
+  })
+
   it('emits direct events with stable shapes', () => {
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
     const telemetry = createTelemetry(logger, { flushIntervalMs: 0 })
 
-    telemetry.handshakeRejected('origin_not_allowed')
-    telemetry.handshakeRejected('invalid_auth')
     telemetry.expirationSweep(3, 42)
     telemetry.expirationSweep(0, 1)
     telemetry.claimStreak('bcdf2', 7, 20)
@@ -73,8 +98,6 @@ describe('server telemetry', () => {
     telemetry.shutdownCompleted()
 
     expect(logger.warn.mock.calls.map(parseCall)).toEqual([
-      { event: 'handshake_rejected', reason: 'origin_not_allowed' },
-      { event: 'handshake_rejected', reason: 'invalid_auth' },
       {
         event: 'claim_streak',
         roomCode: 'bcdf2',

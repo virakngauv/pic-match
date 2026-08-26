@@ -2,6 +2,8 @@ export type TelemetryLogger = Pick<Console, 'info' | 'warn' | 'error'>
 
 export type RateLimitBudget = 'socket' | 'player' | 'address' | 'entry'
 
+export type HandshakeRejectionReason = 'origin_not_allowed' | 'invalid_auth'
+
 const REJECTED_FLUSH_INTERVAL_MS = 30_000
 
 export function createTelemetry(
@@ -14,6 +16,7 @@ export function createTelemetry(
     { command: string; status: string; occurrences: number }
   >()
   const rateLimited = new Map<RateLimitBudget, number>()
+  const handshakeRejected = new Map<HandshakeRejectionReason, number>()
 
   let flushTimer: ReturnType<typeof setInterval> | undefined
   if (flushIntervalMs > 0) {
@@ -39,6 +42,12 @@ export function createTelemetry(
       )
     }
     rateLimited.clear()
+    for (const [reason, occurrences] of handshakeRejected) {
+      logger.warn(
+        JSON.stringify({ event: 'handshake_rejected', reason, occurrences }),
+      )
+    }
+    handshakeRejected.clear()
   }
 
   return {
@@ -51,8 +60,8 @@ export function createTelemetry(
     countRateLimited(budget: RateLimitBudget) {
       rateLimited.set(budget, (rateLimited.get(budget) ?? 0) + 1)
     },
-    handshakeRejected(reason: 'invalid_auth' | 'origin_not_allowed') {
-      logger.warn(JSON.stringify({ event: 'handshake_rejected', reason }))
+    countHandshakeRejected(reason: HandshakeRejectionReason) {
+      handshakeRejected.set(reason, (handshakeRejected.get(reason) ?? 0) + 1)
     },
     expirationSweep(roomsExpired: number, durationMs: number) {
       if (roomsExpired === 0) return

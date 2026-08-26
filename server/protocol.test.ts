@@ -602,7 +602,7 @@ describe('Socket.IO game protocol', () => {
     expect(outgoing).toEqual([])
   })
 
-  it('logs rejected handshakes with a reason', async () => {
+  it('counts rejected handshakes by reason until flushed', async () => {
     await socketServer.shutdown()
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
     await startServer({ logger, telemetryFlushIntervalMs: 0 })
@@ -629,12 +629,22 @@ describe('Socket.IO game protocol', () => {
     invalidAuth.disconnect()
     disallowedOrigin.disconnect()
 
-    const reasons = logger.warn.mock.calls
+    expect(
+      logger.warn.mock.calls
+        .map((call) => JSON.parse(call[0] as string))
+        .filter((entry) => entry.event === 'handshake_rejected'),
+    ).toEqual([])
+
+    socketServer.telemetry.flush()
+
+    const events = logger.warn.mock.calls
       .map((call) => JSON.parse(call[0] as string))
       .filter((entry) => entry.event === 'handshake_rejected')
-      .map((entry) => entry.reason)
-    expect(reasons).toContain('origin_not_allowed')
-    expect(reasons).toContain('invalid_auth')
+    for (const reason of ['origin_not_allowed', 'invalid_auth'] as const) {
+      const entry = events.find((candidate) => candidate.reason === reason)
+      expect(entry?.occurrences).toBeGreaterThanOrEqual(1)
+    }
+    expect(events).toHaveLength(2)
   })
 
   it('counts rejected command outcomes instead of logging each one', async () => {

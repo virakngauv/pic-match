@@ -48,7 +48,8 @@ async function runDrill() {
   })
   checks.push({
     name: 'disallowed origin rejected',
-    expectedLog: '{"event":"handshake_rejected","reason":"origin_not_allowed"}',
+    expectedLog:
+      '{"event":"handshake_rejected","reason":"origin_not_allowed","occurrences":',
   })
 
   await expectConnectFailure({
@@ -57,7 +58,8 @@ async function runDrill() {
   })
   checks.push({
     name: 'invalid auth rejected',
-    expectedLog: '{"event":"handshake_rejected","reason":"invalid_auth"}',
+    expectedLog:
+      '{"event":"handshake_rejected","reason":"invalid_auth","occurrences":',
   })
 
   const prober = await connect()
@@ -138,7 +140,7 @@ async function runDrill() {
         health: true,
         roomCode,
         checks: checks.map((check) => check.name),
-        note: 'Counted events flush within 30 seconds; claim_streak and handshake_rejected appear immediately.',
+        note: 'Counted events (handshake_rejected, rate_limited, command_rejected) flush within 30 seconds; claim_streak appears immediately.',
       },
       null,
       2,
