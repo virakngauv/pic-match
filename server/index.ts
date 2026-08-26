@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { createGameSocketServer } from './protocol'
+import { parseTrustedProxies } from './proxy-trust'
 
 export function startGameServer(
   options: {
@@ -10,6 +11,7 @@ export function startGameServer(
     host?: string
     allowedOrigins?: string[]
     allowPrivateNetworkOrigins?: boolean
+    trustedProxyAddresses?: string[]
   } = {},
 ) {
   const port = validatePort(options.port ?? parseEnvPort(process.env.PORT))
@@ -22,6 +24,9 @@ export function startGameServer(
       process.env.ALLOW_PRIVATE_NETWORK_ORIGINS,
       process.env.NODE_ENV,
     )
+  const trustedProxyAddresses =
+    options.trustedProxyAddresses ??
+    parseTrustedProxies(process.env.TRUSTED_PROXIES)
   const logger = createStructuredLogger(process.env.LOG_LEVEL)
 
   const httpServer = createServer((request, response) => {
@@ -46,6 +51,7 @@ export function startGameServer(
   const socketServer = createGameSocketServer(httpServer, {
     allowedOrigins,
     allowPrivateNetworkOrigins,
+    ...(trustedProxyAddresses.length ? { trustedProxyAddresses } : {}),
     logger,
   })
 

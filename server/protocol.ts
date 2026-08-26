@@ -12,6 +12,7 @@ import {
 } from '../lib/game-protocol'
 import { GameServer } from './game-server'
 import { isPrivateNetworkOrigin } from './origins'
+import { isTrustedProxy } from './proxy-trust'
 import {
   parseCreateRoom,
   parseHandshakeAuth,
@@ -31,12 +32,27 @@ type GameSocket = Socket<
   SocketData
 >
 
+export type EntryCommandLimits = {
+  perPlayerPerMinute: number
+  perAddressPerMinute: number
+  globalPerMinute: number
+}
+
+export const DEFAULT_ENTRY_COMMAND_LIMITS: EntryCommandLimits = {
+  perPlayerPerMinute: 30,
+  perAddressPerMinute: 120,
+  globalPerMinute: 2_000,
+}
+
+const LOOPBACK_PROXY_ADDRESSES = ['127.0.0.1', '::1', '::ffff:127.0.0.1']
+
 export type GameSocketServerOptions = {
   allowedOrigins: string[]
   allowPrivateNetworkOrigins?: boolean
   trustedProxyAddresses?: string[]
   gameServer?: GameServer
   expirationSweepMs?: number
+  entryCommandLimits?: EntryCommandLimits
   logger?: Pick<Console, 'info' | 'warn' | 'error'>
 }
 
@@ -44,6 +60,8 @@ const invalid = (): CommandFailure => ({
   status: 'invalid',
   message: 'Invalid command payload.',
 })
+
+const GLOBAL_ENTRY_KEY = 'global'
 
 export function createGameSocketServer(
   httpServer: HttpServer,
@@ -57,13 +75,28 @@ export function createGameSocketServer(
     allowedOrigins.has(origin) ||
     (options.allowPrivateNetworkOrigins === true &&
       isPrivateNetworkOrigin(origin))
-  const trustedProxyAddresses = new Set(
-    options.trustedProxyAddresses ?? ['127.0.0.1', '::1', '::ffff:127.0.0.1'],
-  )
+  const trustedProxyAddresses = options.trustedProxyAddresses?.length
+    ? options.trustedProxyAddresses
+    : LOOPBACK_PROXY_ADDRESSES
+  const entryLimits: EntryCommandLimits = {
+    ...DEFAULT_ENTRY_COMMAND_LIMITS,
+    ...options.entryCommandLimits,
+  }
   const socketCommands = new SlidingWindowRateLimiter(40, 10_000)
   const playerCommands = new SlidingWindowRateLimiter(80, 10_000)
   const addressCommands = new SlidingWindowRateLimiter(400, 10_000)
-  const entryCommands = new SlidingWindowRateLimiter(12, 60_000)
+  const playerEntryCommands = new SlidingWindowRateLimiter(
+    entryLimits.perPlayerPerMinute,
+    60_000,
+  )
+  const entryCommands = new SlidingWindowRateLimiter(
+    entryLimits.perAddressPerMinute,
+    60_000,
+  )
+  const globalEntryCommands = new SlidingWindowRateLimiter(
+    entryLimits.globalPerMinute,
+    60_000,
+  )
   let acceptingCommands = true
 
   const io = new Server<
@@ -107,7 +140,7 @@ export function createGameSocketServer(
         const snapshot = gameServer.snapshot(socket.data.token, parsed.roomCode)
         if (isMemberSnapshot(snapshot)) {
           await socket.join(parsed.roomCode)
-        } else if (!entryCommands.take(entryKey(socket), Date.now())) {
+        } else if (!takeEntryBudget(socket)) {
           return acknowledge({
             status: 'rate_limited',
             message: 'Too many commands.',
@@ -337,7 +370,7 @@ export function createGameSocketServer(
       playerCommands.take(socket.data.token, now) &&
       addressCommands.take(socket.data.address, now)
     const entryPermitted =
-      !permitted || !isEntryCommand || entryCommands.take(entryKey(socket), now)
+      !permitted || !isEntryCommand || takeEntryBudget(socket, now)
     if (!permitted || !entryPermitted) {
       acknowledge({ status: 'rate_limited', message: 'Too many commands.' })
       return false
@@ -349,6 +382,14 @@ export function createGameSocketServer(
     return isLoopbackAddress(socket.data.address)
       ? `${socket.data.address}:${socket.data.token}`
       : socket.data.address
+  }
+
+  function takeEntryBudget(socket: GameSocket, now = Date.now()) {
+    return (
+      playerEntryCommands.take(socket.data.token, now) &&
+      entryCommands.take(entryKey(socket), now) &&
+      globalEntryCommands.take(GLOBAL_ENTRY_KEY, now)
+    )
   }
 
   return {
@@ -367,9 +408,9 @@ function snapshotRevision(snapshot: RoomSnapshot) {
   return 'revision' in snapshot ? snapshot.revision : null
 }
 
-function clientAddress(socket: GameSocket, trustedProxyAddresses: Set<string>) {
+function clientAddress(socket: GameSocket, trustedProxies: string[]) {
   const directAddress = socket.handshake.address
-  if (!trustedProxyAddresses.has(directAddress)) return directAddress
+  if (!isTrustedProxy(directAddress, trustedProxies)) return directAddress
 
   const forwarded = socket.handshake.headers['x-forwarded-for']
   const forwardedValue = Array.isArray(forwarded) ? forwarded[0] : forwarded

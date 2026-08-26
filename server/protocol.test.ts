@@ -14,7 +14,7 @@ import {
   type ServerToClientEvents,
 } from '../lib/game-protocol'
 import { GameServer } from './game-server'
-import { createGameSocketServer } from './protocol'
+import { createGameSocketServer, type EntryCommandLimits } from './protocol'
 
 type TestClient = ClientSocket<ServerToClientEvents, ClientToServerEvents>
 
@@ -33,6 +33,7 @@ describe('Socket.IO game protocol', () => {
       expirationSweepMs?: number
       gameServer?: GameServer
       allowPrivateNetworkOrigins?: boolean
+      entryCommandLimits?: EntryCommandLimits
       logger?: Pick<Console, 'info' | 'warn' | 'error'>
     } = {},
   ) {
@@ -42,6 +43,7 @@ describe('Socket.IO game protocol', () => {
       allowPrivateNetworkOrigins: options.allowPrivateNetworkOrigins,
       expirationSweepMs: options.expirationSweepMs ?? 60_000,
       gameServer: options.gameServer,
+      entryCommandLimits: options.entryCommandLimits,
       logger: options.logger ?? { info() {}, warn() {}, error() {} },
     })
     await new Promise<void>((resolve) =>
@@ -399,16 +401,61 @@ describe('Socket.IO game protocol', () => {
     )
   })
 
-  it('rate limits entry commands by trusted-proxy-forwarded client address', async () => {
+  it('rate limits entry commands per player token', async () => {
     const first = await connect(hostToken, '203.0.113.10')
     const second = await connect(guestToken, '203.0.113.11')
 
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
       expect(
         await first.emitWithAck('room:create', { name: `Ada ${attempt}` }),
       ).toMatchObject({ status: 'success' })
+    }
+
+    expect(
+      await first.emitWithAck('room:create', { name: 'Ada limited' }),
+    ).toMatchObject({ status: 'rate_limited' })
+    expect(
+      await second.emitWithAck('room:create', { name: 'Grace unlimited' }),
+    ).toMatchObject({ status: 'success' })
+  })
+
+  it('rate limits entry commands by trusted-proxy-forwarded client address', async () => {
+    const tokens = ['a', 'b', 'c', 'd', 'e'].map((prefix) => prefix.repeat(32))
+    const clients: TestClient[] = []
+    for (const token of tokens) {
+      clients.push(await connect(token, '203.0.113.10'))
+    }
+
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      for (const [index, client] of clients.entries()) {
+        expect(
+          await client.emitWithAck('room:create', {
+            name: `Player ${index} ${attempt}`,
+          }),
+        ).toMatchObject({ status: 'success' })
+      }
+    }
+
+    expect(
+      await clients[0]!.emitWithAck('room:create', { name: 'Address limited' }),
+    ).toMatchObject({ status: 'rate_limited' })
+  })
+
+  it('rate limits entry commands with a global circuit breaker', async () => {
+    await socketServer.shutdown()
+    const limits: EntryCommandLimits = {
+      perPlayerPerMinute: 100,
+      perAddressPerMinute: 100,
+      globalPerMinute: 3,
+    }
+    await startServer({ entryCommandLimits: limits })
+    const first = await connect(hostToken, '203.0.113.14')
+    const second = await connect(guestToken, '203.0.113.15')
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const client = attempt % 2 === 0 ? first : second
       expect(
-        await second.emitWithAck('room:create', { name: `Grace ${attempt}` }),
+        await client.emitWithAck('room:create', { name: `Player ${attempt}` }),
       ).toMatchObject({ status: 'success' })
     }
 
@@ -423,7 +470,7 @@ describe('Socket.IO game protocol', () => {
   it('rate limits room-code resume probes as entry commands', async () => {
     const client = await connect(hostToken, '203.0.113.12')
 
-    for (let attempt = 0; attempt < 12; attempt += 1) {
+    for (let attempt = 0; attempt < 30; attempt += 1) {
       expect(
         await client.emitWithAck('session:resume', { roomCode: 'bcdf2' }),
       ).toMatchObject({ status: 'success' })

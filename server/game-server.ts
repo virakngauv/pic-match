@@ -9,14 +9,14 @@ import { GameRoom } from './game-room'
 import { ROOM_CODE_CONSONANTS, ROOM_CODE_FINAL_CHARACTERS } from './room-code'
 
 const MAX_CODE_ATTEMPTS = 25
-export const MAX_ACTIVE_ROOMS = 5_000
+export const MAX_ACTIVE_ROOMS = 25_000
 
 export type RoomExpirationPolicy = {
   roomIdleMs: number
 }
 
 export const DEFAULT_ROOM_EXPIRATION: RoomExpirationPolicy = {
-  roomIdleMs: 26 * 60 * 60 * 1_000,
+  roomIdleMs: 2 * 60 * 60 * 1_000,
 }
 
 export class GameServer {
