@@ -651,9 +651,9 @@ describe('Socket.IO game protocol', () => {
         }),
       ).toMatchObject({ status: 'room_not_found' })
     }
-    expect(
-      await client.emitWithAck('room:create', { name: '' }),
-    ).toMatchObject({ status: 'invalid' })
+    expect(await client.emitWithAck('room:create', { name: '' })).toMatchObject(
+      { status: 'invalid' },
+    )
     expect(
       logger.info.mock.calls
         .map((call) => JSON.parse(call[0] as string))
@@ -688,9 +688,8 @@ describe('Socket.IO game protocol', () => {
 
     const client = await connect(hostToken)
     const results = await Promise.all(
-      Array.from(
-        { length: 45 },
-        () => client.emitWithAck('session:resume', {}),
+      Array.from({ length: 45 }, () =>
+        client.emitWithAck('session:resume', {}),
       ),
     )
     expect(results.some((result) => result.status === 'rate_limited')).toBe(
