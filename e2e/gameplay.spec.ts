@@ -481,9 +481,6 @@ test('replays a complete shared race across browser sessions', async ({
     await hostPage.getByRole('button', { name: 'Start game' }).click()
     await expectPlaying(hostPage, playerNames.host)
     await expectPlaying(lateJoinerPage, playerNames.replacement)
-    await expect(
-      hostPage.locator('main[aria-label^="Game for"]'),
-    ).toHaveAttribute('data-displayed-round', '0')
 
     const secondGameInitialState = await playingSnapshot(hostPage)
     expect(secondGameInitialState.scores).toEqual({

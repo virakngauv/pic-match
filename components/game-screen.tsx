@@ -63,7 +63,6 @@ export function GameScreen({
       className="game-surface"
       aria-label={`Game for ${player.name}`}
       data-player-position={player.position}
-      data-displayed-round={displayedRound.pairRevision}
     >
       <div className="game-shell">
         <header

@@ -281,9 +281,9 @@ describe('GameScreen', () => {
     expect(onSubmitClaim).not.toHaveBeenCalled()
     expect(screen.getByLabelText('Match claim feedback')).toBeEmptyDOMElement()
     expect(screen.queryByText(/first to/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('main')).toHaveAttribute(
-      'data-displayed-round',
-      '0',
+    expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
+      'data-card-id',
+      'card-13',
     )
   })
 
@@ -723,6 +723,9 @@ describe('GameScreen', () => {
     const scoreboardBeforeAdvance = screen.getByRole('complementary', {
       name: 'Scoreboard',
     })
+    const firstCatBeforeAdvance = screen.getByRole('button', {
+      name: 'Cat on card 1',
+    })
 
     await user.click(screen.getByRole('button', { name: 'Cat on card 1' }))
     await user.click(screen.getByRole('button', { name: 'Cat on card 2' }))
@@ -741,9 +744,12 @@ describe('GameScreen', () => {
       />,
     )
 
-    expect(screen.getByRole('main')).toHaveAttribute(
-      'data-displayed-round',
-      '1',
+    expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
+      'data-card-id',
+      'card-13',
+    )
+    expect(screen.getByRole('button', { name: 'Cat on card 1' })).not.toBe(
+      firstCatBeforeAdvance,
     )
     expect(screen.getByLabelText("Chrome player's score")).toHaveTextContent(
       '1',
@@ -866,17 +872,9 @@ describe('GameScreen score reveal', () => {
         .getAllByRole('listitem')
         .find((entry) => entry.textContent?.includes('Firefox host')),
     ).toHaveAttribute('data-scored', 'true')
-    expect(screen.getByRole('main')).toHaveAttribute(
-      'data-displayed-round',
-      '0',
-    )
 
     act(() => vi.advanceTimersByTime(1_510))
 
-    expect(screen.getByRole('main')).toHaveAttribute(
-      'data-displayed-round',
-      '1',
-    )
     expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
       'data-card-id',
       'card-77',
@@ -943,10 +941,6 @@ describe('GameScreen score reveal', () => {
       />,
     )
 
-    expect(screen.getByRole('main')).toHaveAttribute(
-      'data-displayed-round',
-      '1',
-    )
     expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
       'data-card-id',
       'card-77',
@@ -968,10 +962,6 @@ describe('GameScreen score reveal', () => {
       />,
     )
 
-    expect(screen.getByRole('main')).toHaveAttribute(
-      'data-displayed-round',
-      '1',
-    )
     expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
       'data-card-id',
       'card-77',
@@ -998,10 +988,6 @@ describe('GameScreen score reveal', () => {
       />,
     )
 
-    expect(screen.getByRole('main')).toHaveAttribute(
-      'data-displayed-round',
-      '2',
-    )
     expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
       'data-card-id',
       'card-77',
@@ -1041,9 +1027,9 @@ describe('GameScreen score reveal', () => {
     )
 
     expect(screen.getByLabelText('Score reveal')).toHaveTextContent('')
-    expect(screen.getByRole('main')).toHaveAttribute(
-      'data-displayed-round',
-      '2',
+    expect(screen.getByRole('article', { name: 'Card 1' })).toHaveAttribute(
+      'data-card-id',
+      'card-77',
     )
   })
 
