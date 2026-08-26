@@ -26,7 +26,7 @@ and two strong tilts, and rejects any ±20° window that contains six or more
 angles. The profiles are intentionally varied — different upright counts,
 angle sets, and orderings — rather than statistically uniform. The selected
 profile is exposed through the card's `data-rotation-profile` attribute and
-shown in the `/wiring-lab/card-layouts` gallery.
+shown in the `/dev/card-layouts` gallery.
 
 Symbol plans apply `normalizeRotation` to profile angles, which keeps every
 rendered rotation inside `(-180, 180)` and avoids `-180` exactly, dodging a

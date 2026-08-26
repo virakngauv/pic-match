@@ -266,7 +266,7 @@ test('replays a complete shared race across browser sessions', async ({
 
     await outsiderPage.goto(`/${roomCode}`)
     await expect(
-      outsiderPage.getByRole('heading', { name: 'Join your friends.' }),
+      outsiderPage.getByRole('heading', { name: 'join a room.' }),
     ).toBeVisible()
     await expect(outsiderPage.getByLabel('Room code')).toHaveValue(roomCode)
 
@@ -481,9 +481,6 @@ test('replays a complete shared race across browser sessions', async ({
     await hostPage.getByRole('button', { name: 'Start game' }).click()
     await expectPlaying(hostPage, playerNames.host)
     await expectPlaying(lateJoinerPage, playerNames.replacement)
-    await expect(
-      hostPage.getByText(`Room ${roomCode}, round 1`, { exact: true }),
-    ).toBeAttached()
 
     const secondGameInitialState = await playingSnapshot(hostPage)
     expect(secondGameInitialState.scores).toEqual({
@@ -555,7 +552,7 @@ test('replays a complete shared race across browser sessions', async ({
 
     await outsiderPage.reload()
     await expect(
-      outsiderPage.getByRole('heading', { name: 'Join your friends.' }),
+      outsiderPage.getByRole('heading', { name: 'join a room.' }),
     ).toBeVisible()
   } finally {
     await Promise.all([
@@ -580,9 +577,7 @@ async function createRoom(page: Page, name: string) {
 
   const roomCode = new URL(page.url()).pathname.slice(1)
   expect(roomCode).toMatch(roomCodePattern)
-  await expect(
-    page.getByRole('heading', { name: 'Ready to play.' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'lobby.' })).toBeVisible()
   return roomCode
 }
 
@@ -594,9 +589,7 @@ async function joinRoom(page: Page, roomCode: string, name: string) {
   await page.getByLabel('Name').fill(name)
   await page.getByRole('button', { name: 'Join', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
-  await expect(
-    page.getByRole('heading', { name: 'Ready to play.' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'lobby.' })).toBeVisible()
 }
 
 async function expectPlaying(page: Page, playerName: string) {
@@ -617,9 +610,7 @@ async function expectFinished(page: Page, playerName: string) {
 
 async function expectLobby(page: Page, roomCode: string) {
   await expect(page).toHaveURL(new RegExp(`/${roomCode}$`, 'i'))
-  await expect(
-    page.getByRole('heading', { name: 'Ready to play.' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'lobby.' })).toBeVisible()
 }
 
 async function expectNoHorizontalOverflow(page: Page) {

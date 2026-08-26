@@ -17,7 +17,7 @@ single-process Socket.IO game server.
 - There is no application heartbeat, presence model, database, or multi-process
   adapter.
 
-Clerk, PostHog, and Arcjet remain optional frontend integrations.
+Clerk and PostHog remain optional frontend integrations.
 
 ## Local development
 

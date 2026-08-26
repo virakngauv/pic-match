@@ -169,7 +169,6 @@ function PresentRoomLobby({
     case 'playing':
       return (
         <GameScreen
-          roomCode={displayedRoomView.roomCode}
           player={displayedRoomView.player}
           pairRevision={displayedRoomView.pairRevision}
           cards={displayedRoomView.cards}
@@ -274,16 +273,10 @@ function ConnectedRoomLobby({
       aria-busy={isLeaving || isStarting}
     >
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 shadow-sm sm:p-10">
-        <div className="text-center">
-          <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
-            Room lobby
-          </p>
-          <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-            Ready to play.
+        <div>
+          <h1 className="text-center text-4xl leading-[1.05] font-bold tracking-[-0.04em] text-balance sm:text-5xl">
+            lobby<span className="text-accent">.</span>
           </h1>
-          <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-            Share the code or have players scan the QR code to join this room.
-          </p>
           <RoomInviteCard roomCode={view.roomCode} />
           <RoomInviteActions roomCode={view.roomCode} />
         </div>

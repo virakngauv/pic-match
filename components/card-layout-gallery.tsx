@@ -22,7 +22,7 @@ export function CardLayoutGallery() {
     <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-8">
       <header className="max-w-2xl">
         <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
-          Wiring lab
+          Developer fixture
         </p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight">
           Card layout gallery
