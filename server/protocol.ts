@@ -211,6 +211,9 @@ export function createGameSocketServer(
         if (!parsed) return ack(invalid())
 
         const result = gameServer.leaveRoom(socket.data.token, parsed.roomCode)
+        if (!gameServer.rooms.has(parsed.roomCode)) {
+          claimStreaks.forget(parsed.roomCode)
+        }
         await socket.leave(parsed.roomCode)
         ack(result)
         broadcastSnapshots(parsed.roomCode)
@@ -468,6 +471,7 @@ export function createGameSocketServer(
   return {
     io,
     gameServer,
+    claimStreaks,
     telemetry,
     async shutdown() {
       acceptingCommands = false

@@ -791,6 +791,38 @@ describe('Socket.IO game protocol', () => {
     expect(streakEvents).toEqual([])
   })
 
+  it('forgets the claim streak when the final player leaves', async () => {
+    const host = await connect(hostToken)
+    const created = await host.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error(created.message)
+    const roomCode = created.roomCode
+
+    const playingPromise = nextSnapshot(host, 'playing')
+    await host.emitWithAck('game:start', { roomCode })
+    const snapshot = await playingPromise
+    const symbol = sharedSymbol(snapshot)
+    const wrongSymbol =
+      snapshot.cards[1]?.symbolIds.find((candidate) => candidate !== symbol) ??
+      'moon'
+
+    expect(
+      await host.emitWithAck('game:claim', {
+        roomCode,
+        commandId: 'incorrect-before-final-leave',
+        pairRevision: snapshot.pairRevision,
+        firstSymbolId: symbol,
+        secondSymbolId: wrongSymbol,
+      }),
+    ).toMatchObject({ status: 'incorrect' })
+    expect(socketServer.claimStreaks.size()).toBe(1)
+
+    expect(await host.emitWithAck('room:leave', { roomCode })).toEqual({
+      status: 'success',
+    })
+    expect(socketServer.gameServer.rooms.has(roomCode)).toBe(false)
+    expect(socketServer.claimStreaks.size()).toBe(0)
+  })
+
   it('warns about a claim streak after repeated incorrect claims', async () => {
     await socketServer.shutdown()
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }

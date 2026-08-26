@@ -357,6 +357,12 @@ doctl apps logs YOUR_APP_ID --type run | grep claim_streak
 `pnpm monitoring:drill` exercises the failure paths against a server you
 control (local or deployed):
 
+Run the drill against a local or staging server, not against active players.
+Its repeated `session:resume` probes consume per-player and per-address entry
+budgets and can temporarily rate-limit real create, join, and resume commands.
+If production use is unavoidable, use a maintenance window and confirm the
+probe has an isolated entry budget.
+
 ```bash
 GAME_SERVER_URL=http://127.0.0.1:3200 \
 GAME_SERVER_ORIGIN=http://localhost:3000 \
