@@ -13,6 +13,10 @@ export type ClaimStreakOutcome = {
 }
 
 export function createClaimStreakTracker(threshold = CLAIM_STREAK_THRESHOLD) {
+  if (!Number.isInteger(threshold) || threshold < 1) {
+    throw new RangeError('threshold must be a positive integer')
+  }
+
   const streaks = new Map<
     string,
     { pairRevision: number | null; incorrectInARow: number }

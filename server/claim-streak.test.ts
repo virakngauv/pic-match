@@ -9,6 +9,18 @@ function incorrect(pairRevision: number | null = 0) {
 }
 
 describe('claim streak tracker', () => {
+  it('rejects invalid thresholds at construction', () => {
+    for (const threshold of [
+      0,
+      -1,
+      1.5,
+      Number.POSITIVE_INFINITY,
+      Number.NaN,
+    ]) {
+      expect(() => createClaimStreakTracker(threshold)).toThrow(RangeError)
+    }
+  })
+
   it('reports nothing below the threshold and fires at each threshold multiple', () => {
     const tracker = createClaimStreakTracker(10)
 

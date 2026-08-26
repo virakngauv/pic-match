@@ -4,7 +4,7 @@ Recorded evidence that the game server's monitoring events fire for real
 failures and can be read back from its logs. Repeat the drill with:
 
 ```bash
-GAME_SERVER_URL=http://127.0.0.1:3200 \
+GAME_SERVER_URL=http://127.0.0.1:3299 \
 GAME_SERVER_ORIGIN=http://localhost:3000 \
 pnpm monitoring:drill
 ```
