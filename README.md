@@ -73,7 +73,7 @@ retries idempotent.
 
 Default idle expiration:
 
-- all phases: 26 hours
+- all phases: 2 hours
 
 Only meaningful room/game commands update activity. Socket.IO transport ping,
 disconnect, and reconnect do not.

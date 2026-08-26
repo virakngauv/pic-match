@@ -126,28 +126,29 @@ In the DigitalOcean control panel:
    `deploy/app-spec.example.yaml`.
 4. Confirm the service settings match the table below, then create the app.
 
-| Setting           | Required value                                                         |
-| ----------------- | ---------------------------------------------------------------------- |
-| Source            | GitHub, this repository, `main` branch                                 |
-| Source directory  | `/`                                                                    |
-| Environment       | Node.js (buildpack; detects `pnpm-lock.yaml`)                          |
-| Build command     | None (buildpack installs deps and builds)                              |
-| Run command       | `pnpm start:server`                                                    |
-| HTTP port         | `8080`                                                                 |
-| Health check      | Readiness, HTTP path `/healthz`                                        |
-| Instance count    | `1`                                                                    |
-| Autoscaling       | Off                                                                    |
-| Instance size     | 512 MiB (`apps-s-1vcpu-0.5gb`, $5/mo, 1 shared vCPU, 50 GiB bandwidth) |
-| Deploy on push    | Enabled                                                                |
-| `NODE_ENV`        | `production`                                                           |
-| `HOST`            | `0.0.0.0`                                                              |
-| `ALLOWED_ORIGINS` | `https://pic-match.vercel.app`, no trailing slash                      |
-| `LOG_LEVEL`       | `info`                                                                 |
+| Setting           | Required value                                      |
+| ----------------- | --------------------------------------------------- |
+| Source            | GitHub, this repository, `main` branch              |
+| Source directory  | `/`                                                 |
+| Environment       | Node.js (buildpack; detects `pnpm-lock.yaml`)       |
+| Build command     | None (buildpack installs deps and builds)           |
+| Run command       | `pnpm start:server`                                 |
+| HTTP port         | `8080`                                              |
+| Health check      | Readiness, HTTP path `/healthz`                     |
+| Instance count    | `1`                                                 |
+| Autoscaling       | Off                                                 |
+| Instance size     | 2 GiB (`apps-s-1vcpu-2gb`, 1 shared vCPU)           |
+| Deploy on push    | Enabled                                             |
+| `NODE_ENV`        | `production`                                        |
+| `HOST`            | `0.0.0.0`                                           |
+| `ALLOWED_ORIGINS` | `https://pic-match.vercel.app`, no trailing slash   |
+| `LOG_LEVEL`       | `info`                                              |
+| `TRUSTED_PROXIES` | `10.0.0.0/8` (verify the ingress range you observe) |
 
 No `PORT` variable is needed: App Platform injects `PORT=8080` to match the
 HTTP port, and the server honors it. `NODE_ENV=production` keeps origin
 checking strictly on the `ALLOWED_ORIGINS` list; do not set any other
-variables — the four above are all the service needs.
+variables — the five above are all the service needs.
 
 The first build takes a few minutes. Watch the build logs in the control panel:
 the Node.js buildpack detects the pnpm lockfile, installs dependencies, and
@@ -185,15 +186,23 @@ room and see each other's rooms as missing. Keep **instance count at 1** and
 **autoscaling off**. If you need more capacity, use a larger instance size,
 never more instances.
 
-### Rate limiting shares one bucket on App Platform
+### Rate limiting behind the App Platform ingress
 
-The game server rate-limits commands by client address and only trusts
-loopback proxies. Behind App Platform's ingress, every player appears to come
-from the same internal address, so the shared entry-command budget is 12 room
-creates/joins per minute across the whole playtest, and the shared socket
-command budget is 400 commands per 10 seconds. Per-player and per-room limits
-are unaffected. This is fine for a first playtest; tell players to avoid
-rapid-fire joining if you see entry commands rejected.
+The game server rate-limits commands by client address and recovers real client
+IPs from `X-Forwarded-For` only for proxies listed in `TRUSTED_PROXIES` (exact
+IPs or IPv4 CIDRs, comma-separated; loopback is trusted by default). Without
+it, every player appears to come from the ingress's internal address, so the
+per-address budgets become shared global budgets:
+
+- entry commands (room creates, joins, and room-code resume probes): 120 per
+  minute shared, plus 30 per minute per player token and a 2,000 per minute
+  global circuit breaker;
+- socket commands: 400 per 10 seconds shared.
+
+Set `TRUSTED_PROXIES` to the ingress's private address range (the example app
+spec uses `10.0.0.0/8`; confirm the range your server actually observes) to
+restore per-IP keying so these become true per-client limits. Per-player token
+limits apply regardless of proxy trust.
 
 ## 2. Connect the Vercel frontend
 
