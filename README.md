@@ -108,6 +108,10 @@ GAME_SERVER_ORIGIN=https://your-app.vercel.app \
 pnpm deploy:smoke
 ```
 
+For repeatable local Socket.IO load tests, including ramp, capacity, reconnect,
+latency, and profiling guidance, see
+[game-server load testing](docs/deployment/game-server-load-testing.md).
+
 ## Deployment
 
 The supported production topology is one DigitalOcean App Platform service

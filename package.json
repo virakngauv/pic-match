@@ -12,6 +12,7 @@
     "deploy:build": "pnpm deploy:check-env && pnpm build",
     "deploy:check-env": "node scripts/check-deployment-env.mjs",
     "deploy:smoke": "tsx scripts/smoke-game-server.ts",
+    "load:server": "tsx scripts/load-game-server.ts",
     "monitoring:drill": "tsx scripts/monitoring-drill.ts",
     "start": "next start",
     "start:web": "next start",
