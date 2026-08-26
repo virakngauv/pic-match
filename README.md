@@ -34,9 +34,14 @@ pnpm dev
 - Next.js at `http://localhost:3000`
 - the game server at `http://127.0.0.1:3200`
 
-The frontend defaults to `http://localhost:3200` when
-`NEXT_PUBLIC_GAME_SERVER_URL` is unset. Set that variable to the public `https`
-game-server origin for Vercel builds; Socket.IO will use WSS automatically.
+When `NEXT_PUBLIC_GAME_SERVER_URL` is unset, the browser connects to the page
+hostname on port 3200, so `http://localhost:3000`,
+`http://<lan-ip>:3000`, and `http://<hostname>.local:3000` all work without
+extra configuration. Outside production the game server also accepts socket
+connections from any private-network origin; set `HOST=0.0.0.0` to let other
+LAN devices reach it. For Vercel builds, set `NEXT_PUBLIC_GAME_SERVER_URL` to
+the public `https` game-server origin and `ALLOWED_ORIGINS` on the game server
+to the frontend origin; Socket.IO will use WSS automatically.
 
 Useful single-service commands:
 

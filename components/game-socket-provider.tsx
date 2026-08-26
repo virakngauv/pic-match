@@ -46,6 +46,12 @@ type GameSocketContextValue = {
 
 const GameSocketContext = createContext<GameSocketContextValue | null>(null)
 const COMMAND_TIMEOUT_MS = 6_000
+const DEFAULT_GAME_SERVER_PORT = 3200
+
+export function defaultGameServerUrl(hostname: string): string {
+  const host = hostname.includes(':') ? `[${hostname}]` : hostname
+  return `http://${host}:${DEFAULT_GAME_SERVER_PORT}`
+}
 
 export function GameSocketProvider({ children }: { children: ReactNode }) {
   const { clientToken, ensureClientToken } = usePlayerSession()
@@ -69,7 +75,8 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
 
     const memberRooms = memberRoomsRef.current
     const gameServerUrl =
-      process.env.NEXT_PUBLIC_GAME_SERVER_URL?.trim() || 'http://localhost:3200'
+      process.env.NEXT_PUBLIC_GAME_SERVER_URL?.trim() ||
+      defaultGameServerUrl(window.location.hostname)
     const socket: GameSocket = io(gameServerUrl, {
       auth: { token: clientToken, protocolVersion: GAME_PROTOCOL_VERSION },
       autoConnect: true,

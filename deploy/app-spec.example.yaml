@@ -14,6 +14,9 @@ services:
     health_check:
       http_path: /healthz
     envs:
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
       - key: HOST
         value: 0.0.0.0
         scope: RUN_TIME

@@ -32,12 +32,14 @@ describe('Socket.IO game protocol', () => {
     options: {
       expirationSweepMs?: number
       gameServer?: GameServer
+      allowPrivateNetworkOrigins?: boolean
       logger?: Pick<Console, 'info' | 'warn' | 'error'>
     } = {},
   ) {
     httpServer = createServer()
     socketServer = createGameSocketServer(httpServer, {
       allowedOrigins: [allowedOrigin],
+      allowPrivateNetworkOrigins: options.allowPrivateNetworkOrigins,
       expirationSweepMs: options.expirationSweepMs ?? 60_000,
       gameServer: options.gameServer,
       logger: options.logger ?? { info() {}, warn() {}, error() {} },
@@ -59,11 +61,15 @@ describe('Socket.IO game protocol', () => {
     if (httpServer.listening) await socketServer.shutdown()
   })
 
-  async function connect(token: string, forwardedFor?: string) {
+  async function connect(
+    token: string,
+    forwardedFor?: string,
+    origin = allowedOrigin,
+  ) {
     const client: TestClient = createClient(url, {
       auth: { token, protocolVersion: GAME_PROTOCOL_VERSION },
       extraHeaders: {
-        Origin: allowedOrigin,
+        Origin: origin,
         ...(forwardedFor ? { 'X-Forwarded-For': forwardedFor } : {}),
       },
       forceNew: true,
@@ -342,6 +348,37 @@ describe('Socket.IO game protocol', () => {
     await expect(
       connectError(disallowedOrigin as TestClient),
     ).resolves.toBeTruthy()
+  })
+
+  it('rejects private-network browser origins when the dev allowance is off', async () => {
+    const lanOrigin = createClient(url, {
+      auth: { token: hostToken, protocolVersion: GAME_PROTOCOL_VERSION },
+      extraHeaders: { Origin: 'http://192.168.1.172:3000' },
+      forceNew: true,
+      transports: ['websocket'],
+    })
+    clients.push(lanOrigin as TestClient)
+
+    await expect(connectError(lanOrigin as TestClient)).resolves.toBeTruthy()
+  })
+
+  it('accepts private-network browser origins when the dev allowance is on', async () => {
+    await socketServer.shutdown()
+    await startServer({ allowPrivateNetworkOrigins: true })
+
+    const client = await connect(
+      hostToken,
+      undefined,
+      'http://192.168.1.172:3000',
+    )
+    const localhostClient = await connect(
+      guestToken,
+      undefined,
+      'http://my-macbook.local:3000',
+    )
+
+    expect(client.connected).toBe(true)
+    expect(localhostClient.connected).toBe(true)
   })
 
   it('returns typed failures for malformed and rate-limited commands', async () => {
