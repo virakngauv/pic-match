@@ -265,16 +265,17 @@ export function createGameSocketServer(
         const before = gameServer.snapshot(socket.data.token, parsed.roomCode)
         const result = gameServer.claim(socket.data.token, parsed)
         const after = gameServer.snapshot(socket.data.token, parsed.roomCode)
+        const stateChanged =
+          snapshotRevision(after) !== snapshotRevision(before)
         ack(result)
-        reportClaimStreak(
-          claimStreaks.record({
-            roomCode: parsed.roomCode,
-            status: result.status,
-            pairRevision:
-              after.status === 'playing' ? after.pairRevision : null,
-          }),
-        )
-        if (snapshotRevision(after) !== snapshotRevision(before)) {
+        if (stateChanged) {
+          reportClaimStreak(
+            claimStreaks.record({
+              roomCode: parsed.roomCode,
+              status: result.status,
+              pairRevision: parsed.pairRevision,
+            }),
+          )
           broadcastSnapshots(parsed.roomCode)
         }
       })

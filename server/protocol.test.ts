@@ -738,6 +738,59 @@ describe('Socket.IO game protocol', () => {
     ])
   })
 
+  it('does not assign replayed claim results to the current pair streak', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    await startServer({ logger, telemetryFlushIntervalMs: 0 })
+
+    const host = await connect(hostToken)
+    const guest = await connect(guestToken)
+    const created = await host.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error(created.message)
+    const roomCode = created.roomCode
+    await guest.emitWithAck('room:join', { roomCode, name: 'Grace' })
+
+    const hostPlayingPromise = nextSnapshot(host, 'playing')
+    const guestPlayingPromise = nextSnapshot(guest, 'playing')
+    await host.emitWithAck('game:start', { roomCode })
+    const [hostPlaying, guestPlaying] = await Promise.all([
+      hostPlayingPromise,
+      guestPlayingPromise,
+    ])
+    const symbol = sharedSymbol(hostPlaying)
+    const replayedIncorrect = {
+      roomCode,
+      commandId: 'replayed-incorrect',
+      pairRevision: hostPlaying.pairRevision,
+      firstSymbolId: symbol,
+      secondSymbolId:
+        hostPlaying.cards[1]?.symbolIds.find(
+          (candidate) => candidate !== symbol,
+        ) ?? 'moon',
+    }
+
+    expect(
+      await host.emitWithAck('game:claim', replayedIncorrect),
+    ).toMatchObject({ status: 'incorrect' })
+    expect(
+      await guest.emitWithAck(
+        'game:claim',
+        correctClaim(guestPlaying, roomCode, 'advance-pair'),
+      ),
+    ).toEqual({ status: 'success' })
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect(
+        await host.emitWithAck('game:claim', replayedIncorrect),
+      ).toMatchObject({ status: 'incorrect' })
+    }
+
+    const streakEvents = logger.warn.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event === 'claim_streak')
+    expect(streakEvents).toEqual([])
+  })
+
   it('warns about a claim streak after repeated incorrect claims', async () => {
     await socketServer.shutdown()
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
