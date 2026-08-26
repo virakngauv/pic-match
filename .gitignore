@@ -22,6 +22,9 @@ test-results/
 .env.local
 .env.*.local
 
+# codex local environments
+.codex/environments/
+
 # misc
 .DS_Store
 *.pem
