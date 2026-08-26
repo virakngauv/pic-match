@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  createStructuredLogger,
   parseAllowPrivateNetworkOrigins,
   parseEnvPort,
   startGameServer,
@@ -78,6 +79,47 @@ describe('game server HTTP process', () => {
     expect(parseEnvPort('')).toBe(3200)
     expect(parseEnvPort('   ')).toBe(3200)
     expect(parseEnvPort(' 3201 ')).toBe(3201)
+  })
+
+  it('filters telemetry events by LOG_LEVEL', () => {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const errorOnly = createStructuredLogger('error')
+      errorOnly.info('{"event":"expiration_sweep"}')
+      errorOnly.warn('{"event":"rate_limited"}')
+      errorOnly.error('{"event":"game_server_error"}')
+
+      expect(infoSpy).not.toHaveBeenCalled()
+      expect(warnSpy).not.toHaveBeenCalled()
+      expect(errorSpy).toHaveBeenCalledOnce()
+
+      vi.clearAllMocks()
+      const warnAndUp = createStructuredLogger('warn')
+      warnAndUp.info('{"event":"expiration_sweep"}')
+      warnAndUp.warn('{"event":"rate_limited"}')
+      warnAndUp.error('{"event":"game_server_error"}')
+
+      expect(infoSpy).not.toHaveBeenCalled()
+      expect(warnSpy).toHaveBeenCalledOnce()
+      expect(errorSpy).toHaveBeenCalledOnce()
+
+      vi.clearAllMocks()
+      const unset = createStructuredLogger(undefined)
+      unset.info('{"event":"expiration_sweep"}')
+      unset.warn('{"event":"rate_limited"}')
+
+      expect(infoSpy).toHaveBeenCalledOnce()
+      expect(warnSpy).toHaveBeenCalledOnce()
+
+      vi.clearAllMocks()
+      const bogus = createStructuredLogger('chatty')
+      bogus.info('{"event":"expiration_sweep"}')
+      expect(infoSpy).toHaveBeenCalledOnce()
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 
   it('allows private-network origins outside production unless overridden', () => {

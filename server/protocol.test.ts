@@ -34,6 +34,7 @@ describe('Socket.IO game protocol', () => {
       gameServer?: GameServer
       allowPrivateNetworkOrigins?: boolean
       entryCommandLimits?: EntryCommandLimits
+      telemetryFlushIntervalMs?: number
       logger?: Pick<Console, 'info' | 'warn' | 'error'>
     } = {},
   ) {
@@ -44,6 +45,7 @@ describe('Socket.IO game protocol', () => {
       expirationSweepMs: options.expirationSweepMs ?? 60_000,
       gameServer: options.gameServer,
       entryCommandLimits: options.entryCommandLimits,
+      telemetryFlushIntervalMs: options.telemetryFlushIntervalMs,
       logger: options.logger ?? { info() {}, warn() {}, error() {} },
     })
     await new Promise<void>((resolve) =>
@@ -598,6 +600,346 @@ describe('Socket.IO game protocol', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(received).toEqual([])
     expect(outgoing).toEqual([])
+  })
+
+  it('counts rejected handshakes by reason until flushed', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    await startServer({ logger, telemetryFlushIntervalMs: 0 })
+
+    const invalidAuth = createClient(url, {
+      auth: { token: 'bad', protocolVersion: GAME_PROTOCOL_VERSION },
+      forceNew: true,
+      transports: ['websocket'],
+    })
+    const disallowedOrigin = createClient(url, {
+      auth: { token: hostToken, protocolVersion: GAME_PROTOCOL_VERSION },
+      extraHeaders: { Origin: 'https://malicious.example' },
+      forceNew: true,
+      transports: ['websocket'],
+    })
+    clients.push(invalidAuth as TestClient, disallowedOrigin as TestClient)
+
+    await expect(connectError(invalidAuth as TestClient)).resolves.toMatch(
+      /invalid game session/i,
+    )
+    await expect(
+      connectError(disallowedOrigin as TestClient),
+    ).resolves.toBeTruthy()
+    invalidAuth.disconnect()
+    disallowedOrigin.disconnect()
+
+    expect(
+      logger.warn.mock.calls
+        .map((call) => JSON.parse(call[0] as string))
+        .filter((entry) => entry.event === 'handshake_rejected'),
+    ).toEqual([])
+
+    socketServer.telemetry.flush()
+
+    const events = logger.warn.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event === 'handshake_rejected')
+    for (const reason of ['origin_not_allowed', 'invalid_auth'] as const) {
+      const entry = events.find((candidate) => candidate.reason === reason)
+      expect(entry?.occurrences).toBeGreaterThanOrEqual(1)
+    }
+    expect(events).toHaveLength(2)
+  })
+
+  it('counts rejected command outcomes instead of logging each one', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    await startServer({ logger, telemetryFlushIntervalMs: 0 })
+
+    const client = await connect(hostToken)
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      expect(
+        await client.emitWithAck('room:join', {
+          roomCode: 'zzzz9',
+          name: `Ada ${attempt}`,
+        }),
+      ).toMatchObject({ status: 'room_not_found' })
+    }
+    expect(await client.emitWithAck('room:create', { name: '' })).toMatchObject(
+      { status: 'invalid' },
+    )
+    expect(
+      logger.info.mock.calls
+        .map((call) => JSON.parse(call[0] as string))
+        .filter((entry) => entry.event === 'command_rejected'),
+    ).toEqual([])
+
+    socketServer.telemetry.flush()
+
+    const events = logger.info.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event === 'command_rejected')
+    expect(events).toEqual([
+      {
+        event: 'command_rejected',
+        command: 'room:join',
+        status: 'room_not_found',
+        occurrences: 3,
+      },
+      {
+        event: 'command_rejected',
+        command: 'room:create',
+        status: 'invalid',
+        occurrences: 1,
+      },
+    ])
+  })
+
+  it('reports which rate-limit budget rejected a command', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    await startServer({ logger, telemetryFlushIntervalMs: 0 })
+
+    const client = await connect(hostToken)
+    const results = await Promise.all(
+      Array.from({ length: 45 }, () =>
+        client.emitWithAck('session:resume', {}),
+      ),
+    )
+    expect(results.some((result) => result.status === 'rate_limited')).toBe(
+      true,
+    )
+
+    socketServer.telemetry.flush()
+
+    const budgets = logger.warn.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event === 'rate_limited')
+      .map((entry) => entry.budget)
+    expect(budgets).toContain('socket')
+  })
+
+  it('reports the entry budget when resume probes are limited', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    await startServer({
+      logger,
+      telemetryFlushIntervalMs: 0,
+      entryCommandLimits: {
+        perPlayerPerMinute: 12,
+        perAddressPerMinute: 12,
+        globalPerMinute: 1_000,
+      },
+    })
+
+    const client = await connect(hostToken, '203.0.113.77')
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      expect(
+        await client.emitWithAck('session:resume', { roomCode: 'bcdf2' }),
+      ).toMatchObject({ status: 'success' })
+    }
+    expect(
+      await client.emitWithAck('session:resume', { roomCode: 'bcdf2' }),
+    ).toMatchObject({ status: 'rate_limited' })
+
+    socketServer.telemetry.flush()
+
+    const events = logger.warn.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event === 'rate_limited')
+    expect(events).toEqual([
+      { event: 'rate_limited', budget: 'entry', occurrences: 1 },
+    ])
+  })
+
+  it('does not assign replayed claim results to the current pair streak', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    await startServer({ logger, telemetryFlushIntervalMs: 0 })
+
+    const host = await connect(hostToken)
+    const guest = await connect(guestToken)
+    const created = await host.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error(created.message)
+    const roomCode = created.roomCode
+    await guest.emitWithAck('room:join', { roomCode, name: 'Grace' })
+
+    const hostPlayingPromise = nextSnapshot(host, 'playing')
+    const guestPlayingPromise = nextSnapshot(guest, 'playing')
+    await host.emitWithAck('game:start', { roomCode })
+    const [hostPlaying, guestPlaying] = await Promise.all([
+      hostPlayingPromise,
+      guestPlayingPromise,
+    ])
+    const symbol = sharedSymbol(hostPlaying)
+    const replayedIncorrect = {
+      roomCode,
+      commandId: 'replayed-incorrect',
+      pairRevision: hostPlaying.pairRevision,
+      firstSymbolId: symbol,
+      secondSymbolId:
+        hostPlaying.cards[1]?.symbolIds.find(
+          (candidate) => candidate !== symbol,
+        ) ?? 'moon',
+    }
+
+    expect(
+      await host.emitWithAck('game:claim', replayedIncorrect),
+    ).toMatchObject({ status: 'incorrect' })
+    expect(
+      await guest.emitWithAck(
+        'game:claim',
+        correctClaim(guestPlaying, roomCode, 'advance-pair'),
+      ),
+    ).toEqual({ status: 'success' })
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect(
+        await host.emitWithAck('game:claim', replayedIncorrect),
+      ).toMatchObject({ status: 'incorrect' })
+    }
+
+    const streakEvents = logger.warn.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event === 'claim_streak')
+    expect(streakEvents).toEqual([])
+  })
+
+  it('forgets the claim streak when the final player leaves', async () => {
+    const host = await connect(hostToken)
+    const created = await host.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error(created.message)
+    const roomCode = created.roomCode
+
+    const playingPromise = nextSnapshot(host, 'playing')
+    await host.emitWithAck('game:start', { roomCode })
+    const snapshot = await playingPromise
+    const symbol = sharedSymbol(snapshot)
+    const wrongSymbol =
+      snapshot.cards[1]?.symbolIds.find((candidate) => candidate !== symbol) ??
+      'moon'
+
+    expect(
+      await host.emitWithAck('game:claim', {
+        roomCode,
+        commandId: 'incorrect-before-final-leave',
+        pairRevision: snapshot.pairRevision,
+        firstSymbolId: symbol,
+        secondSymbolId: wrongSymbol,
+      }),
+    ).toMatchObject({ status: 'incorrect' })
+    expect(socketServer.claimStreaks.size()).toBe(1)
+
+    expect(await host.emitWithAck('room:leave', { roomCode })).toEqual({
+      status: 'success',
+    })
+    expect(socketServer.gameServer.rooms.has(roomCode)).toBe(false)
+    expect(socketServer.claimStreaks.size()).toBe(0)
+  })
+
+  it('warns about a claim streak after repeated incorrect claims', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    await startServer({ logger, telemetryFlushIntervalMs: 0 })
+
+    const host = await connect(hostToken)
+    const created = await host.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error(created.message)
+    const roomCode = created.roomCode
+
+    const playingPromise = nextSnapshot(host, 'playing')
+    await host.emitWithAck('game:start', { roomCode })
+    const snapshot = await playingPromise
+    const symbol = sharedSymbol(snapshot)
+    const wrongSymbol =
+      snapshot.cards[1]?.symbolIds.find((candidate) => candidate !== symbol) ??
+      'moon'
+
+    const claimIncorrect = async (
+      client: TestClient,
+      commandId: string,
+      pairRevision: number,
+    ) => {
+      expect(
+        await client.emitWithAck('game:claim', {
+          roomCode,
+          commandId,
+          pairRevision,
+          firstSymbolId: symbol,
+          secondSymbolId: wrongSymbol,
+        }),
+      ).toMatchObject({ status: 'incorrect' })
+    }
+
+    await claimIncorrect(host, 'host-incorrect-1', snapshot.pairRevision)
+
+    for (let index = 0; index < 9; index += 1) {
+      const guest = await connect((index + 1).toString(16).padStart(32, '0'))
+      const guestPlaying = nextSnapshot(guest, 'playing')
+      expect(
+        await guest.emitWithAck('room:join', {
+          roomCode,
+          name: `Guest ${index}`,
+        }),
+      ).toMatchObject({ status: 'success' })
+      const guestSnapshot = await guestPlaying
+      await claimIncorrect(
+        guest,
+        `guest-incorrect-${index}`,
+        guestSnapshot.pairRevision,
+      )
+    }
+
+    const streakEvents = logger.warn.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event === 'claim_streak')
+    expect(streakEvents).toEqual([
+      {
+        event: 'claim_streak',
+        roomCode,
+        pairRevision: snapshot.pairRevision,
+        incorrectInARow: 10,
+      },
+    ])
+
+    socketServer.telemetry.flush()
+    const rejectedEvents = logger.info.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event === 'command_rejected')
+    expect(rejectedEvents).toContainEqual({
+      event: 'command_rejected',
+      command: 'game:claim',
+      status: 'incorrect',
+      occurrences: 10,
+    })
+  })
+
+  it('logs expiration sweeps that expire rooms and shutdown lifecycle events', async () => {
+    await socketServer.shutdown()
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    await startServer({
+      logger,
+      telemetryFlushIntervalMs: 0,
+      expirationSweepMs: 5,
+      gameServer: new GameServer({ roomIdleMs: 50 }),
+    })
+
+    const client = await connect(hostToken)
+    const created = await client.emitWithAck('room:create', { name: 'Ada' })
+    if (created.status !== 'success') throw new Error(created.message)
+
+    await vi.waitFor(() => {
+      expect(
+        logger.info.mock.calls
+          .map((call) => JSON.parse(call[0] as string))
+          .filter((entry) => entry.event === 'expiration_sweep'),
+      ).toHaveLength(1)
+    })
+
+    await socketServer.shutdown()
+    const lifecycle = logger.info.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event.startsWith('server_shutdown'))
+    expect(lifecycle).toEqual([
+      { event: 'server_shutdown_started' },
+      { event: 'server_shutdown_completed' },
+    ])
   })
 })
 
