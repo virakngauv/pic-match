@@ -3,7 +3,6 @@
 - Use pnpm for dependency management.
 - Keep the Next.js App Router and TypeScript strict mode enabled.
 - Add reusable UI primitives under `components/ui` and application components under `components`.
-- Treat Clerk as optional in local development until its environment variables are set.
 - Run lint, typecheck, unit tests, and a production build before handing off meaningful changes.
 - Create or identify a tracking issue before opening a pull request, and include `Closes #<issue-number>` in the pull request description so GitHub links and closes the issue on merge.
 
