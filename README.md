@@ -17,7 +17,7 @@ single-process Socket.IO game server.
 - There is no application heartbeat, presence model, database, or multi-process
   adapter.
 
-Clerk remains an optional frontend integration.
+Players use anonymous browser-local session tokens; no account setup is required.
 
 ## Local development
 

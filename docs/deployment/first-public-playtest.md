@@ -245,8 +245,7 @@ If you created the app with a guessed Vercel origin and the real one differs,
 update `ALLOWED_ORIGINS` in **Settings > Components > game > Environment
 Variables**, then redeploy the app so the value reaches the container.
 
-Clerk remains optional. Locally,
-`pnpm deploy:check-env` reports configured and missing variable names without
+Locally, `pnpm deploy:check-env` reports configured and missing variable names without
 printing their values. Vercel uses `pnpm deploy:build` for its production build.
 
 ## 3. Verify the deployment

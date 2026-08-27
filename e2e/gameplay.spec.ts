@@ -292,34 +292,35 @@ test('replays a complete shared race across browser sessions', async ({
       hostPage,
       beforeIncorrectClaim.cards,
     )
-    await expect(hostPage.getByLabel('Match claim feedback')).toContainText(
-      'Incorrect match. Try again in a moment.',
-    )
     const firstIncorrectSymbol = hostPage
       .getByLabel('Card 1')
       .locator(`button[data-symbol-id="${incorrectSelection.firstSymbolId}"]`)
     const secondIncorrectSymbol = hostPage
       .getByLabel('Card 2')
       .locator(`button[data-symbol-id="${incorrectSelection.secondSymbolId}"]`)
-    await expect(firstIncorrectSymbol).toHaveAttribute('data-incorrect', 'true')
-    await expect(secondIncorrectSymbol).toHaveAttribute(
-      'data-incorrect',
-      'true',
-    )
-    await expectComputedCursor(firstIncorrectSymbol, 'default')
-    await expectComputedCursor(secondIncorrectSymbol, 'default')
-    await expect(
-      firstIncorrectSymbol.locator('.pic-match-incorrect-mark'),
-    ).toBeVisible()
-    await expect(
-      secondIncorrectSymbol.locator('.pic-match-incorrect-mark'),
-    ).toBeVisible()
+    // The feedback lasts one second. Check its transient state together so
+    // browser round trips do not consume the window before the last assertion.
+    await Promise.all([
+      expect(hostPage.getByLabel('Match claim feedback')).toContainText(
+        'Incorrect match. Try again in a moment.',
+      ),
+      expect(firstIncorrectSymbol).toHaveAttribute('data-incorrect', 'true'),
+      expect(secondIncorrectSymbol).toHaveAttribute('data-incorrect', 'true'),
+      expect(firstIncorrectSymbol).toHaveCSS('cursor', 'default'),
+      expect(secondIncorrectSymbol).toHaveCSS('cursor', 'default'),
+      expect(
+        firstIncorrectSymbol.locator('.pic-match-incorrect-mark'),
+      ).toBeVisible(),
+      expect(
+        secondIncorrectSymbol.locator('.pic-match-incorrect-mark'),
+      ).toBeVisible(),
+      expect(firstSymbolControl(hostPage)).toBeDisabled(),
+      expect(firstSymbolControl(guestPage)).toBeEnabled(),
+    ])
     expect(await playingSnapshot(hostPage)).toEqual(beforeIncorrectClaim)
     await expect
       .poll(async () => await playingSnapshot(guestPage))
       .toEqual(beforeIncorrectClaim)
-    await expect(firstSymbolControl(hostPage)).toBeDisabled()
-    await expect(firstSymbolControl(guestPage)).toBeEnabled()
     await expect(firstSymbolControl(hostPage)).toBeEnabled({ timeout: 2_000 })
     await expect(firstIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
     await expect(secondIncorrectSymbol).toHaveAttribute('aria-pressed', 'false')
