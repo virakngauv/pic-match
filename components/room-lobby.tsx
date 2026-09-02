@@ -301,7 +301,7 @@ function ConnectedRoomLobby({
                 key={member.playerId}
                 className="bg-background flex items-center justify-between gap-4 rounded-xl border px-4 py-3"
               >
-                <span className="min-w-0 font-semibold break-words">
+                <span className="min-w-0 flex-1 font-semibold [overflow-wrap:anywhere]">
                   {member.name}
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
