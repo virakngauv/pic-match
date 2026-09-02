@@ -612,14 +612,14 @@ function FinishedRoom({
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
           Game finished.
         </h1>
-        <p className="mt-4 text-2xl font-semibold tracking-[-0.03em]">
+        <p className="mt-4 text-2xl font-semibold tracking-[-0.03em] [overflow-wrap:anywhere]">
           {isSoloGame
             ? 'Solo game complete!'
             : isWinner
               ? 'You won!'
               : `${winner.name} wins!`}
         </p>
-        <p className="text-muted-foreground mt-2 text-sm leading-6 sm:text-base">
+        <p className="text-muted-foreground mt-2 text-sm leading-6 [overflow-wrap:anywhere] sm:text-base">
           {isSoloGame
             ? `You scored ${winner.score} points, ${player.name}.`
             : isWinner
@@ -646,7 +646,7 @@ function FinishedRoom({
                   data-player-position={entry.position}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">
+                    <span className="block font-semibold [overflow-wrap:anywhere]">
                       {entry.name}
                     </span>
                     <span className="text-muted-foreground block text-xs">
