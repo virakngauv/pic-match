@@ -25,6 +25,61 @@ type PlayingSnapshot = {
   scores: Record<string, number>
 }
 
+test('wraps a long final-scoreboard name within a mobile viewport', async ({
+  page,
+}) => {
+  test.setTimeout(90_000)
+  const longName = 'A'.repeat(50)
+
+  await page.setViewportSize({ width: 320, height: 568 })
+  await createRoom(page, longName)
+  await page.getByRole('button', { name: 'Start game' }).click()
+  await expectPlaying(page, longName)
+
+  for (let score = 1; score <= 12; score += 1) {
+    await submitSharedMatch(page)
+  }
+
+  await expectFinished(page, longName)
+  const scoreboardName = page.getByText(longName, { exact: true })
+  const finalScore = page.getByLabel(`${longName}'s final score`)
+  await expect(scoreboardName).toBeVisible()
+  await expect(finalScore).toHaveText('12')
+
+  const measurements = await scoreboardName.evaluate((element) => {
+    const nameBounds = element.getBoundingClientRect()
+    const rowBounds = element.closest('li')?.getBoundingClientRect()
+    const scoreBounds = element
+      .closest('li')
+      ?.querySelector('output')
+      ?.getBoundingClientRect()
+    const styles = getComputedStyle(element)
+
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      nameHeight: nameBounds.height,
+      nameRight: nameBounds.right,
+      overflowWrap: styles.overflowWrap,
+      rowRight: rowBounds?.right ?? 0,
+      scoreLeft: scoreBounds?.left ?? 0,
+      scoreRight: scoreBounds?.right ?? 0,
+      textOverflow: styles.textOverflow,
+      viewportWidth: document.documentElement.clientWidth,
+      whiteSpace: styles.whiteSpace,
+    }
+  })
+
+  expect(measurements.overflowWrap).toBe('anywhere')
+  expect(measurements.textOverflow).not.toBe('ellipsis')
+  expect(measurements.whiteSpace).toBe('normal')
+  expect(measurements.nameHeight).toBeGreaterThan(24)
+  expect(measurements.nameRight).toBeLessThanOrEqual(measurements.scoreLeft - 1)
+  expect(measurements.scoreRight).toBeLessThanOrEqual(measurements.rowRight + 1)
+  expect(measurements.documentWidth).toBeLessThanOrEqual(
+    measurements.viewportWidth + 1,
+  )
+})
+
 test('replays a complete shared race across browser sessions', async ({
   browser,
   browserName,
