@@ -10,6 +10,40 @@ const compactGameplayViewports = [
   { width: 667, height: 375 },
 ] as const
 
+test('wraps a long lobby name within a mobile viewport', async ({ page }) => {
+  const longName = 'A'.repeat(50)
+
+  await page.setViewportSize({ width: 320, height: 568 })
+  await page.goto('/create')
+  await page.getByLabel('Name').fill(longName)
+  await page.getByRole('button', { name: 'Create', exact: true }).click()
+
+  await expect(page.getByRole('heading', { name: 'lobby.' })).toBeVisible()
+  const rosterName = page.getByText(longName, { exact: true })
+  await expect(rosterName).toBeVisible()
+
+  const measurements = await rosterName.evaluate((element) => {
+    const nameBounds = element.getBoundingClientRect()
+    const rowBounds = element.closest('li')?.getBoundingClientRect()
+
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      nameHeight: nameBounds.height,
+      nameRight: nameBounds.right,
+      overflowWrap: getComputedStyle(element).overflowWrap,
+      rowRight: rowBounds?.right ?? 0,
+      viewportWidth: document.documentElement.clientWidth,
+    }
+  })
+
+  expect(measurements.overflowWrap).toBe('anywhere')
+  expect(measurements.nameHeight).toBeGreaterThan(24)
+  expect(measurements.nameRight).toBeLessThanOrEqual(measurements.rowRight + 1)
+  expect(measurements.documentWidth).toBeLessThanOrEqual(
+    measurements.viewportWidth + 1,
+  )
+})
+
 test('moves a room from creation into a reconnectable game', async ({
   browser,
 }) => {
