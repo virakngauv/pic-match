@@ -1,11 +1,15 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, type FormEvent } from 'react'
+import { useState, useSyncExternalStore, type FormEvent } from 'react'
 
 import { useGameSocket } from '@/components/game-socket-provider'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+
+const subscribeToHydration = () => () => {}
+const getHydratedSnapshot = () => true
+const getServerHydrationSnapshot = () => false
 
 export function CreateRoomForm() {
   const { createRoom, connectionStatus } = useGameSocket()
@@ -13,6 +17,11 @@ export function CreateRoomForm() {
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
+  const isHydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getHydratedSnapshot,
+    getServerHydrationSnapshot,
+  )
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -60,7 +69,7 @@ export function CreateRoomForm() {
         maxLength={50}
         autoFocus
         required
-        disabled={isCreating}
+        disabled={!isHydrated || isCreating}
       />
       <p
         className="text-accent mt-3 min-h-5 text-sm"
