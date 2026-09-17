@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   GAME_PROTOCOL_VERSION,
+  MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
   type ClientToServerEvents,
   type RoomSnapshot,
   type ServerToClientEvents,
@@ -36,6 +37,9 @@ describe('Socket.IO game protocol', () => {
       entryCommandLimits?: EntryCommandLimits
       telemetryFlushIntervalMs?: number
       logger?: Pick<Console, 'info' | 'warn' | 'error'>
+      commandProtocolVersions?: Partial<
+        Record<keyof ClientToServerEvents, number>
+      >
     } = {},
   ) {
     httpServer = createServer()
@@ -47,6 +51,7 @@ describe('Socket.IO game protocol', () => {
       entryCommandLimits: options.entryCommandLimits,
       telemetryFlushIntervalMs: options.telemetryFlushIntervalMs,
       logger: options.logger ?? { info() {}, warn() {}, error() {} },
+      commandProtocolVersions: options.commandProtocolVersions,
     })
     await new Promise<void>((resolve) =>
       httpServer.listen(0, '127.0.0.1', resolve),
@@ -69,9 +74,14 @@ describe('Socket.IO game protocol', () => {
     token: string,
     forwardedFor?: string,
     origin = allowedOrigin,
+    auth: Record<string, unknown> = {
+      token,
+      protocolVersion: GAME_PROTOCOL_VERSION,
+      minProtocolVersion: MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
+    },
   ) {
     const client: TestClient = createClient(url, {
-      auth: { token, protocolVersion: GAME_PROTOCOL_VERSION },
+      auth,
       extraHeaders: {
         Origin: origin,
         ...(forwardedFor ? { 'X-Forwarded-For': forwardedFor } : {}),
@@ -171,6 +181,55 @@ describe('Socket.IO game protocol', () => {
         player: { playerId: guestPlayerId },
       },
     })
+  })
+
+  it('allows compatible version drift through the common game flow', async () => {
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    await socketServer.shutdown()
+    await startServer({ logger })
+    const adjacentClient = await connect(hostToken, undefined, allowedOrigin, {
+      token: hostToken,
+      protocolVersion: GAME_PROTOCOL_VERSION + 1,
+      minProtocolVersion: GAME_PROTOCOL_VERSION,
+    })
+    const currentClient = await connect(guestToken)
+
+    const created = await adjacentClient.emitWithAck('room:create', {
+      name: 'Ada',
+    })
+    expect(created.status).toBe('success')
+    if (created.status !== 'success') return
+    expect(
+      await currentClient.emitWithAck('room:join', {
+        roomCode: created.roomCode,
+        name: 'Grace',
+      }),
+    ).toMatchObject({ status: 'success' })
+    expect(
+      await adjacentClient.emitWithAck('game:start', {
+        roomCode: created.roomCode,
+      }),
+    ).toEqual({ status: 'success' })
+    expect(
+      await currentClient.emitWithAck('session:resume', {
+        roomCode: created.roomCode,
+      }),
+    ).toMatchObject({ status: 'success', snapshot: { status: 'playing' } })
+
+    const driftEvents = logger.warn.mock.calls
+      .map((call) => JSON.parse(call[0] as string))
+      .filter((entry) => entry.event === 'protocol_version_drift')
+    expect(driftEvents).toEqual([
+      {
+        event: 'protocol_version_drift',
+        receivedVersion: GAME_PROTOCOL_VERSION + 1,
+        receivedMinVersion: GAME_PROTOCOL_VERSION,
+        currentVersion: GAME_PROTOCOL_VERSION,
+        minSupportedVersion: MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
+        negotiatedVersion: GAME_PROTOCOL_VERSION,
+      },
+    ])
+    expect(JSON.stringify(driftEvents)).not.toContain(hostToken)
   })
 
   it('serializes competing claims so only one client scores', async () => {
@@ -352,6 +411,55 @@ describe('Socket.IO game protocol', () => {
     await expect(
       connectError(disallowedOrigin as TestClient),
     ).resolves.toBeTruthy()
+  })
+
+  it('rejects non-overlapping protocol ranges with actionable details', async () => {
+    const incompatible = createClient(url, {
+      auth: {
+        token: hostToken,
+        protocolVersion: GAME_PROTOCOL_VERSION + 2,
+        minProtocolVersion: GAME_PROTOCOL_VERSION + 1,
+      },
+      forceNew: true,
+      transports: ['websocket'],
+    })
+    clients.push(incompatible as TestClient)
+
+    await expect(
+      connectErrorDetails(incompatible as TestClient),
+    ).resolves.toEqual({
+      message:
+        'This game version is no longer supported. Reload or update the page.',
+      data: {
+        code: 'protocol_incompatible',
+        receivedVersion: GAME_PROTOCOL_VERSION + 2,
+        receivedMinVersion: GAME_PROTOCOL_VERSION + 1,
+        currentVersion: GAME_PROTOCOL_VERSION,
+        minSupportedVersion: MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
+      },
+    })
+  })
+
+  it('rejects unavailable commands with a typed actionable result', async () => {
+    await socketServer.shutdown()
+    await startServer({ commandProtocolVersions: { 'game:start': 2 } })
+    const client = await connect(hostToken)
+
+    await expect(
+      client.emitWithAck('game:start', { roomCode: 'bcdf2' }),
+    ).resolves.toEqual({
+      status: 'unsupported',
+      message: 'This action requires a newer game version. Reload the page.',
+    })
+
+    const repeated = await Promise.all(
+      Array.from({ length: 40 }, () =>
+        client.emitWithAck('game:start', { roomCode: 'bcdf2' }),
+      ),
+    )
+    expect(repeated.some((result) => result.status === 'rate_limited')).toBe(
+      true,
+    )
   })
 
   it('rejects private-network browser origins when the dev allowance is off', async () => {
@@ -990,5 +1098,16 @@ function sharedSymbol(snapshot: Extract<RoomSnapshot, { status: 'playing' }>) {
 function connectError(client: TestClient) {
   return new Promise<string>((resolve) => {
     client.once('connect_error', (error) => resolve(error.message))
+  })
+}
+
+function connectErrorDetails(client: TestClient) {
+  return new Promise<{ message: string; data: unknown }>((resolve) => {
+    client.once('connect_error', (error) =>
+      resolve({
+        message: error.message,
+        data: (error as Error & { data?: unknown }).data,
+      }),
+    )
   })
 }
