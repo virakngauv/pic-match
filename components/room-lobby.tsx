@@ -12,6 +12,7 @@ import {
   useRoomSnapshot,
 } from '@/components/game-socket-provider'
 import { JoinRoomScreen } from '@/components/join-room-screen'
+import { ReloadPageButton } from '@/components/reload-page-button'
 import {
   RoomInviteActions,
   RoomInviteCard,
@@ -215,9 +216,7 @@ function ProtocolIncompatible({ message }: { message: string }) {
         <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
           {message}
         </p>
-        <Button className="mt-8" onClick={() => window.location.reload()}>
-          Reload page
-        </Button>
+        <ReloadPageButton className="mt-8" />
       </section>
     </main>
   )

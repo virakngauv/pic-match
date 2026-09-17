@@ -9,6 +9,7 @@ import {
 } from 'react'
 
 import { useGameSocket } from '@/components/game-socket-provider'
+import { ReloadPageButton } from '@/components/reload-page-button'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -124,6 +125,9 @@ export function JoinRoomForm({
             ? null
             : 'Connecting to the game server…')}
       </p>
+      {connectionError ? (
+        <ReloadPageButton className="mt-2 h-12 w-full text-base" />
+      ) : null}
       <Button
         className="mt-2 h-12 w-full text-base"
         disabled={isJoining || connectionStatus !== 'connected'}

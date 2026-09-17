@@ -133,6 +133,27 @@ describe('server telemetry', () => {
     ])
   })
 
+  it('caps protocol drift warnings within each telemetry window', () => {
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const telemetry = createTelemetry(logger, { flushIntervalMs: 0 })
+    const drift = {
+      receivedVersion: 2,
+      receivedMinVersion: 1,
+      currentVersion: 1,
+      minSupportedVersion: 1,
+      negotiatedVersion: 1,
+    }
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      telemetry.protocolVersionDrift(drift)
+    }
+    expect(logger.warn).toHaveBeenCalledTimes(10)
+
+    telemetry.flush()
+    telemetry.protocolVersionDrift(drift)
+    expect(logger.warn).toHaveBeenCalledTimes(11)
+  })
+
   it('flushes counted events on an interval and stops after dispose', () => {
     vi.useFakeTimers()
     try {

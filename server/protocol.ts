@@ -454,16 +454,6 @@ export function createGameSocketServer(
       return false
     }
 
-    const requiredProtocolVersion =
-      commandProtocolVersions[command] ?? MIN_SUPPORTED_GAME_PROTOCOL_VERSION
-    if (socket.data.negotiatedProtocolVersion < requiredProtocolVersion) {
-      acknowledge({
-        status: 'unsupported',
-        message: 'This action requires a newer game version. Reload the page.',
-      })
-      return false
-    }
-
     const now = Date.now()
     const socketPermitted = socketCommands.take(socket.id, now)
     const playerPermitted =
@@ -483,6 +473,16 @@ export function createGameSocketServer(
             : 'entry'
       telemetry.countRateLimited(budget)
       acknowledge({ status: 'rate_limited', message: 'Too many commands.' })
+      return false
+    }
+
+    const requiredProtocolVersion =
+      commandProtocolVersions[command] ?? MIN_SUPPORTED_GAME_PROTOCOL_VERSION
+    if (socket.data.negotiatedProtocolVersion < requiredProtocolVersion) {
+      acknowledge({
+        status: 'unsupported',
+        message: 'This action requires a newer game version. Reload the page.',
+      })
       return false
     }
     return true

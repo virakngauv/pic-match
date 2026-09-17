@@ -6,6 +6,7 @@ export type HandshakeRejectionReason =
   'origin_not_allowed' | 'invalid_auth' | 'unsupported_protocol'
 
 const REJECTED_FLUSH_INTERVAL_MS = 30_000
+const MAX_PROTOCOL_DRIFT_WARNINGS_PER_FLUSH = 10
 
 export function createTelemetry(
   logger: TelemetryLogger,
@@ -18,6 +19,7 @@ export function createTelemetry(
   >()
   const rateLimited = new Map<RateLimitBudget, number>()
   const handshakeRejected = new Map<HandshakeRejectionReason, number>()
+  let protocolDriftWarnings = 0
 
   let flushTimer: ReturnType<typeof setInterval> | undefined
   if (flushIntervalMs > 0) {
@@ -49,6 +51,7 @@ export function createTelemetry(
       )
     }
     handshakeRejected.clear()
+    protocolDriftWarnings = 0
   }
 
   return {
@@ -71,6 +74,8 @@ export function createTelemetry(
       minSupportedVersion: number
       negotiatedVersion: number
     }) {
+      if (protocolDriftWarnings >= MAX_PROTOCOL_DRIFT_WARNINGS_PER_FLUSH) return
+      protocolDriftWarnings += 1
       logger.warn(
         JSON.stringify({ event: 'protocol_version_drift', ...versions }),
       )

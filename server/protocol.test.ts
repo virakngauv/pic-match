@@ -442,15 +442,24 @@ describe('Socket.IO game protocol', () => {
 
   it('rejects unavailable commands with a typed actionable result', async () => {
     await socketServer.shutdown()
-    await startServer({ commandProtocolVersions: { 'room:create': 2 } })
+    await startServer({ commandProtocolVersions: { 'game:start': 2 } })
     const client = await connect(hostToken)
 
     await expect(
-      client.emitWithAck('room:create', { name: 'Ada' }),
+      client.emitWithAck('game:start', { roomCode: 'bcdf2' }),
     ).resolves.toEqual({
       status: 'unsupported',
       message: 'This action requires a newer game version. Reload the page.',
     })
+
+    const repeated = await Promise.all(
+      Array.from({ length: 40 }, () =>
+        client.emitWithAck('game:start', { roomCode: 'bcdf2' }),
+      ),
+    )
+    expect(repeated.some((result) => result.status === 'rate_limited')).toBe(
+      true,
+    )
   })
 
   it('rejects private-network browser origins when the dev allowance is off', async () => {

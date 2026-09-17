@@ -65,6 +65,7 @@ describe('CreateRoomForm', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       'This game version is no longer supported. Reload or update the page.',
     )
+    expect(screen.getByRole('button', { name: 'Reload page' })).toBeEnabled()
   })
 
   it('shows a typed server failure without navigating', async () => {

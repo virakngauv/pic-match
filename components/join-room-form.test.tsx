@@ -95,6 +95,18 @@ describe('JoinRoomForm', () => {
     )
   })
 
+  it('offers a reload action when no protocol overlap exists', () => {
+    mocks.connectionStatus = 'disconnected'
+    mocks.connectionError =
+      'This game version is no longer supported. Reload or update the page.'
+    renderForm()
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'This game version is no longer supported. Reload or update the page.',
+    )
+    expect(screen.getByRole('button', { name: 'Reload page' })).toBeEnabled()
+  })
+
   it('invokes onJoined with the room after a successful join', async () => {
     const user = userEvent.setup()
 
