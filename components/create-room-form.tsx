@@ -12,7 +12,7 @@ const getHydratedSnapshot = () => true
 const getServerHydrationSnapshot = () => false
 
 export function CreateRoomForm() {
-  const { createRoom, connectionStatus } = useGameSocket()
+  const { createRoom, connectionStatus, connectionError } = useGameSocket()
   const router = useRouter()
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -76,6 +76,7 @@ export function CreateRoomForm() {
         role={error ? 'alert' : 'status'}
       >
         {error ??
+          connectionError ??
           (connectionStatus === 'connected'
             ? null
             : 'Connecting to the game server…')}

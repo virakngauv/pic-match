@@ -1,4 +1,5 @@
 export const GAME_PROTOCOL_VERSION = 1 as const
+export const MIN_SUPPORTED_GAME_PROTOCOL_VERSION = 1 as const
 
 export type RoomPhase = 'lobby' | 'playing' | 'finished'
 export type PlayerRole = 'host' | 'player'
@@ -75,6 +76,7 @@ export type CommandFailureStatus =
   | 'incorrect'
   | 'cooldown'
   | 'rate_limited'
+  | 'unsupported'
   | 'server_unavailable'
 
 export type CommandSuccess<T extends object = Record<never, never>> = {
@@ -146,5 +148,14 @@ export type ServerToClientEvents = {
 
 export type SocketHandshakeAuth = {
   token: string
-  protocolVersion: typeof GAME_PROTOCOL_VERSION
+  protocolVersion: number
+  minProtocolVersion?: number
+}
+
+export type ProtocolCompatibilityErrorData = {
+  code: 'protocol_incompatible'
+  receivedVersion: number
+  receivedMinVersion: number
+  currentVersion: number
+  minSupportedVersion: number
 }

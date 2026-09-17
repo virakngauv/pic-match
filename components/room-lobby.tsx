@@ -43,11 +43,13 @@ function PresentRoomLobby({
   snapshot: roomView,
   endedReason,
   connectionStatus,
+  connectionError,
 }: {
   roomCode: string
   snapshot: RoomSnapshot | undefined
   endedReason: RoomEndedReason | null
   connectionStatus: ConnectionStatus
+  connectionError: string | null
 }) {
   const router = useRouter()
   const { leaveRoom, removePlayer, startGame, claimMatch, prepareRematch } =
@@ -118,6 +120,10 @@ function PresentRoomLobby({
 
   if (!leavingSnapshot && endedReason) {
     return <RoomEnded roomCode={roomCode} reason={endedReason} />
+  }
+
+  if (!leavingSnapshot && connectionError) {
+    return <ProtocolIncompatible message={connectionError} />
   }
 
   if (displayedRoomView === undefined) {
@@ -194,6 +200,27 @@ function PresentRoomLobby({
     default:
       return assertNever(displayedRoomView)
   }
+}
+
+function ProtocolIncompatible({ message }: { message: string }) {
+  return (
+    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
+        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
+          Update needed
+        </p>
+        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          Reload to keep playing.
+        </h1>
+        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+          {message}
+        </p>
+        <Button className="mt-8" onClick={() => window.location.reload()}>
+          Reload page
+        </Button>
+      </section>
+    </main>
+  )
 }
 
 function RoomEntrySkeleton() {

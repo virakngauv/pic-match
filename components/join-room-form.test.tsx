@@ -7,6 +7,7 @@ import { JoinRoomForm } from './join-room-form'
 
 const mocks = vi.hoisted(() => ({
   connectionStatus: 'connected' as 'connecting' | 'connected' | 'disconnected',
+  connectionError: null as string | null,
   joinRoom: vi.fn(),
   onJoined: vi.fn(),
 }))
@@ -15,6 +16,7 @@ vi.mock('@/components/game-socket-provider', () => ({
   useGameSocket: () => ({
     joinRoom: mocks.joinRoom,
     connectionStatus: mocks.connectionStatus,
+    connectionError: mocks.connectionError,
   }),
 }))
 
@@ -34,6 +36,7 @@ function renderForm(props: JoinRoomFormProps = {}) {
 describe('JoinRoomForm', () => {
   beforeEach(() => {
     mocks.connectionStatus = 'connected'
+    mocks.connectionError = null
     mocks.joinRoom.mockReset()
     mocks.joinRoom.mockResolvedValue({ status: 'success', roomCode: 'frvg7' })
     mocks.onJoined.mockReset()

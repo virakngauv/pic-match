@@ -2,7 +2,8 @@ export type TelemetryLogger = Pick<Console, 'info' | 'warn' | 'error'>
 
 export type RateLimitBudget = 'socket' | 'player' | 'address' | 'entry'
 
-export type HandshakeRejectionReason = 'origin_not_allowed' | 'invalid_auth'
+export type HandshakeRejectionReason =
+  'origin_not_allowed' | 'invalid_auth' | 'unsupported_protocol'
 
 const REJECTED_FLUSH_INTERVAL_MS = 30_000
 
@@ -62,6 +63,17 @@ export function createTelemetry(
     },
     countHandshakeRejected(reason: HandshakeRejectionReason) {
       handshakeRejected.set(reason, (handshakeRejected.get(reason) ?? 0) + 1)
+    },
+    protocolVersionDrift(versions: {
+      receivedVersion: number
+      receivedMinVersion: number
+      currentVersion: number
+      minSupportedVersion: number
+      negotiatedVersion: number
+    }) {
+      logger.warn(
+        JSON.stringify({ event: 'protocol_version_drift', ...versions }),
+      )
     },
     expirationSweep(roomsExpired: number, durationMs: number) {
       if (roomsExpired === 0) return

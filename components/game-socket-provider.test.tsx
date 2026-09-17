@@ -9,7 +9,11 @@ import {
   useGameSocket,
   useRoomSnapshot,
 } from './game-socket-provider'
-import type { RoomSnapshot } from '../lib/game-protocol'
+import {
+  GAME_PROTOCOL_VERSION,
+  MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
+  type RoomSnapshot,
+} from '../lib/game-protocol'
 
 const mocks = vi.hoisted(() => ({
   clientToken: 'a'.repeat(32) as string | null,
@@ -54,11 +58,12 @@ vi.mock('@/components/player-session-provider', () => ({
 
 function RoomProbe({ roomCode }: { roomCode: string }) {
   const { snapshot, endedReason } = useRoomSnapshot(roomCode)
-  const { leaveRoom, removePlayer } = useGameSocket()
+  const { leaveRoom, removePlayer, connectionError } = useGameSocket()
   return (
     <>
       <div data-testid="status">{snapshot?.status ?? 'missing'}</div>
       <div data-testid="ended">{endedReason ?? 'active'}</div>
+      <div data-testid="connection-error">{connectionError ?? 'none'}</div>
       <button type="button" onClick={() => void leaveRoom(roomCode)}>
         Leave
       </button>
@@ -136,6 +141,42 @@ describe('GameSocketProvider', () => {
         expect.any(Object),
       ),
     )
+    expect(mocks.io).toHaveBeenCalledWith(
+      'http://localhost:3200',
+      expect.objectContaining({
+        auth: {
+          token: 'a'.repeat(32),
+          protocolVersion: GAME_PROTOCOL_VERSION,
+          minProtocolVersion: MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
+        },
+      }),
+    )
+  })
+
+  it('surfaces only typed protocol incompatibility connection errors', async () => {
+    render(
+      <GameSocketProvider>
+        <RoomProbe roomCode="bcdf2" />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalled())
+
+    act(() => {
+      mocks.handlers.get('connect_error')?.({
+        message: 'Reload or update the page.',
+        data: { code: 'protocol_incompatible' },
+      } as never)
+    })
+    expect(screen.getByTestId('connection-error')).toHaveTextContent(
+      'Reload or update the page.',
+    )
+
+    act(() => {
+      mocks.handlers.get('connect_error')?.({
+        message: 'transport failed',
+      } as never)
+    })
+    expect(screen.getByTestId('connection-error')).toHaveTextContent('none')
   })
 
   it('derives the game server URL from a LAN page hostname when the public URL is empty', async () => {

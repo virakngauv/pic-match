@@ -304,8 +304,36 @@ container a `SIGTERM`, and the game server broadcasts `server:shutdown` so
 connected browsers show the room-ended recovery UI. Ask players to create a new
 room after a deploy.
 
-If the frontend/server protocol also changed, deploy the matching frontend
-commit to Vercel.
+### Protocol compatibility window
+
+The Socket.IO client advertises both its current protocol version and the
+oldest version it can speak. The server admits the connection when that client
+range overlaps the server's range and records the highest overlapping version
+on the socket. A compatible frontend/backend release lag therefore remains
+playable; `protocol_version_drift` warns operators that the deployments are not
+yet aligned. Legacy clients that advertise only one version retain exact-version
+semantics.
+
+Every command currently requires protocol 1. When a future command or payload
+needs a newer contract, assign that command's minimum version on the server so
+older negotiated sockets receive a typed `unsupported` acknowledgement instead
+of losing the entire connection. The UI should show the reload/update message
+only for a handshake whose ranges do not overlap.
+
+Advance the compatibility floor only through a coordinated removal:
+
+1. Deploy a frontend whose minimum remains at the old floor and whose current
+   version supports both contracts.
+2. Deploy the server with the new current version while retaining the old
+   floor, then watch `protocol_version_drift` until old clients age out.
+3. Deploy a frontend that no longer emits the old contract.
+4. Raise the server floor only after telemetry shows the old version is no
+   longer in use. Raising the floor early turns release lag into a full
+   connection rejection.
+
+During rollback, keep at least one overlapping version between the selected
+Vercel and App Platform deployments. If no overlap is possible, roll back both
+deployments as one coordinated change.
 
 ## Monitoring events
 
@@ -322,18 +350,19 @@ doctl apps logs YOUR_APP_ID --type run | grep claim_streak
 
 ### Event vocabulary
 
-| Event                                                                                                                                                       | Level | Fields                                                        | Meaning and first action                                                                                                                                                                                                                        |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `game_server_started`                                                                                                                                       | info  | `host`, `port`                                                | Process came up.                                                                                                                                                                                                                                |
-| `game_server_error`                                                                                                                                         | error | `host`, `port`, `code`                                        | The process could not bind or the HTTP server failed. `EADDRINUSE` means the port is taken; check the app spec port and the run command.                                                                                                        |
-| `server_shutdown_started` / `server_shutdown_completed`                                                                                                     | info  | none                                                          | A deploy or restart began/finished. Clients should show the room-ended recovery UX; if not, check the frontend deploy.                                                                                                                          |
-| `socket_connected` / `socket_disconnected`                                                                                                                  | info  | `socketId`, `reason`                                          | Connection churn.                                                                                                                                                                                                                               |
-| `handshake_rejected`                                                                                                                                        | warn  | `reason: origin_not_allowed \| invalid_auth`, `occurrences`   | A client could not connect (counted, not per-occurrence; flushed at most every 30 s). `origin_not_allowed` usually means a stale frontend URL or an `ALLOWED_ORIGINS` mismatch; `invalid_auth` means an unsupported client or protocol version. |
-| `command_rejected`                                                                                                                                          | info  | `command`, `status`, `occurrences`                            | Counted (not per-occurrence) ack failures, flushed at most every 30 s. A spike in `status: room_not_found` on `room:join` suggests typos or rooms lost to a deploy; `incorrect` on `game:claim` is routine gameplay.                            |
-| `rate_limited`                                                                                                                                              | warn  | `budget: socket \| player \| address \| entry`, `occurrences` | Rate limiting engaged. Without `TRUSTED_PROXIES`, `address` and `entry` are the budgets shared by all players behind the ingress — see the rate-limiting note above.                                                                            |
-| `claim_streak`                                                                                                                                              | warn  | `roomCode`, `pairRevision`, `incorrectInARow`                 | Players are failing repeatedly on one dealt pair (fires every 10 consecutive incorrect claims on the same `pairRevision`). If players report the pair is impossible, reproduce it locally from the room seed and `pairRevision` and file a bug. |
-| `expiration_sweep`                                                                                                                                          | info  | `roomsExpired`, `durationMs`                                  | The idle sweep removed rooms (only logged when it removed at least one). Absent while `room:expired` behavior is reported means the room ended some other way, such as a restart.                                                               |
-| `command_failed`, `snapshot_failed`, `snapshot_broadcast_failed`, `expiration_sweep_failed`, `expiration_room_failed`, `removed_player_notification_failed` | error | `command`?, `message`                                         | A thrown server-side error. These are defects or resource problems; capture the surrounding log lines and the deployed commit.                                                                                                                  |
+| Event                                                                                                                                                       | Level | Fields                                                                                                | Meaning and first action                                                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `game_server_started`                                                                                                                                       | info  | `host`, `port`                                                                                        | Process came up.                                                                                                                                                                                                                                |
+| `game_server_error`                                                                                                                                         | error | `host`, `port`, `code`                                                                                | The process could not bind or the HTTP server failed. `EADDRINUSE` means the port is taken; check the app spec port and the run command.                                                                                                        |
+| `server_shutdown_started` / `server_shutdown_completed`                                                                                                     | info  | none                                                                                                  | A deploy or restart began/finished. Clients should show the room-ended recovery UX; if not, check the frontend deploy.                                                                                                                          |
+| `socket_connected` / `socket_disconnected`                                                                                                                  | info  | `socketId`, `reason`                                                                                  | Connection churn.                                                                                                                                                                                                                               |
+| `handshake_rejected`                                                                                                                                        | warn  | `reason: origin_not_allowed \| invalid_auth \| unsupported_protocol`, `occurrences`                   | A client could not connect (counted, not per-occurrence; flushed at most every 30 s). `invalid_auth` means a malformed token or handshake; `unsupported_protocol` means the advertised client and server ranges do not overlap.                 |
+| `protocol_version_drift`                                                                                                                                    | warn  | `receivedVersion`, `receivedMinVersion`, `currentVersion`, `minSupportedVersion`, `negotiatedVersion` | A compatible but differently versioned client connected. Confirm that the expected frontend/backend rollout is in progress; the event never includes the client token.                                                                          |
+| `command_rejected`                                                                                                                                          | info  | `command`, `status`, `occurrences`                                                                    | Counted (not per-occurrence) ack failures, flushed at most every 30 s. A spike in `status: room_not_found` on `room:join` suggests typos or rooms lost to a deploy; `incorrect` on `game:claim` is routine gameplay.                            |
+| `rate_limited`                                                                                                                                              | warn  | `budget: socket \| player \| address \| entry`, `occurrences`                                         | Rate limiting engaged. Without `TRUSTED_PROXIES`, `address` and `entry` are the budgets shared by all players behind the ingress — see the rate-limiting note above.                                                                            |
+| `claim_streak`                                                                                                                                              | warn  | `roomCode`, `pairRevision`, `incorrectInARow`                                                         | Players are failing repeatedly on one dealt pair (fires every 10 consecutive incorrect claims on the same `pairRevision`). If players report the pair is impossible, reproduce it locally from the room seed and `pairRevision` and file a bug. |
+| `expiration_sweep`                                                                                                                                          | info  | `roomsExpired`, `durationMs`                                                                          | The idle sweep removed rooms (only logged when it removed at least one). Absent while `room:expired` behavior is reported means the room ended some other way, such as a restart.                                                               |
+| `command_failed`, `snapshot_failed`, `snapshot_broadcast_failed`, `expiration_sweep_failed`, `expiration_room_failed`, `removed_player_notification_failed` | error | `command`?, `message`                                                                                 | A thrown server-side error. These are defects or resource problems; capture the surrounding log lines and the deployed commit.                                                                                                                  |
 
 ### Distinguishing failure classes
 
@@ -348,8 +377,10 @@ doctl apps logs YOUR_APP_ID --type run | grep claim_streak
   `game_server_error` or lifecycle events in the runtime log. Check
   `game_server_error` details and the deployment that introduced them.
 - **Client connectivity:** only some players fail, with `handshake_rejected`
-  or disconnect churn but healthy process logs. Usually their network or a
-  stale page; ask them to reload.
+  or disconnect churn but healthy process logs. `unsupported_protocol` means
+  they need the clearly presented reload/update action; `invalid_auth` points
+  to malformed client state. Compatible `protocol_version_drift` alone does
+  not prevent play.
 
 ### Drilling the monitoring path
 
@@ -409,8 +440,9 @@ Open the app's **Deployments** tab in the control panel, find the last
 successful deployment of the commit you want, and use its **Rollback** action.
 Rollback redeploys the previously built image; it also ends active rooms.
 
-Then redeploy the matching previous Vercel commit if the frontend protocol
-changed, and rerun the automated WSS smoke test and manual two-browser
+Then select a Vercel commit whose advertised range overlaps the rolled-back
+server. If the rollback crosses the documented compatibility floor, roll back
+both deployments, and rerun the automated WSS smoke test and manual two-browser
 verification.
 
 ## Official references
