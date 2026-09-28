@@ -76,6 +76,18 @@ describe('SoloPlay', () => {
     expect(screen.getByTestId('solo-score')).toHaveTextContent('0')
   })
 
+  it('announces the timer start once the game mounts', async () => {
+    vi.useFakeTimers()
+    render(<SoloPlay />)
+
+    await act(async () => {})
+
+    // The live region exists before the message so the start lands as a
+    // change; the timer value itself stays non-live.
+    expect(screen.getByText('Timer started. 30 seconds.')).toBeVisible()
+    expect(screen.getByTestId('solo-time-left')).toHaveTextContent('30s')
+  })
+
   it('scores a shared-symbol tap on either card and rewards time', async () => {
     vi.useFakeTimers()
     render(<SoloPlay />)

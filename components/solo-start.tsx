@@ -22,6 +22,7 @@ export function SoloStart() {
         {/* Every value comes straight from SOLO_CHALLENGE, so the rules can
             never drift from what the game actually does. */}
         <ul className="text-foreground mt-4 space-y-1 text-center text-sm leading-6 sm:text-base">
+          <li>goal: tap the symbol both cards share</li>
           <li>timer: {secondsLabel(initialSeconds)}</li>
           <li>matching symbol: +{secondsLabel(bonusSeconds)}</li>
           <li>wrong symbol: −{secondsLabel(penaltySeconds)}</li>

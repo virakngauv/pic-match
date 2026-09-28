@@ -25,6 +25,7 @@ describe('SoloStart', () => {
 
     const rules = screen.getByRole('list')
     expect(rules).toBeVisible()
+    expect(rules).toHaveTextContent('goal: tap the symbol both cards share')
     expect(rules).toHaveTextContent('timer: 30 seconds')
     expect(rules).toHaveTextContent('matching symbol: +1 second')
     expect(rules).toHaveTextContent('wrong symbol: −2 seconds')

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { GameCard } from '@/components/game-card'
 import { getPairLayoutPlans } from '@/lib/card-layout'
@@ -21,10 +21,15 @@ import {
 // Tap feedback spells out the timer swing instead of a generic mark.
 const CORRECT_FEEDBACK_TEXT = `+${SOLO_CHALLENGE.correctBonusMs / 1000}s`
 const INCORRECT_FEEDBACK_TEXT = `−${SOLO_CHALLENGE.incorrectPenaltyMs / 1000}s`
+// Announced once the game mounts; the clock itself never speaks per tick.
+const START_ANNOUNCEMENT = `Timer started. ${
+  SOLO_CHALLENGE.initialTimeMs / 1000
+} seconds.`
 
 export function SoloPlay() {
   const router = useRouter()
   const [state, setState] = useState<SoloState | null>(null)
+  const startAnnouncedRef = useRef(false)
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -33,6 +38,20 @@ export function SoloPlay() {
       setState(startSoloState(createSoloSeed(), Date.now()))
     })
   }, [])
+
+  useEffect(() => {
+    if (!state || state.announcement !== '' || startAnnouncedRef.current) return
+    // The live region mounts empty with the game, so the start message lands
+    // as a content change instead of initial content assistive tech skips.
+    startAnnouncedRef.current = true
+    queueMicrotask(() => {
+      setState((current) =>
+        current && current.announcement === ''
+          ? { ...current, announcement: START_ANNOUNCEMENT }
+          : current,
+      )
+    })
+  }, [state])
 
   useEffect(() => {
     if (state?.status !== 'playing') return
