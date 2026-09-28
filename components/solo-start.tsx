@@ -21,7 +21,7 @@ export function SoloStart() {
         </h1>
         {/* Every value comes straight from SOLO_CHALLENGE, so the rules can
             never drift from what the game actually does. */}
-        <ul className="text-muted-foreground mt-4 space-y-1 text-sm leading-6 sm:text-base">
+        <ul className="text-muted-foreground mt-4 space-y-1 text-center text-sm leading-6 sm:text-base">
           <li>timer: {secondsLabel(initialSeconds)}</li>
           <li>matching symbol: +{secondsLabel(bonusSeconds)}</li>
           <li>wrong symbol: −{secondsLabel(penaltySeconds)}</li>
