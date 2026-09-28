@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { GameCard } from '@/components/game-card'
 import { getPairLayoutPlans } from '@/lib/card-layout'
 import {
+  SOLO_CHALLENGE,
   answerSolo,
   createSoloSeed,
   getSoloPair,
@@ -14,6 +15,10 @@ import {
   tickSolo,
   type SoloState,
 } from '@/lib/solo-mode'
+
+// Tap feedback spells out the timer swing instead of a generic mark.
+const CORRECT_FEEDBACK_TEXT = `+${SOLO_CHALLENGE.correctBonusMs / 1000}s`
+const INCORRECT_FEEDBACK_TEXT = `−${SOLO_CHALLENGE.incorrectPenaltyMs / 1000}s`
 
 export function SoloPlay() {
   const router = useRouter()
@@ -140,11 +145,12 @@ export function SoloPlay() {
                   state.feedback?.kind === 'correct'
                     ? {
                         symbolId: state.feedback.symbolId,
-                        scorerName: 'Correct!',
+                        scorerName: CORRECT_FEEDBACK_TEXT,
                       }
                     : null
                 }
                 showIncorrectFeedback={state.feedback?.kind === 'incorrect'}
+                incorrectFeedbackText={INCORRECT_FEEDBACK_TEXT}
                 disabled={
                   state.status === 'finished' || state.feedback !== null
                 }

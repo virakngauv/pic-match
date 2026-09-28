@@ -13,12 +13,15 @@ import {
 type ShareState = 'idle' | 'copied' | 'shared' | 'error'
 
 // How long the button keeps its success confirmation before reverting.
-const SHARE_CONFIRMATION_MS = 2_000
+const SHARE_CONFIRMATION_MS = 1_000
 
 export function SoloResults({ score }: { score: number }) {
   // Null until the stored best is read; the pre-run best decides "new best".
   const [storedBest, setStoredBest] = useState<number | null>(null)
   const [shareState, setShareState] = useState<ShareState>('idle')
+  // Bumps on every success so a re-share while the confirmation shows
+  // restarts the revert timer instead of keeping the old schedule.
+  const [shareNonce, setShareNonce] = useState(0)
   const [shareUrl, setShareUrl] = useState('')
 
   useEffect(() => {
@@ -52,7 +55,7 @@ export function SoloResults({ score }: { score: number }) {
       SHARE_CONFIRMATION_MS,
     )
     return () => window.clearTimeout(timer)
-  }, [shareState])
+  }, [shareNonce, shareState])
 
   const displayedBest = Math.max(storedBest ?? 0, score)
   const isNewBest = storedBest !== null && score > storedBest
@@ -74,6 +77,7 @@ export function SoloResults({ score }: { score: number }) {
           url,
         })
         setShareState('shared')
+        setShareNonce((nonce) => nonce + 1)
         return
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
@@ -82,6 +86,7 @@ export function SoloResults({ score }: { score: number }) {
     try {
       await navigator.clipboard.writeText(text)
       setShareState('copied')
+      setShareNonce((nonce) => nonce + 1)
     } catch {
       setShareState('error')
     }

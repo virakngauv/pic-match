@@ -82,6 +82,8 @@ describe('SoloPlay', () => {
 
     expect(screen.getByTestId('solo-score')).toHaveTextContent('1')
     expect(screen.getByTestId('solo-time-left')).toHaveTextContent('30s')
+    // The cards announce the timer swing, not a generic mark.
+    expect(screen.getAllByText('+1s')).toHaveLength(2)
 
     await act(async () => {
       vi.advanceTimersByTime(300)
@@ -107,6 +109,9 @@ describe('SoloPlay', () => {
 
     expect(screen.getByTestId('solo-score')).toHaveTextContent('0')
     expect(screen.getByTestId('solo-time-left')).toHaveTextContent('26s')
+    // The penalty shows on the tapped card only; the unshared symbol is not
+    // on the other card.
+    expect(screen.getAllByText('−2s')).toHaveLength(1)
 
     await act(async () => {
       vi.advanceTimersByTime(500)

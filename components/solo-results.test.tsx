@@ -103,7 +103,7 @@ describe('SoloResults', () => {
 
     // The confirmation is momentary; the action label comes back.
     await act(async () => {
-      vi.advanceTimersByTime(2_000)
+      vi.advanceTimersByTime(1_000)
     })
     expect(
       screen.getByRole('button', { name: 'Challenge a friend' }),
@@ -131,7 +131,44 @@ describe('SoloResults', () => {
     })
 
     await act(async () => {
-      vi.advanceTimersByTime(2_000)
+      vi.advanceTimersByTime(1_000)
+    })
+    expect(
+      screen.getByRole('button', { name: 'Challenge a friend' }),
+    ).toBeVisible()
+  })
+
+  it('restarts the confirmation when sharing again while it shows', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: async (text: string) => text,
+      },
+      configurable: true,
+    })
+
+    render(<SoloResults score={3} />)
+    await act(async () => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'Challenge a friend' }))
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Link copied' })).toBeVisible()
+
+    await act(async () => {
+      vi.advanceTimersByTime(600)
+    })
+    // A re-share while the confirmation shows restarts the revert timer.
+    fireEvent.click(screen.getByRole('button', { name: 'Link copied' }))
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Link copied' })).toBeVisible()
+
+    await act(async () => {
+      vi.advanceTimersByTime(600)
+    })
+    expect(screen.getByRole('button', { name: 'Link copied' })).toBeVisible()
+
+    await act(async () => {
+      vi.advanceTimersByTime(400)
     })
     expect(
       screen.getByRole('button', { name: 'Challenge a friend' }),

@@ -79,7 +79,7 @@ test('plays the three-page solo loop and shares a challenge link', async ({
   expect(copied).toMatch(
     /^I matched 4 pairs in Pic Match Solo\. Can you beat me\? https?:\/\/\S+\/solo$/,
   )
-  await page.clock.fastForward('00:02')
+  await page.clock.fastForward('00:01')
   await expect(
     page.getByRole('button', { name: 'Challenge a friend' }),
   ).toBeVisible()
