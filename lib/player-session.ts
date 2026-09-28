@@ -28,18 +28,23 @@ export function saveClientToken(clientToken: string) {
 }
 
 export function getClientToken() {
+  let storedToken: string | null = null
   try {
-    const storedToken = window.localStorage.getItem(CLIENT_TOKEN_KEY)
-
-    return storedToken && CLIENT_TOKEN_PATTERN.test(storedToken)
-      ? storedToken
-      : null
+    storedToken = window.localStorage.getItem(CLIENT_TOKEN_KEY)
   } catch {
     // Reading can also throw when storage is blocked.
-    return blockedStorageToken && CLIENT_TOKEN_PATTERN.test(blockedStorageToken)
-      ? blockedStorageToken
-      : null
   }
+
+  if (storedToken && CLIENT_TOKEN_PATTERN.test(storedToken)) {
+    return storedToken
+  }
+
+  // A readable-but-unwritable storage (for example zero-quota behavior)
+  // holds no token, so the memory copy from the failed write keeps the
+  // session stable.
+  return blockedStorageToken && CLIENT_TOKEN_PATTERN.test(blockedStorageToken)
+    ? blockedStorageToken
+    : null
 }
 
 export function getOrCreateClientToken() {

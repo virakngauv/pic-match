@@ -53,6 +53,20 @@ describe('player session storage', () => {
     expect(getClientToken()).toBeNull()
   })
 
+  it('keeps one stable token when reads succeed but writes fail', () => {
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => null)
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const firstToken = getOrCreateClientToken()
+    const secondToken = getOrCreateClientToken()
+
+    expect(firstToken).toMatch(/^[0-9a-f]{32}$/)
+    expect(secondToken).toBe(firstToken)
+    expect(getClientToken()).toBe(firstToken)
+  })
+
   it('keeps one stable session token when storage persistence is blocked', () => {
     vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
       throw new Error('blocked')
