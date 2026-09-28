@@ -20,6 +20,12 @@ export const SOLO_CHALLENGE = {
 
 export const SOLO_STORAGE_KEY = 'pic-match:solo:v1'
 
+export const SOLO_RULES_PATH = '/solo/rules'
+
+// Hands the finished run's score from the play screen to the results screen
+// through session storage so the score never appears in the URL.
+export const SOLO_LAST_RUN_KEY = 'pic-match:solo:last-run:v1'
+
 export type SoloState = Readonly<{
   seed: string
   score: number
@@ -178,6 +184,31 @@ export function parseSoloScore(raw: string | null): {
 
 export function parseSoloScoreParam(value: string | undefined): number | null {
   return value && /^(0|[1-9]\d{0,8})$/.test(value) ? Number(value) : null
+}
+
+/** Reads the score handed over from a finished run, or null when absent. */
+export function parseSoloRunScore(raw: string | null): number | null {
+  if (!raw) return null
+  try {
+    const value: unknown = JSON.parse(raw)
+    if (
+      !value ||
+      typeof value !== 'object' ||
+      !('version' in value) ||
+      value.version !== 1
+    ) {
+      return null
+    }
+    const candidate =
+      'score' in value ? (value as Record<string, unknown>).score : null
+    return typeof candidate === 'number' &&
+      Number.isSafeInteger(candidate) &&
+      candidate >= 0
+      ? candidate
+      : null
+  } catch {
+    return null
+  }
 }
 
 export function createSoloSeed(): string {

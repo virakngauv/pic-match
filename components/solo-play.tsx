@@ -7,6 +7,7 @@ import { GameCard } from '@/components/game-card'
 import { getPairLayoutPlans } from '@/lib/card-layout'
 import {
   SOLO_CHALLENGE,
+  SOLO_LAST_RUN_KEY,
   answerSolo,
   createSoloSeed,
   getSoloPair,
@@ -43,7 +44,16 @@ export function SoloPlay() {
 
   useEffect(() => {
     if (state?.status !== 'finished') return
-    router.replace(`/solo/results?score=${state.score}`)
+    // The score travels through session storage; the results URL stays clean.
+    try {
+      sessionStorage.setItem(
+        SOLO_LAST_RUN_KEY,
+        JSON.stringify({ version: 1, score: state.score }),
+      )
+    } catch {
+      // Storage is optional; the results screen will fall back to the rules.
+    }
+    router.replace('/solo/results')
   }, [router, state?.score, state?.status])
 
   const seed = state?.seed

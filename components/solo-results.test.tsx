@@ -2,13 +2,37 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SOLO_STORAGE_KEY, formatSoloShareText } from '@/lib/solo-mode'
+import {
+  SOLO_LAST_RUN_KEY,
+  SOLO_STORAGE_KEY,
+  formatSoloShareText,
+} from '@/lib/solo-mode'
+
+const mocks = vi.hoisted(() => {
+  const replace = vi.fn()
+  // A stable router object: the mount effect depends on the router identity,
+  // and Next's real useRouter returns a stable value across renders.
+  return { replace, router: { replace } }
+})
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => mocks.router,
+}))
 
 import { SoloResults } from './solo-results'
 
+function seedRun(score: number) {
+  sessionStorage.setItem(
+    SOLO_LAST_RUN_KEY,
+    JSON.stringify({ version: 1, score }),
+  )
+}
+
 describe('SoloResults', () => {
   beforeEach(() => {
+    mocks.replace.mockReset()
     localStorage.clear()
+    sessionStorage.clear()
   })
 
   afterEach(() => {
@@ -29,12 +53,12 @@ describe('SoloResults', () => {
       SOLO_STORAGE_KEY,
       JSON.stringify({ version: 1, bestScore: 5, lastScore: 2 }),
     )
-    render(<SoloResults score={7} />)
+    seedRun(7)
+    render(<SoloResults />)
+    await act(async () => {})
 
-    expect(await screen.findByText('You scored 7 pairs.')).toBeVisible()
-    expect(
-      await screen.findByText('Personal best: 7 — new best!'),
-    ).toBeVisible()
+    expect(screen.getByText('You scored 7 pairs.')).toBeVisible()
+    expect(screen.getByText('Personal best: 7 — new best!')).toBeVisible()
     expect(JSON.parse(localStorage.getItem(SOLO_STORAGE_KEY) ?? '{}')).toEqual({
       version: 1,
       bestScore: 7,
@@ -47,9 +71,11 @@ describe('SoloResults', () => {
       SOLO_STORAGE_KEY,
       JSON.stringify({ version: 1, bestScore: 12, lastScore: 9 }),
     )
-    render(<SoloResults score={3} />)
+    seedRun(3)
+    render(<SoloResults />)
+    await act(async () => {})
 
-    expect(await screen.findByText('Personal best: 12')).toBeVisible()
+    expect(screen.getByText('Personal best: 12')).toBeVisible()
     expect(screen.getByText('You scored 3 pairs.')).toBeVisible()
     expect(screen.queryByText(/new best/)).not.toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(SOLO_STORAGE_KEY) ?? '{}')).toEqual({
@@ -59,10 +85,20 @@ describe('SoloResults', () => {
     })
   })
 
-  it('mirrors the multiplayer result actions', async () => {
-    render(<SoloResults score={7} />)
-    await screen.findByText('You scored 7 pairs.')
+  it('returns to the rules page without a finished run', async () => {
+    render(<SoloResults />)
+    await act(async () => {})
 
+    expect(mocks.replace).toHaveBeenCalledWith('/solo/rules')
+    expect(screen.queryByText(/You scored/)).not.toBeInTheDocument()
+  })
+
+  it('mirrors the multiplayer result actions', async () => {
+    seedRun(7)
+    render(<SoloResults />)
+    await act(async () => {})
+
+    expect(screen.getByText('You scored 7 pairs.')).toBeVisible()
     expect(screen.getByRole('link', { name: 'Play again' })).toHaveAttribute(
       'href',
       '/solo/play',
@@ -88,7 +124,8 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    render(<SoloResults score={9} />)
+    seedRun(9)
+    render(<SoloResults />)
     await act(async () => {})
     expect(screen.getByText('Personal best: 9 — new best!')).toBeVisible()
 
@@ -96,7 +133,7 @@ describe('SoloResults', () => {
     await act(async () => {})
     expect(screen.getByRole('button', { name: 'Link copied' })).toBeVisible()
     expect(written[0]).toBe(
-      formatSoloShareText(9, 'http://localhost:3000/solo'),
+      formatSoloShareText(9, 'http://localhost:3000/solo/rules'),
     )
     // Success is announced by the button text alone; no extra status line.
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -117,7 +154,8 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    render(<SoloResults score={5} />)
+    seedRun(5)
+    render(<SoloResults />)
     await act(async () => {})
     expect(screen.getByText('Personal best: 5 — new best!')).toBeVisible()
 
@@ -126,8 +164,8 @@ describe('SoloResults', () => {
     expect(screen.getByRole('button', { name: 'Shared ✓' })).toBeVisible()
     expect(navigator.share).toHaveBeenCalledWith({
       title: 'Pic Match Solo',
-      text: formatSoloShareText(5, 'http://localhost:3000/solo'),
-      url: 'http://localhost:3000/solo',
+      text: formatSoloShareText(5, 'http://localhost:3000/solo/rules'),
+      url: 'http://localhost:3000/solo/rules',
     })
 
     await act(async () => {
@@ -147,7 +185,8 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    render(<SoloResults score={3} />)
+    seedRun(3)
+    render(<SoloResults />)
     await act(async () => {})
 
     fireEvent.click(screen.getByRole('button', { name: 'Challenge a friend' }))
@@ -186,14 +225,17 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    render(<SoloResults score={9} />)
-    await screen.findByText('Personal best: 9 — new best!')
+    seedRun(9)
+    render(<SoloResults />)
+    await waitFor(() =>
+      expect(screen.getByText('Personal best: 9 — new best!')).toBeVisible(),
+    )
 
     await user.click(screen.getByRole('button', { name: 'Challenge a friend' }))
 
     await waitFor(() =>
       expect(screen.getByRole('status')).toHaveTextContent(
-        'Copy failed. Share this link instead: http://localhost:3000/solo',
+        'Copy failed. Share this link instead: http://localhost:3000/solo/rules',
       ),
     )
     expect(

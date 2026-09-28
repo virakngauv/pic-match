@@ -1,65 +1,34 @@
-'use client'
-
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { SOLO_STORAGE_KEY, parseSoloScore } from '@/lib/solo-mode'
+import { SOLO_CHALLENGE } from '@/lib/solo-mode'
 
+const initialSeconds = SOLO_CHALLENGE.initialTimeMs / 1000
+const bonusSeconds = SOLO_CHALLENGE.correctBonusMs / 1000
+const penaltySeconds = SOLO_CHALLENGE.incorrectPenaltyMs / 1000
+
+/** Solo rules screen, styled to match the create and join screens. */
 export function SoloStart() {
-  const [bestScore, setBestScore] = useState<number | null>(null)
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      try {
-        setBestScore(
-          parseSoloScore(localStorage.getItem(SOLO_STORAGE_KEY)).bestScore,
-        )
-      } catch {
-        // Browsers may deny storage; the run still works without a best.
-        setBestScore(0)
-      }
-    })
-  }, [])
-
-  const announcement =
-    bestScore === null
-      ? ''
-      : `Solo mode ready. ${bestScore > 0 ? `Personal best ${bestScore}.` : ''}`
-
   return (
-    <main
-      className="flex min-h-screen items-center px-5 py-10 sm:px-8"
-      aria-label="Solo mode"
-    >
-      <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
-        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
-          Solo
-        </p>
-        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          Ready?
+    <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
+      <section className="bg-card mx-auto w-full max-w-lg rounded-[2rem] border p-7 shadow-sm sm:p-10">
+        <h1 className="text-center text-4xl leading-[1.05] font-bold tracking-[-0.04em] text-balance sm:text-5xl">
+          play solo<span className="text-accent">.</span>
         </h1>
         <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-          Match as many pairs as you can before time runs out. Tap the shared
-          symbol on either card — your 30-second clock starts the moment you
-          press play. Every run deals a fresh board.
+          Tap on the matching symbol as many times as you can before the{' '}
+          {initialSeconds}-second timer runs out. Every correct press gets you +
+          {bonusSeconds} {bonusSeconds === 1 ? 'second' : 'seconds'}; every
+          wrong tap is −{penaltySeconds}{' '}
+          {penaltySeconds === 1 ? 'second' : 'seconds'}. Every run deals a fresh
+          board.
         </p>
-        {bestScore !== null && bestScore > 0 ? (
-          <p className="text-muted-foreground mt-2 text-sm">
-            Personal best: {bestScore}
-          </p>
-        ) : null}
-        <div className="mt-8 grid justify-items-center gap-3">
-          <Button asChild className="min-w-28">
-            <Link href="/solo/play">Play now</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href="/home">Back to home</Link>
-          </Button>
-        </div>
-        <p className="sr-only" aria-live="polite">
-          {announcement}
-        </p>
+        <Button asChild className="mt-6 h-12 w-full text-base">
+          <Link href="/solo/play">Play now</Link>
+        </Button>
+        <Button asChild variant="outline" className="mt-3 w-full">
+          <Link href="/home">Back to home</Link>
+        </Button>
       </section>
     </main>
   )

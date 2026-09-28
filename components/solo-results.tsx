@@ -1,12 +1,16 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
+  SOLO_LAST_RUN_KEY,
+  SOLO_RULES_PATH,
   SOLO_STORAGE_KEY,
   formatSoloShareText,
+  parseSoloRunScore,
   parseSoloScore,
 } from '@/lib/solo-mode'
 
@@ -15,7 +19,10 @@ type ShareState = 'idle' | 'copied' | 'shared' | 'error'
 // How long the button keeps its success confirmation before reverting.
 const SHARE_CONFIRMATION_MS = 1_000
 
-export function SoloResults({ score }: { score: number }) {
+export function SoloResults() {
+  const router = useRouter()
+  // Null until the finished run's score arrives from session storage.
+  const [runScore, setRunScore] = useState<number | null>(null)
   // Null until the stored best is read; the pre-run best decides "new best".
   const [storedBest, setStoredBest] = useState<number | null>(null)
   const [shareState, setShareState] = useState<ShareState>('idle')
@@ -26,6 +33,17 @@ export function SoloResults({ score }: { score: number }) {
 
   useEffect(() => {
     queueMicrotask(() => {
+      let score: number | null = null
+      try {
+        score = parseSoloRunScore(sessionStorage.getItem(SOLO_LAST_RUN_KEY))
+      } catch {
+        // Storage is optional; a missing run falls through to the redirect.
+      }
+      if (score === null) {
+        // A direct visit without a finished run has nothing to show.
+        router.replace(SOLO_RULES_PATH)
+        return
+      }
       let previousBest = 0
       try {
         previousBest = parseSoloScore(
@@ -42,10 +60,11 @@ export function SoloResults({ score }: { score: number }) {
       } catch {
         // Storage is optional.
       }
-      setShareUrl(new URL('/solo', window.location.origin).href)
+      setShareUrl(new URL(SOLO_RULES_PATH, window.location.origin).href)
+      setRunScore(score)
       setStoredBest(previousBest)
     })
-  }, [score])
+  }, [router])
 
   // "Link copied" / "Shared ✓" are momentary confirmations, not new labels.
   useEffect(() => {
@@ -57,16 +76,18 @@ export function SoloResults({ score }: { score: number }) {
     return () => window.clearTimeout(timer)
   }, [shareNonce, shareState])
 
-  const displayedBest = Math.max(storedBest ?? 0, score)
-  const isNewBest = storedBest !== null && score > storedBest
+  const score = runScore
+  const displayedBest = Math.max(storedBest ?? 0, score ?? 0)
+  const isNewBest = storedBest !== null && score !== null && score > storedBest
   const announcement =
-    storedBest === null
+    storedBest === null || score === null
       ? ''
       : `Time is up. Final score ${score}. ${
           isNewBest ? 'New personal best!' : `Personal best ${displayedBest}.`
         }`
 
   async function shareChallenge() {
+    if (score === null || !shareUrl) return
     const url = shareUrl
     const text = formatSoloShareText(score, url)
     if (navigator.share) {
@@ -104,14 +125,22 @@ export function SoloResults({ score }: { score: number }) {
         <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
           Time&apos;s up.
         </h1>
-        <p className="mt-4 text-2xl font-semibold tracking-[-0.03em] [overflow-wrap:anywhere]">
-          You scored {score} {score === 1 ? 'pair' : 'pairs'}.
-        </p>
-        <p className="text-muted-foreground mt-2 text-sm leading-6 sm:text-base">
-          {storedBest === null
-            ? 'Recording your score…'
-            : `Personal best: ${displayedBest}${isNewBest ? ' — new best!' : ''}`}
-        </p>
+        {score === null ? (
+          <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
+            Recording your score…
+          </p>
+        ) : (
+          <>
+            <p className="mt-4 text-2xl font-semibold tracking-[-0.03em] [overflow-wrap:anywhere]">
+              You scored {score} {score === 1 ? 'pair' : 'pairs'}.
+            </p>
+            <p className="text-muted-foreground mt-2 text-sm leading-6 sm:text-base">
+              {storedBest === null
+                ? 'Recording your score…'
+                : `Personal best: ${displayedBest}${isNewBest ? ' — new best!' : ''}`}
+            </p>
+          </>
+        )}
         <div className="mt-8 grid justify-items-center gap-3">
           <Button asChild className="min-w-28">
             <Link href="/solo/play">Play again</Link>

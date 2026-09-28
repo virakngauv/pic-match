@@ -1,13 +1,6 @@
-import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 
-import { SoloStart } from '@/components/solo-start'
-
-export const metadata: Metadata = {
-  title: 'Solo — Pic Match',
-  description:
-    'Match as many pairs as you can in a quick, browser-only Pic Match run.',
-}
-
+// The solo entry moved to /solo/rules; keep old plain /solo links working.
 export default function SoloPage() {
-  return <SoloStart />
+  redirect('/solo/rules')
 }

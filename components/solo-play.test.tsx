@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { getSoloPair } from '@/lib/solo-mode'
+import { SOLO_LAST_RUN_KEY, getSoloPair } from '@/lib/solo-mode'
 
 vi.mock('@/lib/solo-mode', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/solo-mode')>()),
@@ -43,6 +43,7 @@ function tapSymbol(symbolId: string, instance = 0) {
 describe('SoloPlay', () => {
   beforeEach(() => {
     mocks.replace.mockReset()
+    sessionStorage.clear()
   })
 
   afterEach(() => {
@@ -122,7 +123,7 @@ describe('SoloPlay', () => {
     ).not.toBeNull()
   })
 
-  it('routes to the results page with only the score when time expires', async () => {
+  it('hands the score to session storage and routes to a clean results URL', async () => {
     vi.useFakeTimers()
     render(<SoloPlay />)
     await act(async () => {})
@@ -131,6 +132,9 @@ describe('SoloPlay', () => {
       vi.advanceTimersByTime(30_100)
     })
 
-    expect(mocks.replace).toHaveBeenCalledWith('/solo/results?score=0')
+    expect(mocks.replace).toHaveBeenCalledWith('/solo/results')
+    expect(sessionStorage.getItem(SOLO_LAST_RUN_KEY)).toBe(
+      JSON.stringify({ version: 1, score: 0 }),
+    )
   })
 })

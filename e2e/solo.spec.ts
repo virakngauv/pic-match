@@ -19,9 +19,9 @@ test('plays the three-page solo loop and shares a challenge link', async ({
   })
   await page.clock.install()
 
-  // Page 1: the start screen invites the player to begin.
-  await page.goto('/solo')
-  await expect(page.getByRole('heading', { name: 'Ready?' })).toBeVisible()
+  // Page 1: the rules screen invites the player to begin.
+  await page.goto('/solo/rules')
+  await expect(page.getByRole('heading', { name: 'play solo.' })).toBeVisible()
   await page.getByRole('link', { name: 'Play now' }).click()
 
   // Page 2: the clock is already running on the play screen.
@@ -55,7 +55,7 @@ test('plays the three-page solo loop and shares a challenge link', async ({
 
   // Expiry lands on page 3, the results screen.
   await page.clock.fastForward('00:35')
-  await expect(page).toHaveURL(/\/solo\/results\?score=4$/)
+  await expect(page).toHaveURL(/\/solo\/results$/)
   await expect(page.getByText('You scored 4 pairs.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Play again' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Go home' })).toBeVisible()
@@ -77,19 +77,19 @@ test('plays the three-page solo loop and shares a challenge link', async ({
     sessionStorage.getItem('solo-copied'),
   )
   expect(copied).toMatch(
-    /^I matched 4 pairs in Pic Match Solo\. Can you beat me\? https?:\/\/\S+\/solo$/,
+    /^I matched 4 pairs in Pic Match Solo\. Can you beat me\? https?:\/\/\S+\/solo\/rules$/,
   )
   await page.clock.fastForward('00:01')
   await expect(
     page.getByRole('button', { name: 'Challenge a friend' }),
   ).toBeVisible()
 
-  // The plain solo link lands a friend on a fresh start screen.
+  // The plain solo link lands a friend on the fresh rules screen.
   const sharedUrl = copied?.match(/https?:\/\/\S+/)?.[0]
   expect(sharedUrl).toBeTruthy()
   await page.goto(sharedUrl!)
-  await expect(page).toHaveURL(/\/solo$/)
-  await expect(page.getByRole('heading', { name: 'Ready?' })).toBeVisible()
+  await expect(page).toHaveURL(/\/solo\/rules$/)
+  await expect(page.getByRole('heading', { name: 'play solo.' })).toBeVisible()
 })
 
 test('solo never attempts a multiplayer socket connection', async ({
@@ -110,13 +110,13 @@ test('solo never attempts a multiplayer socket connection', async ({
     localStorage.setItem('pic-match:client-token', 'a'.repeat(32))
   })
 
-  await page.goto('/solo')
+  await page.goto('/solo/rules')
   await page.getByRole('link', { name: 'Play now' }).click()
   await expect(page.locator('article[data-card-id]')).toHaveCount(2)
 
-  // The results screen redirects to the start page without a run.
+  // The results screen redirects to the rules page without a run.
   await page.goto('/solo/results')
-  await expect(page).toHaveURL(/\/solo$/)
+  await expect(page).toHaveURL(/\/solo\/rules$/)
 
   // Allow any eager or retried connection attempt to surface before asserting.
   await page.waitForTimeout(2_000)

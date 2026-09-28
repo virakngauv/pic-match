@@ -1,19 +1,15 @@
 import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
-
-import { SOLO_STORAGE_KEY } from '@/lib/solo-mode'
+import { describe, expect, it } from 'vitest'
 
 import { SoloStart } from './solo-start'
 
 describe('SoloStart', () => {
-  beforeEach(() => {
-    localStorage.clear()
-  })
-
-  it('invites the player to start a fresh solo run', () => {
+  it('presents the solo rules like the other entry screens', () => {
     render(<SoloStart />)
 
-    expect(screen.getByRole('heading', { name: 'Ready?' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'play solo.' })).toBeVisible()
+    expect(screen.queryByText('Ready?')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Personal best/)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Play now' })).toHaveAttribute(
       'href',
       '/solo/play',
@@ -22,16 +18,16 @@ describe('SoloStart', () => {
       'href',
       '/home',
     )
-    expect(screen.getByText(/fresh board/)).toBeVisible()
   })
 
-  it('shows the stored personal best', async () => {
-    localStorage.setItem(
-      SOLO_STORAGE_KEY,
-      JSON.stringify({ version: 1, bestScore: 12, lastScore: 3 }),
-    )
+  it('states the timer and scoring rules with live values', () => {
     render(<SoloStart />)
 
-    expect(await screen.findByText('Personal best: 12')).toBeVisible()
+    expect(
+      screen.getByText(/before the 30-second timer runs out/),
+    ).toBeVisible()
+    expect(screen.getByText(/gets you \+1 second/)).toBeVisible()
+    expect(screen.getByText(/wrong tap is −2 seconds/)).toBeVisible()
+    expect(screen.getByText(/fresh board/)).toBeVisible()
   })
 })

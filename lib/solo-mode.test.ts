@@ -7,6 +7,7 @@ import {
   formatSoloShareText,
   getSoloPair,
   getSoloStage,
+  parseSoloRunScore,
   parseSoloScore,
   parseSoloScoreParam,
   startSoloState,
@@ -124,6 +125,17 @@ describe('solo challenge', () => {
     expect(parseSoloScore('{"version":2,"bestScore":99}').bestScore).toBe(0)
     expect(parseSoloScore('{"version":1,"bestScore":-1}').bestScore).toBe(0)
     expect(parseSoloScore('broken').bestScore).toBe(0)
+  })
+
+  it('parses the finished-run handoff strictly', () => {
+    expect(parseSoloRunScore('{"version":1,"score":23}')).toBe(23)
+    expect(parseSoloRunScore('{"version":1,"score":0}')).toBe(0)
+    expect(parseSoloRunScore('{"version":2,"score":7}')).toBeNull()
+    expect(parseSoloRunScore('{"version":1,"score":-1}')).toBeNull()
+    expect(parseSoloRunScore('{"version":1,"score":1.5}')).toBeNull()
+    expect(parseSoloRunScore('{"version":1}')).toBeNull()
+    expect(parseSoloRunScore('broken')).toBeNull()
+    expect(parseSoloRunScore(null)).toBeNull()
   })
 
   it('parses result scores strictly', () => {
