@@ -518,7 +518,7 @@ function buildCardLayoutPlan(
     `${pairSeed}:${card.id}:symbols`,
   )
   const angleIndexes = shuffleIndexes(
-    card.symbolIds.length,
+    rotationProfile.angles.length,
     `${pairSeed}:${card.id}:glyph-rotations`,
   )
 

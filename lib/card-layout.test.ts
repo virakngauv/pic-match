@@ -74,6 +74,28 @@ describe('card layout templates', () => {
     expect(plans[1].symbols).toHaveLength(count)
   })
 
+  it.each([3, 4, 6])(
+    'uses the full rotation palette for %s-symbol cards',
+    (count) => {
+      const symbols = ['sun', 'moon', 'star', 'heart', 'cat', 'rocket'].slice(
+        0,
+        count,
+      )
+      const angles = new Set<number>()
+      for (let revision = 0; revision < 64; revision += 1) {
+        const cards = [
+          { id: 'a', symbolIds: symbols },
+          { id: 'b', symbolIds: symbols },
+        ]
+        for (const plan of getPairLayoutPlans(cards, revision)) {
+          plan.symbols.forEach((symbol) => angles.add(symbol.rotation))
+        }
+      }
+      expect([...angles].some((angle) => Math.abs(angle) > 60)).toBe(true)
+      expect([...angles].some((angle) => Math.abs(angle) <= 20)).toBe(true)
+    },
+  )
+
   it('uses the full reviewed symbol-size range', () => {
     const sizes = CARD_LAYOUT_TEMPLATES.flatMap(({ slots }) =>
       slots.map(({ size }) => size),

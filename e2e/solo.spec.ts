@@ -59,4 +59,15 @@ test('finishes a solo run and opens the same seeded challenge', async ({
   await page.goto(sharedUrl!)
   await expect(page.getByText('Beat 1')).toBeVisible()
   expect(await cards.nth(0).getAttribute('data-card-id')).toBeTruthy()
+
+  await page.setViewportSize({ width: 650, height: 700 })
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true)
 })

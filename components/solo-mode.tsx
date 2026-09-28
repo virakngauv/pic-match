@@ -228,7 +228,7 @@ export function SoloMode({
             </div>
           ) : null}
         </section>
-        <div className="mt-6 grid justify-items-center gap-4 sm:grid-cols-2 sm:gap-8">
+        <div className="mt-6 grid justify-items-center gap-4 md:grid-cols-2 md:gap-8">
           {pair.cards.map((card, index) => (
             <div
               className="w-full max-w-80"
