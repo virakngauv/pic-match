@@ -45,6 +45,23 @@ describe('solo challenge', () => {
     }
   })
 
+  it('deals distinct pairs across rounds within each stage', () => {
+    SOLO_CHALLENGE.stages.forEach((stage, index) => {
+      const nextScore =
+        SOLO_CHALLENGE.stages[index + 1]?.score ?? stage.score + 12
+      const seen = new Set<string>()
+      for (let pairIndex = stage.score; pairIndex < nextScore; pairIndex += 1) {
+        const { cards } = getSoloPair(seed, pairIndex, pairIndex)
+        const key = cards
+          .map((card) => card.id)
+          .sort()
+          .join(':')
+        expect(seen.has(key)).toBe(false)
+        seen.add(key)
+      }
+    })
+  })
+
   it('starts playing immediately with the full clock', () => {
     const state = startSoloState(seed, 1_000)
     expect(state.status).toBe('playing')

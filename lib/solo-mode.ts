@@ -70,13 +70,15 @@ export function getSoloPair(
 ): TwoCardMatchup {
   const stage = getSoloStage(score)
   const symbolCount = stage.order ** 2 + stage.order + 1
+  // The seed stays stable for the whole run stage so `pairIndex` walks the
+  // matchup's no-repeat pair cycle instead of reshuffling every round.
   return generateTwoCardMatchup(
     {
       order: stage.order,
       symbolsPerCard: stage.symbolsPerCard,
       symbolIds: FIRST_PLAYABLE_SYMBOL_IDS.slice(0, symbolCount),
     },
-    `${seed}:${pairIndex}:${stage.order}`,
+    `${seed}:${stage.order}`,
     pairIndex,
   )
 }
