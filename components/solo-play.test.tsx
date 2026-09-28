@@ -3,6 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { getSoloPair } from '@/lib/solo-mode'
 
+vi.mock('@/lib/solo-mode', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/solo-mode')>()),
+  // Pin the per-run random seed so the dealt pairs are deterministic.
+  createSoloSeed: () => 'fixed-challenge',
+}))
+
 import { SoloPlay } from './solo-play'
 
 const mocks = vi.hoisted(() => ({
@@ -45,7 +51,7 @@ describe('SoloPlay', () => {
 
   it('renders the stats strip and starts the clock without a first tap', async () => {
     vi.useFakeTimers()
-    render(<SoloPlay seed={seed} target={null} />)
+    render(<SoloPlay />)
 
     await act(async () => {})
 
@@ -64,7 +70,7 @@ describe('SoloPlay', () => {
 
   it('scores a shared-symbol tap on either card and rewards time', async () => {
     vi.useFakeTimers()
-    render(<SoloPlay seed={seed} target={null} />)
+    render(<SoloPlay />)
     await act(async () => {})
     await act(async () => {
       vi.advanceTimersByTime(1_000)
@@ -89,7 +95,7 @@ describe('SoloPlay', () => {
 
   it('penalizes an incorrect tap and keeps the current pair', async () => {
     vi.useFakeTimers()
-    render(<SoloPlay seed={seed} target={null} />)
+    render(<SoloPlay />)
     await act(async () => {})
     await act(async () => {
       vi.advanceTimersByTime(2_000)
@@ -111,41 +117,15 @@ describe('SoloPlay', () => {
     ).not.toBeNull()
   })
 
-  it('shows the challenge target in the stats strip', async () => {
+  it('routes to the results page with only the score when time expires', async () => {
     vi.useFakeTimers()
-    render(<SoloPlay seed={seed} target={23} />)
-
-    await act(async () => {})
-
-    expect(screen.getByText('Beat')).toBeVisible()
-    expect(screen.getByTestId('solo-beat')).toHaveTextContent('23')
-  })
-
-  it('routes to the results page with the run params when time expires', async () => {
-    vi.useFakeTimers()
-    render(<SoloPlay seed={seed} target={23} />)
+    render(<SoloPlay />)
     await act(async () => {})
 
     await act(async () => {
       vi.advanceTimersByTime(30_100)
     })
 
-    expect(mocks.replace).toHaveBeenCalledWith(
-      '/solo/results?seed=fixed-challenge&score=0&target=23',
-    )
-  })
-
-  it('generates a seed for a fresh run', async () => {
-    vi.useFakeTimers()
-    render(<SoloPlay seed={null} target={null} />)
-    await act(async () => {})
-
-    await act(async () => {
-      vi.advanceTimersByTime(30_100)
-    })
-
-    expect(mocks.replace).toHaveBeenCalledWith(
-      expect.stringMatching(/^\/solo\/results\?seed=[0-9a-f]{24}&score=0$/),
-    )
+    expect(mocks.replace).toHaveBeenCalledWith('/solo/results?score=0')
   })
 })

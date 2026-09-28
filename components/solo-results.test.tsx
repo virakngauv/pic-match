@@ -11,18 +11,17 @@ describe('SoloResults', () => {
     localStorage.clear()
   })
 
-  it('records a new personal best for a challenge run', async () => {
+  it('records a new personal best for the run', async () => {
     localStorage.setItem(
       SOLO_STORAGE_KEY,
       JSON.stringify({ version: 1, bestScore: 5, lastScore: 2 }),
     )
-    render(<SoloResults seed="abc-123" score={7} target={5} />)
+    render(<SoloResults score={7} />)
 
     expect(await screen.findByText('You scored 7 pairs.')).toBeVisible()
     expect(
       await screen.findByText('Personal best: 7 — new best!'),
     ).toBeVisible()
-    expect(screen.getByText('Challenge beaten — you passed 5!')).toBeVisible()
     expect(JSON.parse(localStorage.getItem(SOLO_STORAGE_KEY) ?? '{}')).toEqual({
       version: 1,
       bestScore: 7,
@@ -35,12 +34,11 @@ describe('SoloResults', () => {
       SOLO_STORAGE_KEY,
       JSON.stringify({ version: 1, bestScore: 12, lastScore: 9 }),
     )
-    render(<SoloResults seed="abc-123" score={3} target={23} />)
+    render(<SoloResults score={3} />)
 
     expect(await screen.findByText('Personal best: 12')).toBeVisible()
     expect(screen.getByText('You scored 3 pairs.')).toBeVisible()
     expect(screen.queryByText(/new best/)).not.toBeInTheDocument()
-    expect(screen.getByText('Challenge target: 23')).toBeVisible()
     expect(JSON.parse(localStorage.getItem(SOLO_STORAGE_KEY) ?? '{}')).toEqual({
       version: 1,
       bestScore: 12,
@@ -49,33 +47,23 @@ describe('SoloResults', () => {
   })
 
   it('mirrors the multiplayer result actions', async () => {
-    render(<SoloResults seed="abc-123" score={7} target={23} />)
+    render(<SoloResults score={7} />)
     await screen.findByText('You scored 7 pairs.')
 
     expect(screen.getByRole('link', { name: 'Play again' })).toHaveAttribute(
       'href',
-      '/solo?seed=abc-123&target=23',
+      '/solo',
     )
     expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(
       'href',
       '/home',
     )
     expect(
-      screen.getByRole('button', { name: 'Share challenge' }),
+      screen.getByRole('button', { name: 'Challenge a friend' }),
     ).toBeVisible()
   })
 
-  it('returns to a plain start page when the run had no challenge seed', async () => {
-    render(<SoloResults seed={null} score={4} target={null} />)
-    await screen.findByText('You scored 4 pairs.')
-
-    expect(screen.getByRole('link', { name: 'Play again' })).toHaveAttribute(
-      'href',
-      '/solo',
-    )
-  })
-
-  it('copies the challenge text when native share is unavailable', async () => {
+  it('copies the invite text and flips the button when clipboard write works', async () => {
     const user = userEvent.setup()
     const written: string[] = []
     Object.defineProperty(navigator, 'clipboard', {
@@ -87,22 +75,19 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    render(<SoloResults seed="abc-123" score={9} target={null} />)
+    render(<SoloResults score={9} />)
     await screen.findByText('Personal best: 9 — new best!')
 
-    await user.click(screen.getByRole('button', { name: 'Share challenge' }))
+    await user.click(screen.getByRole('button', { name: 'Challenge a friend' }))
 
     await waitFor(() =>
-      expect(screen.getByRole('status')).toHaveTextContent(
-        'Challenge copied to clipboard.',
-      ),
+      expect(screen.getByRole('button', { name: 'Link copied' })).toBeVisible(),
     )
     expect(written[0]).toBe(
-      formatSoloShareText(
-        9,
-        'http://localhost:3000/solo?seed=abc-123&target=9',
-      ),
+      formatSoloShareText(9, 'http://localhost:3000/solo'),
     )
+    // Success is announced by the button text alone; no extra status line.
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('falls back to showing the link when clipboard write fails', async () => {
@@ -116,15 +101,18 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    render(<SoloResults seed="abc-123" score={9} target={null} />)
+    render(<SoloResults score={9} />)
     await screen.findByText('Personal best: 9 — new best!')
 
-    await user.click(screen.getByRole('button', { name: 'Share challenge' }))
+    await user.click(screen.getByRole('button', { name: 'Challenge a friend' }))
 
     await waitFor(() =>
       expect(screen.getByRole('status')).toHaveTextContent(
-        'Copy this challenge link: http://localhost:3000/solo?seed=abc-123&target=9',
+        'Copy failed. Share this link instead: http://localhost:3000/solo',
       ),
     )
+    expect(
+      screen.getByRole('button', { name: 'Challenge a friend' }),
+    ).toBeVisible()
   })
 })

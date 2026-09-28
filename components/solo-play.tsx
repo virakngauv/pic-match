@@ -15,24 +15,17 @@ import {
   type SoloState,
 } from '@/lib/solo-mode'
 
-export function SoloPlay({
-  seed: initialSeed,
-  target,
-}: {
-  seed: string | null
-  target: number | null
-}) {
+export function SoloPlay() {
   const router = useRouter()
   const [state, setState] = useState<SoloState | null>(null)
 
   useEffect(() => {
     queueMicrotask(() => {
-      // The clock starts the moment the play screen mounts.
-      setState(
-        startSoloState(initialSeed ?? createSoloSeed(), target, Date.now()),
-      )
+      // The clock starts the moment the play screen mounts; every run deals
+      // a fresh random board that is never shared through the URL.
+      setState(startSoloState(createSoloSeed(), Date.now()))
     })
-  }, [initialSeed, target])
+  }, [])
 
   useEffect(() => {
     if (state?.status !== 'playing') return
@@ -45,11 +38,8 @@ export function SoloPlay({
 
   useEffect(() => {
     if (state?.status !== 'finished') return
-    const params = new URLSearchParams({ seed: state.seed })
-    params.set('score', String(state.score))
-    if (state.target !== null) params.set('target', String(state.target))
-    router.replace(`/solo/results?${params.toString()}`)
-  }, [router, state?.score, state?.seed, state?.status, state?.target])
+    router.replace(`/solo/results?score=${state.score}`)
+  }, [router, state?.score, state?.status])
 
   const seed = state?.seed
   const pairIndex = state?.pairIndex
@@ -83,9 +73,6 @@ export function SoloPlay({
     { label: 'Time left', value: `${Math.ceil(state.remainingMs / 1000)}s` },
     { label: 'Symbols', value: stage.symbolsPerCard },
   ]
-  if (state.target !== null) {
-    stats.push({ label: 'Beat', value: state.target })
-  }
 
   return (
     <main className="game-surface" aria-label="Solo game">

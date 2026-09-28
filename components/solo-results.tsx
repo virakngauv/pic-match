@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -10,19 +10,13 @@ import {
   parseSoloScore,
 } from '@/lib/solo-mode'
 
-export function SoloResults({
-  seed,
-  score,
-  target,
-}: {
-  seed: string | null
-  score: number
-  target: number | null
-}) {
+type ShareState = 'idle' | 'copied' | 'error'
+
+export function SoloResults({ score }: { score: number }) {
   // Null until the stored best is read; the pre-run best decides "new best".
   const [storedBest, setStoredBest] = useState<number | null>(null)
-  const [shareStatus, setShareStatus] = useState('')
-  const shareUrlRef = useRef('')
+  const [shareState, setShareState] = useState<ShareState>('idle')
+  const [shareUrl, setShareUrl] = useState('')
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -42,22 +36,13 @@ export function SoloResults({
       } catch {
         // Storage is optional.
       }
-      const url = new URL('/solo', window.location.origin)
-      if (seed) {
-        url.searchParams.set('seed', seed)
-        url.searchParams.set('target', String(score))
-      }
-      shareUrlRef.current = url.href
+      setShareUrl(new URL('/solo', window.location.origin).href)
       setStoredBest(previousBest)
     })
-  }, [score, seed])
+  }, [score])
 
   const displayedBest = Math.max(storedBest ?? 0, score)
   const isNewBest = storedBest !== null && score > storedBest
-  const playAgainHref =
-    seed !== null && target !== null
-      ? `/solo?seed=${encodeURIComponent(seed)}&target=${target}`
-      : '/solo'
   const announcement =
     storedBest === null
       ? ''
@@ -66,16 +51,16 @@ export function SoloResults({
         }`
 
   async function shareChallenge() {
-    const url = shareUrlRef.current
+    const url = shareUrl
     const text = formatSoloShareText(score, url)
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Pic Match Solo challenge',
+          title: 'Pic Match Solo',
           text,
           url,
         })
-        setShareStatus('Challenge shared.')
+        setShareState('copied')
         return
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
@@ -83,9 +68,9 @@ export function SoloResults({
     }
     try {
       await navigator.clipboard.writeText(text)
-      setShareStatus('Challenge copied to clipboard.')
+      setShareState('copied')
     } catch {
-      setShareStatus(`Copy this challenge link: ${url}`)
+      setShareState('error')
     }
   }
 
@@ -109,16 +94,9 @@ export function SoloResults({
             ? 'Recording your score…'
             : `Personal best: ${displayedBest}${isNewBest ? ' — new best!' : ''}`}
         </p>
-        {target !== null ? (
-          <p className="text-accent mt-4 text-lg font-bold">
-            {score >= target
-              ? `Challenge beaten — you passed ${target}!`
-              : `Challenge target: ${target}`}
-          </p>
-        ) : null}
         <div className="mt-8 grid justify-items-center gap-3">
           <Button asChild className="min-w-28">
-            <Link href={playAgainHref}>Play again</Link>
+            <Link href="/solo">Play again</Link>
           </Button>
           <Button
             type="button"
@@ -126,15 +104,15 @@ export function SoloResults({
             className="min-w-28"
             onClick={shareChallenge}
           >
-            Share challenge
+            {shareState === 'copied' ? 'Link copied' : 'Challenge a friend'}
           </Button>
           <Button asChild variant="outline">
             <Link href="/home">Go home</Link>
           </Button>
         </div>
-        {shareStatus ? (
+        {shareState === 'error' ? (
           <p className="text-muted-foreground mt-4 text-sm" role="status">
-            {shareStatus}
+            Copy failed. Share this link instead: {shareUrl}
           </p>
         ) : null}
         <p className="sr-only" aria-live="polite">

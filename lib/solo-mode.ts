@@ -22,7 +22,6 @@ export const SOLO_STORAGE_KEY = 'pic-match:solo:v1'
 
 export type SoloState = Readonly<{
   seed: string
-  target: number | null
   score: number
   pairIndex: number
   remainingMs: number
@@ -62,14 +61,9 @@ export function getSoloPair(
   )
 }
 
-export function startSoloState(
-  seed: string,
-  target: number | null,
-  now: number,
-): SoloState {
+export function startSoloState(seed: string, now: number): SoloState {
   return {
     seed,
-    target,
     score: 0,
     pairIndex: 0,
     remainingMs: SOLO_CHALLENGE.initialTimeMs,
@@ -180,15 +174,6 @@ export function parseSoloScore(raw: string | null): {
   } catch {
     return { bestScore: 0, lastScore: 0 }
   }
-}
-
-export function parseSoloChallenge(
-  seed: string | undefined,
-  target: string | undefined,
-) {
-  const safeSeed = seed && /^[a-zA-Z0-9_-]{1,128}$/.test(seed) ? seed : null
-  const safeTarget = parseSoloScoreParam(target)
-  return { seed: safeSeed, target: safeSeed ? safeTarget : null }
 }
 
 export function parseSoloScoreParam(value: string | undefined): number | null {

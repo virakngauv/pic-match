@@ -11,7 +11,7 @@ describe('SoloStart', () => {
   })
 
   it('invites the player to start a fresh solo run', () => {
-    render(<SoloStart seed={null} target={null} />)
+    render(<SoloStart />)
 
     expect(screen.getByRole('heading', { name: 'Ready?' })).toBeVisible()
     expect(screen.getByRole('link', { name: 'Play now' })).toHaveAttribute(
@@ -22,17 +22,7 @@ describe('SoloStart', () => {
       'href',
       '/home',
     )
-    expect(screen.queryByText(/Beat \d/)).not.toBeInTheDocument()
-  })
-
-  it('carries a shared challenge onto the play screen', () => {
-    render(<SoloStart seed="abc-123" target={23} />)
-
-    expect(screen.getByText('Beat 23')).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Play now' })).toHaveAttribute(
-      'href',
-      '/solo/play?seed=abc-123&target=23',
-    )
+    expect(screen.getByText(/fresh board/)).toBeVisible()
   })
 
   it('shows the stored personal best', async () => {
@@ -40,7 +30,7 @@ describe('SoloStart', () => {
       SOLO_STORAGE_KEY,
       JSON.stringify({ version: 1, bestScore: 12, lastScore: 3 }),
     )
-    render(<SoloStart seed={null} target={null} />)
+    render(<SoloStart />)
 
     expect(await screen.findByText('Personal best: 12')).toBeVisible()
   })

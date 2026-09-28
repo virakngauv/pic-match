@@ -6,21 +6,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { SOLO_STORAGE_KEY, parseSoloScore } from '@/lib/solo-mode'
 
-function playHref(seed: string | null, target: number | null): string {
-  const params = new URLSearchParams()
-  if (seed) params.set('seed', seed)
-  if (target !== null) params.set('target', String(target))
-  const query = params.toString()
-  return query ? `/solo/play?${query}` : '/solo/play'
-}
-
-export function SoloStart({
-  seed,
-  target,
-}: {
-  seed: string | null
-  target: number | null
-}) {
+export function SoloStart() {
   const [bestScore, setBestScore] = useState<number | null>(null)
 
   useEffect(() => {
@@ -39,7 +25,7 @@ export function SoloStart({
   const announcement =
     bestScore === null
       ? ''
-      : `Solo mode ready. ${target !== null ? `Beat ${target}. ` : ''}${bestScore > 0 ? `Personal best ${bestScore}.` : ''}`
+      : `Solo mode ready. ${bestScore > 0 ? `Personal best ${bestScore}.` : ''}`
 
   return (
     <main
@@ -56,11 +42,8 @@ export function SoloStart({
         <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
           Match as many pairs as you can before time runs out. Tap the shared
           symbol on either card — your 30-second clock starts the moment you
-          press play.
+          press play. Every run deals a fresh board.
         </p>
-        {target !== null ? (
-          <p className="text-accent mt-4 text-xl font-bold">Beat {target}</p>
-        ) : null}
         {bestScore !== null && bestScore > 0 ? (
           <p className="text-muted-foreground mt-2 text-sm">
             Personal best: {bestScore}
@@ -68,7 +51,7 @@ export function SoloStart({
         ) : null}
         <div className="mt-8 grid justify-items-center gap-3">
           <Button asChild className="min-w-28">
-            <Link href={playHref(seed, target)}>Play now</Link>
+            <Link href="/solo/play">Play now</Link>
           </Button>
           <Button asChild variant="outline">
             <Link href="/home">Back to home</Link>

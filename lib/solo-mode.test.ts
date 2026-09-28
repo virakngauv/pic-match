@@ -7,7 +7,6 @@ import {
   formatSoloShareText,
   getSoloPair,
   getSoloStage,
-  parseSoloChallenge,
   parseSoloScore,
   parseSoloScoreParam,
   startSoloState,
@@ -46,7 +45,7 @@ describe('solo challenge', () => {
   })
 
   it('starts playing immediately with the full clock', () => {
-    const state = startSoloState(seed, null, 1_000)
+    const state = startSoloState(seed, 1_000)
     expect(state.status).toBe('playing')
     expect(state.remainingMs).toBe(SOLO_CHALLENGE.initialTimeMs)
     expect(state.lastUpdatedAt).toBe(1_000)
@@ -56,7 +55,7 @@ describe('solo challenge', () => {
   })
 
   it('scores either card, rewards time, and advances after feedback', () => {
-    const first = answerSolo(startSoloState(seed, null, 1_000), shared(), 1_000)
+    const first = answerSolo(startSoloState(seed, 1_000), shared(), 1_000)
     expect(first.status).toBe('playing')
     expect(first.announcement).toBe('')
     expect(first.score).toBe(1)
@@ -76,7 +75,7 @@ describe('solo challenge', () => {
     const wrong = pair.cards[0].symbolIds.find(
       (symbol) => !pair.cards[1].symbolIds.includes(symbol),
     )!
-    const first = answerSolo(startSoloState(seed, null, 0), wrong, 100)
+    const first = answerSolo(startSoloState(seed, 0), wrong, 100)
     expect(first.remainingMs).toBe(27_900)
     expect(first.pairIndex).toBe(0)
     const nearEnd = {
@@ -92,14 +91,14 @@ describe('solo challenge', () => {
   })
 
   it('does not cap correct rewards at 30 seconds and ends on elapsed time', () => {
-    const answered = answerSolo(startSoloState(seed, null, 0), shared(), 0)
+    const answered = answerSolo(startSoloState(seed, 0), shared(), 0)
     expect(answered.remainingMs).toBe(31_000)
     expect(tickSolo(answered, 31_000).status).toBe('finished')
   })
 
   it('uses the entering score for a difficulty step after success feedback', () => {
     const ready = {
-      ...startSoloState(seed, null, 0),
+      ...startSoloState(seed, 0),
       score: 3,
       pairIndex: 3,
     }
@@ -118,18 +117,13 @@ describe('solo challenge', () => {
     ).toHaveLength(4)
   })
 
-  it('parses versioned scores and untrusted challenge parameters', () => {
+  it('parses versioned scores', () => {
     expect(
       parseSoloScore('{"version":1,"bestScore":23,"lastScore":7}'),
     ).toEqual({ bestScore: 23, lastScore: 7 })
     expect(parseSoloScore('{"version":2,"bestScore":99}').bestScore).toBe(0)
     expect(parseSoloScore('{"version":1,"bestScore":-1}').bestScore).toBe(0)
     expect(parseSoloScore('broken').bestScore).toBe(0)
-    expect(parseSoloChallenge(seed, '23')).toEqual({ seed, target: 23 })
-    expect(parseSoloChallenge('<script>', '23')).toEqual({
-      seed: null,
-      target: null,
-    })
   })
 
   it('parses result scores strictly', () => {
@@ -144,11 +138,11 @@ describe('solo challenge', () => {
 
   it('creates hex seeds and formats the share text', () => {
     expect(createSoloSeed()).toMatch(/^[0-9a-f]{24}$/)
-    expect(formatSoloShareText(23, 'https://pic.match/solo?seed=abc')).toBe(
-      'I matched 23 pairs in Pic Match Solo. Can you beat me? https://pic.match/solo?seed=abc',
+    expect(formatSoloShareText(23, 'https://pic.match/solo')).toBe(
+      'I matched 23 pairs in Pic Match Solo. Can you beat me? https://pic.match/solo',
     )
-    expect(formatSoloShareText(1, 'https://pic.match/solo?seed=abc')).toBe(
-      'I matched 1 pair in Pic Match Solo. Can you beat me? https://pic.match/solo?seed=abc',
+    expect(formatSoloShareText(1, 'https://pic.match/solo')).toBe(
+      'I matched 1 pair in Pic Match Solo. Can you beat me? https://pic.match/solo',
     )
   })
 })

@@ -5,7 +5,7 @@ import { expectValidCardGeometry } from './card-layout-assertions'
 // Mirrors SOLO_CHALLENGE.successFeedbackMs; e2e specs do not import lib code.
 const SOLO_SUCCESS_FEEDBACK_MS = 220
 
-test('plays the three-page solo loop and opens the same seeded challenge', async ({
+test('plays the three-page solo loop and shares a challenge link', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -20,30 +20,30 @@ test('plays the three-page solo loop and opens the same seeded challenge', async
   await page.clock.install()
 
   // Page 1: the start screen invites the player to begin.
-  await page.goto('/solo?seed=e2e-solo&target=2')
-  await expect(page.getByText('Beat 2', { exact: true })).toBeVisible()
+  await page.goto('/solo')
+  await expect(page.getByRole('heading', { name: 'Ready?' })).toBeVisible()
   await page.getByRole('link', { name: 'Play now' }).click()
 
   // Page 2: the clock is already running on the play screen.
-  await expect(page).toHaveURL(/\/solo\/play\?seed=e2e-solo&target=2/)
+  await expect(page).toHaveURL(/\/solo\/play$/)
   await expect(page.getByTestId('solo-time-left')).toHaveText('30s')
   const cards = page.locator('article[data-card-id]')
   await expect(cards).toHaveCount(2)
   await expectValidCardGeometry(cards, { minimumSymbolSizeRange: 26 })
 
-  const initialPair = await readPair(page)
-  const [firstSymbols, rightSymbols] = await readPairSymbols(page)
-  const match = firstSymbols.find((symbol) => rightSymbols.includes(symbol))
-  expect(match).toBeTruthy()
-  await cards.nth(1).locator(`button[data-symbol-id="${match}"]`).click()
+  const shared = await readSharedSymbol(page)
+  await cards.nth(1).locator(`button[data-symbol-id="${shared}"]`).click()
   await expect(page.getByTestId('solo-score')).toHaveText('1')
 
   // Three more correct answers climb into the four-symbol stage, whose
   // layout follows the same geometry rules on the rendered board.
   for (let score = 2; score <= 4; score += 1) {
     await page.clock.fastForward(SOLO_SUCCESS_FEEDBACK_MS)
-    const shared = await readSharedSymbol(page)
-    await cards.first().locator(`button[data-symbol-id="${shared}"]`).click()
+    const nextShared = await readSharedSymbol(page)
+    await cards
+      .first()
+      .locator(`button[data-symbol-id="${nextShared}"]`)
+      .click()
     await expect(page.getByTestId('solo-score')).toHaveText(String(score))
   }
   await page.clock.fastForward(SOLO_SUCCESS_FEEDBACK_MS)
@@ -55,9 +55,7 @@ test('plays the three-page solo loop and opens the same seeded challenge', async
 
   // Expiry lands on page 3, the results screen.
   await page.clock.fastForward('00:35')
-  await expect(page).toHaveURL(
-    /\/solo\/results\?seed=e2e-solo&score=4&target=2/,
-  )
+  await expect(page).toHaveURL(/\/solo\/results\?score=4$/)
   await expect(page.getByText('You scored 4 pairs.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Play again' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Go home' })).toBeVisible()
@@ -71,22 +69,22 @@ test('plays the three-page solo loop and opens the same seeded challenge', async
     )
     .toBe(4)
 
-  await page.getByRole('button', { name: 'Share challenge' }).click()
-  await expect(page.getByRole('status')).toHaveText(
-    'Challenge copied to clipboard.',
-  )
+  // Sharing flips the button itself instead of surfacing a status line.
+  await page.getByRole('button', { name: 'Challenge a friend' }).click()
+  await expect(page.getByRole('button', { name: 'Link copied' })).toBeVisible()
   const copied = await page.evaluate(() =>
     sessionStorage.getItem('solo-copied'),
   )
+  expect(copied).toMatch(
+    /^I matched 4 pairs in Pic Match Solo\. Can you beat me\? https?:\/\/\S+\/solo$/,
+  )
+
+  // The plain solo link lands a friend on a fresh start screen.
   const sharedUrl = copied?.match(/https?:\/\/\S+/)?.[0]
   expect(sharedUrl).toBeTruthy()
-
-  // The shared link replays the identical deterministic pair sequence.
   await page.goto(sharedUrl!)
-  await expect(page.getByText('Beat 4', { exact: true })).toBeVisible()
-  await page.getByRole('link', { name: 'Play now' }).click()
-  await expect(cards).toHaveCount(2)
-  expect(await readPair(page)).toEqual(initialPair)
+  await expect(page).toHaveURL(/\/solo$/)
+  await expect(page.getByRole('heading', { name: 'Ready?' })).toBeVisible()
 })
 
 test('solo never attempts a multiplayer socket connection', async ({
@@ -107,7 +105,7 @@ test('solo never attempts a multiplayer socket connection', async ({
     localStorage.setItem('pic-match:client-token', 'a'.repeat(32))
   })
 
-  await page.goto('/solo?seed=e2e-socketless')
+  await page.goto('/solo')
   await page.getByRole('link', { name: 'Play now' }).click()
   await expect(page.locator('article[data-card-id]')).toHaveCount(2)
 
