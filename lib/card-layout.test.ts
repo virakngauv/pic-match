@@ -312,6 +312,16 @@ describe('card layout templates', () => {
     expect(previewIds).toEqual(CARD_LAYOUT_TEMPLATES.map(({ id }) => id))
   })
 
+  it('previews solo-count cards with size-matched templates', () => {
+    const plan = getCardLayoutPreviewPlan(
+      { id: 'trio-preview', symbolIds: ['sun', 'moon', 'star'] },
+      0,
+    )
+
+    expect(plan.templateId).toBe('trio')
+    expect(plan.symbols).toHaveLength(3)
+  })
+
   it('rejects malformed card input before rendering', () => {
     expect(() => getPairLayoutPlans(cards.slice(0, 1), 0)).toThrow(
       'Exactly two cards',

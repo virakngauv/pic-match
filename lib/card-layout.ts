@@ -299,6 +299,7 @@ export function getCardLayoutPreviewPlan(
     `preview:${templateIndex}`,
     templateIndex,
     templateIndex % CARD_ROTATION_PROFILES.length,
+    getTemplates(card.symbolIds.length),
   )
 }
 
