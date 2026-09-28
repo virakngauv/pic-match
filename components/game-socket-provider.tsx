@@ -86,8 +86,12 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     if (!clientToken || !socketRequired) return
 
     // A fresh dial starts from connecting so no status carries over from a
-    // previous socket.
-    queueMicrotask(() => setConnectionStatus('connecting'))
+    // previous socket. The cleanup cancels the pending update so a Strict
+    // Mode replay cannot set connecting after it disconnected.
+    let dialAnnounced = false
+    queueMicrotask(() => {
+      if (!dialAnnounced) setConnectionStatus('connecting')
+    })
 
     const memberRooms = memberRoomsRef.current
     const gameServerUrl =
@@ -176,6 +180,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     socket.on('server:shutdown', handleShutdown)
 
     return () => {
+      dialAnnounced = true
       socketRef.current = null
       receiveSnapshotRef.current = () => {}
       memberRooms.clear()
