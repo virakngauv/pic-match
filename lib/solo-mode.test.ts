@@ -147,5 +147,8 @@ describe('solo challenge', () => {
     expect(formatSoloShareText(23, 'https://pic.match/solo?seed=abc')).toBe(
       'I matched 23 pairs in Pic Match Solo. Can you beat me? https://pic.match/solo?seed=abc',
     )
+    expect(formatSoloShareText(1, 'https://pic.match/solo?seed=abc')).toBe(
+      'I matched 1 pair in Pic Match Solo. Can you beat me? https://pic.match/solo?seed=abc',
+    )
   })
 })

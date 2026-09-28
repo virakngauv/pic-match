@@ -207,5 +207,6 @@ export function formatSoloShareText(
   score: number,
   challengeUrl: string,
 ): string {
-  return `I matched ${score} pairs in Pic Match Solo. Can you beat me? ${challengeUrl}`
+  const noun = score === 1 ? 'pair' : 'pairs'
+  return `I matched ${score} ${noun} in Pic Match Solo. Can you beat me? ${challengeUrl}`
 }
