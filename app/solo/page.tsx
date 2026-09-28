@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { SoloMode } from '@/components/solo-mode'
+import { SoloStart } from '@/components/solo-start'
 import { parseSoloChallenge } from '@/lib/solo-mode'
 
 export const metadata: Metadata = {
@@ -16,5 +16,5 @@ export default async function SoloPage({
 }) {
   const params = await searchParams
   const { seed, target } = parseSoloChallenge(params.seed, params.target)
-  return <SoloMode initialSeed={seed} target={target} />
+  return <SoloStart seed={seed} target={target} />
 }

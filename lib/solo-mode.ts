@@ -27,7 +27,7 @@ export type SoloState = Readonly<{
   pairIndex: number
   remainingMs: number
   lastUpdatedAt: number | null
-  status: 'ready' | 'playing' | 'finished'
+  status: 'playing' | 'finished'
   announcement: string
   feedback: null | Readonly<{
     kind: 'correct' | 'incorrect'
@@ -62,9 +62,10 @@ export function getSoloPair(
   )
 }
 
-export function createSoloState(
+export function startSoloState(
   seed: string,
-  target: number | null = null,
+  target: number | null,
+  now: number,
 ): SoloState {
   return {
     seed,
@@ -72,8 +73,8 @@ export function createSoloState(
     score: 0,
     pairIndex: 0,
     remainingMs: SOLO_CHALLENGE.initialTimeMs,
-    lastUpdatedAt: null,
-    status: 'ready',
+    lastUpdatedAt: now,
+    status: 'playing',
     announcement: '',
     feedback: null,
   }
@@ -123,11 +124,9 @@ export function answerSolo(
   const nextScore = current.score + (correct ? 1 : 0)
   const nextStage = getSoloStage(nextScore)
   const announcement =
-    current.status === 'ready'
-      ? 'Timer started.'
-      : correct && nextStage.score === nextScore
-        ? `Level up: ${nextStage.symbolsPerCard} symbols per card.`
-        : current.announcement
+    correct && nextStage.score === nextScore
+      ? `Level up: ${nextStage.symbolsPerCard} symbols per card.`
+      : current.announcement
   const remainingMs = correct
     ? current.remainingMs + SOLO_CHALLENGE.correctBonusMs
     : Math.max(0, current.remainingMs - SOLO_CHALLENGE.incorrectPenaltyMs)
@@ -188,7 +187,25 @@ export function parseSoloChallenge(
   target: string | undefined,
 ) {
   const safeSeed = seed && /^[a-zA-Z0-9_-]{1,128}$/.test(seed) ? seed : null
-  const safeTarget =
-    target && /^(0|[1-9]\d{0,8})$/.test(target) ? Number(target) : null
+  const safeTarget = parseSoloScoreParam(target)
   return { seed: safeSeed, target: safeSeed ? safeTarget : null }
+}
+
+export function parseSoloScoreParam(value: string | undefined): number | null {
+  return value && /^(0|[1-9]\d{0,8})$/.test(value) ? Number(value) : null
+}
+
+export function createSoloSeed(): string {
+  const bytes = new Uint8Array(12)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+    '',
+  )
+}
+
+export function formatSoloShareText(
+  score: number,
+  challengeUrl: string,
+): string {
+  return `I matched ${score} pairs in Pic Match Solo. Can you beat me? ${challengeUrl}`
 }
