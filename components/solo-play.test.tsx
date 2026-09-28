@@ -1,7 +1,12 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SOLO_LAST_RUN_KEY, getSoloPair } from '@/lib/solo-mode'
+import {
+  SOLO_LAST_RUN_KEY,
+  getSoloPair,
+  readSoloRunScore,
+  rememberSoloRunScore,
+} from '@/lib/solo-mode'
 
 vi.mock('@/lib/solo-mode', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/solo-mode')>()),
@@ -44,9 +49,11 @@ describe('SoloPlay', () => {
   beforeEach(() => {
     mocks.replace.mockReset()
     sessionStorage.clear()
+    rememberSoloRunScore(null)
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 
@@ -136,5 +143,23 @@ describe('SoloPlay', () => {
     expect(sessionStorage.getItem(SOLO_LAST_RUN_KEY)).toBe(
       JSON.stringify({ version: 1, score: 0 }),
     )
+  })
+
+  it('still hands off the score when session storage throws', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(sessionStorage, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    render(<SoloPlay />)
+    await act(async () => {})
+
+    await act(async () => {
+      vi.advanceTimersByTime(30_100)
+    })
+
+    expect(mocks.replace).toHaveBeenCalledWith('/solo/results')
+    // The in-memory handoff keeps the finished run reachable by the results
+    // even though nothing could be persisted.
+    expect(readSoloRunScore(null)).toBe(0)
   })
 })

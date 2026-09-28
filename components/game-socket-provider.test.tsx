@@ -78,6 +78,11 @@ function RoomProbe({ roomCode }: { roomCode: string }) {
   )
 }
 
+function StatusProbe() {
+  const { connectionStatus } = useGameSocket()
+  return <div data-testid="connection">{connectionStatus}</div>
+}
+
 function MembershipProbe({
   command,
   roomCode,
@@ -180,6 +185,49 @@ describe('GameSocketProvider', () => {
     )
 
     await waitFor(() => expect(mocks.io).toHaveBeenCalledTimes(1))
+  })
+
+  it('resets the connection status when a socketless detour tears down the socket', async () => {
+    mocks.pathname = '/home'
+    const view = render(
+      <GameSocketProvider>
+        <StatusProbe />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalledTimes(1))
+    act(() => mocks.handlers.get('connect')?.())
+    await waitFor(() =>
+      expect(screen.getByTestId('connection')).toHaveTextContent('connected'),
+    )
+
+    // Navigating to a solo route tears the socket down; the stale connected
+    // status must not leak out of the detached connection.
+    mocks.pathname = '/solo'
+    view.rerender(
+      <GameSocketProvider>
+        <StatusProbe />
+      </GameSocketProvider>,
+    )
+    expect(screen.getByTestId('connection')).toHaveTextContent('disconnected')
+    expect(mocks.socket.disconnect).toHaveBeenCalled()
+
+    // Coming back dials again and starts from connecting, so forms keep
+    // their actions disabled until the new socket actually connects.
+    mocks.pathname = '/create'
+    view.rerender(
+      <GameSocketProvider>
+        <StatusProbe />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(screen.getByTestId('connection')).toHaveTextContent('connecting'),
+    )
+
+    act(() => mocks.handlers.get('connect')?.())
+    await waitFor(() =>
+      expect(screen.getByTestId('connection')).toHaveTextContent('connected'),
+    )
   })
 
   it('derives the game server URL from a LAN page hostname when the public URL is empty', async () => {

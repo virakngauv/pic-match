@@ -10,8 +10,8 @@ import {
   SOLO_RULES_PATH,
   SOLO_STORAGE_KEY,
   formatSoloShareText,
-  parseSoloRunScore,
   parseSoloScore,
+  readSoloRunScore,
 } from '@/lib/solo-mode'
 
 type ShareState = 'idle' | 'copied' | 'shared' | 'error'
@@ -32,13 +32,18 @@ export function SoloResults() {
   const [shareUrl, setShareUrl] = useState('')
 
   useEffect(() => {
+    // Strict Mode replays effects; cancelling the superseded callback keeps
+    // the replay from reading the just-written best as the previous best.
+    let cancelled = false
     queueMicrotask(() => {
-      let score: number | null = null
+      if (cancelled) return
+      let stored: string | null = null
       try {
-        score = parseSoloRunScore(sessionStorage.getItem(SOLO_LAST_RUN_KEY))
+        stored = sessionStorage.getItem(SOLO_LAST_RUN_KEY)
       } catch {
-        // Storage is optional; a missing run falls through to the redirect.
+        // Storage access can be blocked; the memory handoff has the run.
       }
+      const score = readSoloRunScore(stored)
       if (score === null) {
         // A direct visit without a finished run has nothing to show.
         router.replace(SOLO_RULES_PATH)
@@ -64,6 +69,9 @@ export function SoloResults() {
       setRunScore(score)
       setStoredBest(previousBest)
     })
+    return () => {
+      cancelled = true
+    }
   }, [router])
 
   // "Link copied" / "Shared ✓" are momentary confirmations, not new labels.

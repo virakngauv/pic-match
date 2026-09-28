@@ -1,11 +1,13 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   SOLO_LAST_RUN_KEY,
   SOLO_STORAGE_KEY,
   formatSoloShareText,
+  rememberSoloRunScore,
 } from '@/lib/solo-mode'
 
 const mocks = vi.hoisted(() => {
@@ -33,9 +35,11 @@ describe('SoloResults', () => {
     mocks.replace.mockReset()
     localStorage.clear()
     sessionStorage.clear()
+    rememberSoloRunScore(null)
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.useRealTimers()
     // Keep share/clipboard stubs from leaking between tests.
     Object.defineProperty(navigator, 'share', {
@@ -91,6 +95,40 @@ describe('SoloResults', () => {
 
     expect(mocks.replace).toHaveBeenCalledWith('/solo/rules')
     expect(screen.queryByText(/You scored/)).not.toBeInTheDocument()
+  })
+
+  it('still shows the finished run when session storage access throws', async () => {
+    rememberSoloRunScore(7)
+    vi.spyOn(sessionStorage, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    render(<SoloResults />)
+    await act(async () => {})
+
+    expect(screen.getByText('You scored 7 pairs.')).toBeVisible()
+    expect(screen.getByText('Personal best: 7 — new best!')).toBeVisible()
+    expect(mocks.replace).not.toHaveBeenCalled()
+  })
+
+  it('keeps the new-best flag when Strict Mode replays the mount effect', async () => {
+    localStorage.setItem(
+      SOLO_STORAGE_KEY,
+      JSON.stringify({ version: 1, bestScore: 5, lastScore: 2 }),
+    )
+    seedRun(7)
+    render(
+      <StrictMode>
+        <SoloResults />
+      </StrictMode>,
+    )
+    await act(async () => {})
+
+    expect(screen.getByText('Personal best: 7 — new best!')).toBeVisible()
+    expect(JSON.parse(localStorage.getItem(SOLO_STORAGE_KEY) ?? '{}')).toEqual({
+      version: 1,
+      bestScore: 7,
+      lastScore: 7,
+    })
   })
 
   it('mirrors the multiplayer result actions', async () => {

@@ -26,6 +26,20 @@ export const SOLO_RULES_PATH = '/solo/rules'
 // through session storage so the score never appears in the URL.
 export const SOLO_LAST_RUN_KEY = 'pic-match:solo:last-run:v1'
 
+// The score rides module memory across the client-side route transition even
+// when storage is blocked; session storage only preserves it across reloads.
+let lastRunScore: number | null = null
+
+/** Records the finished run's score; pass null to reset (tests use this). */
+export function rememberSoloRunScore(score: number | null): void {
+  lastRunScore = score
+}
+
+/** Reads the finished run's score: the memory handoff first, then storage. */
+export function readSoloRunScore(raw: string | null): number | null {
+  return lastRunScore ?? parseSoloRunScore(raw)
+}
+
 export type SoloState = Readonly<{
   seed: string
   score: number

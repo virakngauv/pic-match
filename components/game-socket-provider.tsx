@@ -85,6 +85,10 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!clientToken || !socketRequired) return
 
+    // A fresh dial starts from connecting so no status carries over from a
+    // previous socket.
+    queueMicrotask(() => setConnectionStatus('connecting'))
+
     const memberRooms = memberRoomsRef.current
     const gameServerUrl =
       process.env.NEXT_PUBLIC_GAME_SERVER_URL?.trim() ||
@@ -177,6 +181,9 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
       memberRooms.clear()
       setSnapshots({})
       setEndedRooms({})
+      // A socketless detour (or a re-key) tears the socket down, so the stale
+      // connected status must not leak into the next route's forms.
+      setConnectionStatus('disconnected')
       socket.disconnect()
     }
   }, [clientToken, socketRequired])

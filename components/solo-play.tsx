@@ -12,6 +12,7 @@ import {
   createSoloSeed,
   getSoloPair,
   getSoloStage,
+  rememberSoloRunScore,
   startSoloState,
   tickSolo,
   type SoloState,
@@ -44,14 +45,16 @@ export function SoloPlay() {
 
   useEffect(() => {
     if (state?.status !== 'finished') return
-    // The score travels through session storage; the results URL stays clean.
+    // The score rides the in-memory handoff across the route transition;
+    // session storage only preserves it across reloads when available.
+    rememberSoloRunScore(state.score)
     try {
       sessionStorage.setItem(
         SOLO_LAST_RUN_KEY,
         JSON.stringify({ version: 1, score: state.score }),
       )
     } catch {
-      // Storage is optional; the results screen will fall back to the rules.
+      // Storage is optional; the memory handoff still carries the score.
     }
     router.replace('/solo/results')
   }, [router, state?.score, state?.status])
