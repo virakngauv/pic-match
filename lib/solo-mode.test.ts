@@ -45,6 +45,7 @@ describe('solo challenge', () => {
   it('starts on the first tap, scores either card, rewards time, and advances after feedback', () => {
     const first = answerSolo(createSoloState(seed), shared(), 1_000)
     expect(first.status).toBe('playing')
+    expect(first.announcement).toBe('Timer started.')
     expect(first.score).toBe(1)
     expect(first.remainingMs).toBe(SOLO_CHALLENGE.initialTimeMs + 1_000)
     expect(first.pairIndex).toBe(0)
@@ -93,6 +94,7 @@ describe('solo challenge', () => {
     }
     const answered = answerSolo(ready, shared(3, 3), 0)
     expect(answered.score).toBe(4)
+    expect(answered.announcement).toBe('Level up: 4 symbols per card.')
     expect(answered.pairIndex).toBe(3)
     expect(
       getSoloPair(seed, answered.pairIndex, answered.pairIndex).cards[0]

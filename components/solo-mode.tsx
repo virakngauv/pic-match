@@ -102,12 +102,7 @@ export function SoloMode({
   const liveMessage =
     state.status === 'finished'
       ? `Time is up. Final score ${state.score}. ${isNewBest ? 'New personal best!' : ''}`
-      : state.feedback?.kind === 'correct' &&
-          getSoloStage(state.score).score === state.score
-        ? `Level up: ${getSoloStage(state.score).symbolsPerCard} symbols per card.`
-        : state.status === 'playing' && state.score === 0
-          ? 'Timer started.'
-          : ''
+      : state.announcement
 
   function playAgain() {
     setShareStatus('')

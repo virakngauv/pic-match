@@ -28,6 +28,7 @@ export type SoloState = Readonly<{
   remainingMs: number
   lastUpdatedAt: number | null
   status: 'ready' | 'playing' | 'finished'
+  announcement: string
   feedback: null | Readonly<{
     kind: 'correct' | 'incorrect'
     symbolId: string
@@ -73,6 +74,7 @@ export function createSoloState(
     remainingMs: SOLO_CHALLENGE.initialTimeMs,
     lastUpdatedAt: null,
     status: 'ready',
+    announcement: '',
     feedback: null,
   }
 }
@@ -118,6 +120,14 @@ export function answerSolo(
     pair.cards[1].symbolIds.includes(id),
   )
   const correct = symbolId === sharedSymbol
+  const nextScore = current.score + (correct ? 1 : 0)
+  const nextStage = getSoloStage(nextScore)
+  const announcement =
+    current.status === 'ready'
+      ? 'Timer started.'
+      : correct && nextStage.score === nextScore
+        ? `Level up: ${nextStage.symbolsPerCard} symbols per card.`
+        : current.announcement
   const remainingMs = correct
     ? current.remainingMs + SOLO_CHALLENGE.correctBonusMs
     : Math.max(0, current.remainingMs - SOLO_CHALLENGE.incorrectPenaltyMs)
@@ -126,7 +136,8 @@ export function answerSolo(
     status: remainingMs === 0 ? 'finished' : 'playing',
     lastUpdatedAt: now,
     remainingMs,
-    score: current.score + (correct ? 1 : 0),
+    score: nextScore,
+    announcement,
     feedback:
       remainingMs === 0
         ? null

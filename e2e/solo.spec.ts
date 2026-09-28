@@ -18,6 +18,14 @@ test('finishes a solo run and opens the same seeded challenge', async ({
   await expect(page.getByTestId('solo-time')).toHaveText('30s')
 
   const cards = page.locator('article[data-card-id]')
+  const initialPair = await cards.evaluateAll((elements) =>
+    elements.map((card) => ({
+      id: card.getAttribute('data-card-id'),
+      symbols: [...card.querySelectorAll('button[data-symbol-id]')].map(
+        (symbol) => symbol.getAttribute('data-symbol-id'),
+      ),
+    })),
+  )
   const firstSymbols = await cards
     .nth(0)
     .locator('button[data-symbol-id]')
@@ -34,6 +42,9 @@ test('finishes a solo run and opens the same seeded challenge', async ({
   expect(match).toBeTruthy()
   await cards.nth(1).locator(`button[data-symbol-id="${match}"]`).click()
   await expect(page.getByTestId('solo-score')).toHaveText('1')
+  await expect(page.locator('[aria-live="polite"]')).toHaveText(
+    'Timer started.',
+  )
   await page.clock.fastForward('00:31')
   await expect(page.getByTestId('solo-result')).toContainText('1 pairs matched')
   await expect(cards.locator('button:not([disabled])')).toHaveCount(0)
@@ -58,7 +69,17 @@ test('finishes a solo run and opens the same seeded challenge', async ({
   expect(sharedUrl).toBeTruthy()
   await page.goto(sharedUrl!)
   await expect(page.getByText('Beat 1')).toBeVisible()
-  expect(await cards.nth(0).getAttribute('data-card-id')).toBeTruthy()
+  await expect(cards).toHaveCount(2)
+  expect(
+    await cards.evaluateAll((elements) =>
+      elements.map((card) => ({
+        id: card.getAttribute('data-card-id'),
+        symbols: [...card.querySelectorAll('button[data-symbol-id]')].map(
+          (symbol) => symbol.getAttribute('data-symbol-id'),
+        ),
+      })),
+    ),
+  ).toEqual(initialPair)
 
   await page.setViewportSize({ width: 650, height: 700 })
   await expect
