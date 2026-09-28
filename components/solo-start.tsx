@@ -7,6 +7,10 @@ const initialSeconds = SOLO_CHALLENGE.initialTimeMs / 1000
 const bonusSeconds = SOLO_CHALLENGE.correctBonusMs / 1000
 const penaltySeconds = SOLO_CHALLENGE.incorrectPenaltyMs / 1000
 
+function secondsLabel(seconds: number) {
+  return `${seconds} ${seconds === 1 ? 'second' : 'seconds'}`
+}
+
 /** Solo rules screen, styled to match the create and join screens. */
 export function SoloStart() {
   return (
@@ -15,14 +19,13 @@ export function SoloStart() {
         <h1 className="text-center text-4xl leading-[1.05] font-bold tracking-[-0.04em] text-balance sm:text-5xl">
           play solo<span className="text-accent">.</span>
         </h1>
-        <p className="text-muted-foreground mt-4 text-sm leading-6 sm:text-base">
-          Tap on the matching symbol as many times as you can before the{' '}
-          {initialSeconds}-second timer runs out. Every correct press gets you +
-          {bonusSeconds} {bonusSeconds === 1 ? 'second' : 'seconds'}; every
-          wrong tap is −{penaltySeconds}{' '}
-          {penaltySeconds === 1 ? 'second' : 'seconds'}. Every run deals a fresh
-          board.
-        </p>
+        {/* Every value comes straight from SOLO_CHALLENGE, so the rules can
+            never drift from what the game actually does. */}
+        <ul className="text-muted-foreground mt-4 space-y-1 text-sm leading-6 sm:text-base">
+          <li>timer: {secondsLabel(initialSeconds)}</li>
+          <li>matching symbol: +{secondsLabel(bonusSeconds)}</li>
+          <li>wrong symbol: −{secondsLabel(penaltySeconds)}</li>
+        </ul>
         <Button asChild className="mt-6 h-12 w-full text-base">
           <Link href="/solo/play">Play now</Link>
         </Button>

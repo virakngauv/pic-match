@@ -20,14 +20,13 @@ describe('SoloStart', () => {
     )
   })
 
-  it('states the timer and scoring rules with live values', () => {
+  it('lists the timer and scoring rules with live values', () => {
     render(<SoloStart />)
 
-    expect(
-      screen.getByText(/before the 30-second timer runs out/),
-    ).toBeVisible()
-    expect(screen.getByText(/gets you \+1 second/)).toBeVisible()
-    expect(screen.getByText(/wrong tap is −2 seconds/)).toBeVisible()
-    expect(screen.getByText(/fresh board/)).toBeVisible()
+    const rules = screen.getByRole('list')
+    expect(rules).toBeVisible()
+    expect(rules).toHaveTextContent('timer: 30 seconds')
+    expect(rules).toHaveTextContent('matching symbol: +1 second')
+    expect(rules).toHaveTextContent('wrong symbol: −2 seconds')
   })
 })
