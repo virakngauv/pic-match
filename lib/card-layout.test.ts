@@ -4,6 +4,7 @@ import { SELECTED_SYMBOL_SCALE } from './card-selection'
 import {
   CARD_LAYOUT_TEMPLATES,
   CARD_ROTATION_PROFILES,
+  SOLO_CARD_LAYOUT_TEMPLATES,
   type CardRotationProfile,
   MAX_SYMBOL_SIZE,
   MIN_SYMBOL_SIZE,
@@ -51,6 +52,26 @@ describe('card layout templates', () => {
     for (const layoutTemplate of CARD_LAYOUT_TEMPLATES) {
       expect(validateCardLayoutTemplate(layoutTemplate)).toEqual([])
     }
+  })
+
+  it.each([3, 4, 6])('plans collision-free %s-symbol solo cards', (count) => {
+    const symbols = ['sun', 'moon', 'star', 'heart', 'cat', 'rocket'].slice(
+      0,
+      count,
+    )
+    for (const template of SOLO_CARD_LAYOUT_TEMPLATES[count] ?? []) {
+      expect(validateCardLayoutTemplate(template)).toEqual([])
+    }
+    const plans = getPairLayoutPlans(
+      [
+        { id: 'a', symbolIds: symbols },
+        { id: 'b', symbolIds: symbols },
+      ],
+      3,
+    )
+    expect(plans[0].templateId).not.toBe(plans[1].templateId)
+    expect(plans[0].symbols).toHaveLength(count)
+    expect(plans[1].symbols).toHaveLength(count)
   })
 
   it('uses the full reviewed symbol-size range', () => {
@@ -278,6 +299,6 @@ describe('card layout templates', () => {
         [cards[0], { id: 'short-card', symbolIds: ['sun'] }],
         0,
       ),
-    ).toThrow('Exactly eight symbols')
+    ).toThrow('Paired cards must have the same symbol count')
   })
 })

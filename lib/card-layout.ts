@@ -21,16 +21,7 @@ export type CardLayoutTemplate = Readonly<{
 
 export type CardRotationProfile = Readonly<{
   id: string
-  angles: readonly [
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-  ]
+  angles: readonly number[]
 }>
 
 export type CardLayoutCard = Readonly<{
@@ -182,6 +173,56 @@ export const CARD_LAYOUT_TEMPLATES: readonly CardLayoutTemplate[] = [
   ]),
 ]
 
+/** Balanced arrangements for the smaller solo decks. */
+export const SOLO_CARD_LAYOUT_TEMPLATES: Readonly<
+  Record<number, readonly CardLayoutTemplate[]>
+> = {
+  3: [
+    template('trio', [
+      [0, -0.5, 0.16, 0.24],
+      [-0.48, 0.34, 0.14, 0.22],
+      [0.48, 0.34, 0.14, 0.22],
+    ]),
+    template('trio-alt', [
+      [0, 0.5, 0.16, 0.24],
+      [-0.48, -0.34, 0.14, 0.22],
+      [0.48, -0.34, 0.14, 0.22],
+    ]),
+  ],
+  4: [
+    template('quartet', [
+      [-0.42, -0.42, 0.16, 0.24],
+      [0.42, -0.42, 0.14, 0.22],
+      [-0.42, 0.42, 0.14, 0.22],
+      [0.42, 0.42, 0.14, 0.22],
+    ]),
+    template('quartet-alt', [
+      [0, -0.52, 0.16, 0.24],
+      [-0.52, 0, 0.14, 0.22],
+      [0.52, 0, 0.14, 0.22],
+      [0, 0.52, 0.14, 0.22],
+    ]),
+  ],
+  6: [
+    template('sextet', [
+      [0, -0.58, 0.13, 0.2],
+      [0.5, -0.29, 0.13, 0.2],
+      [0.5, 0.29, 0.12, 0.19],
+      [0, 0.58, 0.12, 0.19],
+      [-0.5, 0.29, 0.11, 0.18],
+      [-0.5, -0.29, 0.11, 0.18],
+    ]),
+    template('sextet-alt', [
+      [0.29, -0.5, 0.13, 0.2],
+      [0.58, 0, 0.13, 0.2],
+      [0.29, 0.5, 0.12, 0.19],
+      [-0.29, 0.5, 0.12, 0.19],
+      [-0.58, 0, 0.11, 0.18],
+      [-0.29, -0.5, 0.11, 0.18],
+    ]),
+  ],
+}
+
 /**
  * Curated glyph-orientation palettes, independent of the spatial templates.
  * Each profile assigns one angle per symbol; roughly four or five angles stay
@@ -212,7 +253,11 @@ export function getPairLayoutPlans(
   }
 
   const pairSeed = `${pairRevision}:${firstCard.id}:${secondCard.id}`
-  const templateCount = CARD_LAYOUT_TEMPLATES.length
+  if (firstCard.symbolIds.length !== secondCard.symbolIds.length) {
+    throw new Error('Paired cards must have the same symbol count.')
+  }
+  const templates = getTemplates(firstCard.symbolIds.length)
+  const templateCount = templates.length
   const firstTemplateIndex =
     hashText(`${pairSeed}:template:first`) % templateCount
   const secondTemplateCandidate =
@@ -223,8 +268,20 @@ export function getPairLayoutPlans(
       : secondTemplateCandidate
 
   return [
-    buildCardLayoutPlan(firstCard, pairSeed, firstTemplateIndex),
-    buildCardLayoutPlan(secondCard, pairSeed, secondTemplateIndex),
+    buildCardLayoutPlan(
+      firstCard,
+      pairSeed,
+      firstTemplateIndex,
+      undefined,
+      templates,
+    ),
+    buildCardLayoutPlan(
+      secondCard,
+      pairSeed,
+      secondTemplateIndex,
+      undefined,
+      templates,
+    ),
   ]
 }
 
@@ -251,8 +308,8 @@ export function validateCardLayoutTemplate(
 ): string[] {
   const errors: string[] = []
 
-  if (layoutTemplate.slots.length !== 8) {
-    errors.push(`${layoutTemplate.id} must contain exactly eight slots.`)
+  if (![3, 4, 6, 8].includes(layoutTemplate.slots.length)) {
+    errors.push(`${layoutTemplate.id} must contain 3, 4, 6, or 8 slots.`)
   }
 
   layoutTemplate.slots.forEach((slot, index) => {
@@ -429,12 +486,15 @@ function buildCardLayoutPlan(
   pairSeed: string,
   templateIndex: number,
   previewProfileIndex?: number,
+  templates: readonly CardLayoutTemplate[] = CARD_LAYOUT_TEMPLATES,
 ): CardLayoutPlan {
-  if (card.symbolIds.length !== 8) {
-    throw new Error('Exactly eight symbols are required to plan a card.')
+  if (![3, 4, 6, 8].includes(card.symbolIds.length)) {
+    throw new Error(
+      'Exactly 3, 4, 6, or 8 symbols are required to plan a card.',
+    )
   }
 
-  const selectedTemplate = CARD_LAYOUT_TEMPLATES[templateIndex]
+  const selectedTemplate = templates[templateIndex]
 
   if (!selectedTemplate) {
     throw new Error('Unable to resolve the selected card layout template.')
@@ -458,7 +518,7 @@ function buildCardLayoutPlan(
     `${pairSeed}:${card.id}:symbols`,
   )
   const angleIndexes = shuffleIndexes(
-    rotationProfile.angles.length,
+    card.symbolIds.length,
     `${pairSeed}:${card.id}:glyph-rotations`,
   )
 
@@ -492,6 +552,13 @@ function buildCardLayoutPlan(
       }
     }),
   }
+}
+
+function getTemplates(symbolCount: number): readonly CardLayoutTemplate[] {
+  if (symbolCount === 8) return CARD_LAYOUT_TEMPLATES
+  const templates = SOLO_CARD_LAYOUT_TEMPLATES[symbolCount]
+  if (!templates) throw new Error('Unsupported symbol count for card layout.')
+  return templates
 }
 
 function shuffleIndexes(length: number, seed: string): number[] {

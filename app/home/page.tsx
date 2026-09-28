@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 
 export const metadata: Metadata = {
   title: 'Home — Pic Match',
-  description: 'Create a new Pic Match room or join your friends.',
+  description: 'Play Pic Match Solo or create and join a room with friends.',
 }
 
 export default function HomePage() {
@@ -31,6 +31,13 @@ export default function HomePage() {
             </Button>
             <Button asChild variant="outline" className="h-12 w-full text-base">
               <Link href="/join">Join a room</Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="border-accent text-accent h-12 w-full text-base"
+            >
+              <Link href="/solo">Solo</Link>
             </Button>
           </div>
         </section>
