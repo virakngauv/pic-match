@@ -32,12 +32,8 @@ export default function HomePage() {
             <Button asChild variant="outline" className="h-12 w-full text-base">
               <Link href="/join">Join a room</Link>
             </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="border-accent text-accent h-12 w-full text-base"
-            >
-              <Link href="/solo">Solo</Link>
+            <Button asChild variant="outline" className="h-12 w-full text-base">
+              <Link href="/solo">Play Solo</Link>
             </Button>
           </div>
         </section>
