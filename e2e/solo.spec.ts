@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test'
 
+import { expectValidCardGeometry } from './card-layout-assertions'
+
+// Mirrors SOLO_CHALLENGE.successFeedbackMs; e2e specs do not import lib code.
+const SOLO_SUCCESS_FEEDBACK_MS = 220
+
 test('plays the three-page solo loop and opens the same seeded challenge', async ({
   page,
 }) => {
@@ -24,7 +29,7 @@ test('plays the three-page solo loop and opens the same seeded challenge', async
   await expect(page.getByTestId('solo-time-left')).toHaveText('30s')
   const cards = page.locator('article[data-card-id]')
   await expect(cards).toHaveCount(2)
-  await expectNoPageOverflow(page, 320, 568)
+  await expectValidCardGeometry(cards, { minimumSymbolSizeRange: 26 })
 
   const initialPair = await readPair(page)
   const [firstSymbols, rightSymbols] = await readPairSymbols(page)
@@ -32,14 +37,28 @@ test('plays the three-page solo loop and opens the same seeded challenge', async
   expect(match).toBeTruthy()
   await cards.nth(1).locator(`button[data-symbol-id="${match}"]`).click()
   await expect(page.getByTestId('solo-score')).toHaveText('1')
-  await expect(page.getByTestId('solo-time-left')).toHaveText('30s')
+
+  // Three more correct answers climb into the four-symbol stage, whose
+  // layout follows the same geometry rules on the rendered board.
+  for (let score = 2; score <= 4; score += 1) {
+    await page.clock.fastForward(SOLO_SUCCESS_FEEDBACK_MS)
+    const shared = await readSharedSymbol(page)
+    await cards.first().locator(`button[data-symbol-id="${shared}"]`).click()
+    await expect(page.getByTestId('solo-score')).toHaveText(String(score))
+  }
+  await page.clock.fastForward(SOLO_SUCCESS_FEEDBACK_MS)
+  await expect(page.getByTestId('solo-symbols')).toHaveText('4')
+  await expectValidCardGeometry(cards, { minimumSymbolSizeRange: 30 })
+
+  // The page still never scrolls, even on the smallest supported phone.
+  await expectNoPageOverflow(page, 320, 568)
 
   // Expiry lands on page 3, the results screen.
-  await page.clock.fastForward('00:31')
+  await page.clock.fastForward('00:35')
   await expect(page).toHaveURL(
-    /\/solo\/results\?seed=e2e-solo&score=1&target=2/,
+    /\/solo\/results\?seed=e2e-solo&score=4&target=2/,
   )
-  await expect(page.getByText('You scored 1 pair.')).toBeVisible()
+  await expect(page.getByText('You scored 4 pairs.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Play again' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Go home' })).toBeVisible()
   await expect
@@ -50,7 +69,7 @@ test('plays the three-page solo loop and opens the same seeded challenge', async
             .bestScore,
       ),
     )
-    .toBe(1)
+    .toBe(4)
 
   await page.getByRole('button', { name: 'Share challenge' }).click()
   await expect(page.getByRole('status')).toHaveText(
@@ -64,7 +83,7 @@ test('plays the three-page solo loop and opens the same seeded challenge', async
 
   // The shared link replays the identical deterministic pair sequence.
   await page.goto(sharedUrl!)
-  await expect(page.getByText('Beat 1', { exact: true })).toBeVisible()
+  await expect(page.getByText('Beat 4', { exact: true })).toBeVisible()
   await page.getByRole('link', { name: 'Play now' }).click()
   await expect(cards).toHaveCount(2)
   expect(await readPair(page)).toEqual(initialPair)
@@ -116,6 +135,17 @@ async function readPair(page: import('@playwright/test').Page) {
 async function readPairSymbols(page: import('@playwright/test').Page) {
   const pair = await readPair(page)
   return pair.map((card) => card.symbols)
+}
+
+async function readSharedSymbol(page: import('@playwright/test').Page) {
+  const [leftSymbols, rightSymbols] = await readPairSymbols(page)
+  const shared = leftSymbols.find((symbol) => rightSymbols.includes(symbol))
+
+  if (!shared) {
+    throw new Error('The rendered solo pair has no shared symbol.')
+  }
+
+  return shared
 }
 
 async function expectNoPageOverflow(

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import { SELECTED_SYMBOL_SCALE } from './card-selection'
 import {
+  CARD_LAYOUT_EDGE_PADDING,
   CARD_LAYOUT_TEMPLATES,
   CARD_ROTATION_PROFILES,
   SOLO_CARD_LAYOUT_TEMPLATES,
+  type CardLayoutSlot,
   type CardRotationProfile,
   MAX_SYMBOL_SIZE,
   MIN_SYMBOL_SIZE,
@@ -43,6 +45,50 @@ const cards = [
     ],
   },
 ] as const
+
+// Guard rails against regressing to centered regular polygons (triangle,
+// square, hexagon) or flat size ladders on the smaller solo decks. Limits were
+// calibrated against the shipped generated templates; a centered radial
+// layout, corner cluster, or uniform ladder cannot satisfy all three.
+const MIN_SOLO_SIZE_SPREAD: Record<number, number> = { 3: 0.09, 4: 0.1, 6: 0.1 }
+const EMPTY_GAP_LIMITS: Record<number, number> = {
+  3: 0.35,
+  4: 0.31,
+  6: 0.3,
+  8: 0.27,
+}
+const MIN_CENTROID_DISTANCE_SPREAD = 0.04
+const EMPTY_GAP_SAMPLE_COUNT = 128
+const EMPTY_GAP_GOLDEN_ANGLE = 2.399963229728653
+
+/**
+ * Distance from the emptiest deterministic sample point on the usable card
+ * disk to the nearest symbol collision envelope (or the card edge).
+ */
+function findLargestEmptyGap(slots: readonly CardLayoutSlot[]): number {
+  let largestGap = 0
+
+  for (let sample = 0; sample < EMPTY_GAP_SAMPLE_COUNT; sample += 1) {
+    const distance =
+      Math.sqrt((sample + 0.5) / EMPTY_GAP_SAMPLE_COUNT) *
+      (1 - CARD_LAYOUT_EDGE_PADDING)
+    const x = Math.cos(sample * EMPTY_GAP_GOLDEN_ANGLE) * distance
+    const y = Math.sin(sample * EMPTY_GAP_GOLDEN_ANGLE) * distance
+    let nearest = 1 - CARD_LAYOUT_EDGE_PADDING - Math.hypot(x, y)
+
+    for (const slot of slots) {
+      nearest = Math.min(
+        nearest,
+        Math.hypot(x - slot.x, y - slot.y) -
+          Math.max(slot.collisionRadius, slot.size * SELECTED_SYMBOL_SCALE),
+      )
+    }
+
+    largestGap = Math.max(largestGap, nearest)
+  }
+
+  return largestGap
+}
 
 describe('card layout templates', () => {
   it('ships twelve distinct, collision-free eight-symbol templates', () => {
@@ -318,8 +364,66 @@ describe('card layout templates', () => {
       0,
     )
 
-    expect(plan.templateId).toBe('trio')
+    expect(plan.templateId).toBe('maple')
     expect(plan.symbols).toHaveLength(3)
+  })
+
+  it('keeps a strong size hierarchy on every solo template', () => {
+    for (const [count, layoutTemplates] of Object.entries(
+      SOLO_CARD_LAYOUT_TEMPLATES,
+    )) {
+      const minimumSpread = MIN_SOLO_SIZE_SPREAD[Number(count)]
+
+      for (const layoutTemplate of layoutTemplates) {
+        const sizes = layoutTemplate.slots.map(({ size }) => size)
+
+        expect(
+          Math.max(...sizes) - Math.min(...sizes),
+          `${layoutTemplate.id} collapses its size hierarchy`,
+        ).toBeGreaterThanOrEqual(minimumSpread)
+      }
+    }
+  })
+
+  it.each([3, 4, 6, 8])(
+    'bounds the largest empty region on %s-symbol templates',
+    (count) => {
+      const layoutTemplates =
+        count === 8
+          ? CARD_LAYOUT_TEMPLATES
+          : (SOLO_CARD_LAYOUT_TEMPLATES[count] ?? [])
+
+      for (const layoutTemplate of layoutTemplates) {
+        expect(
+          findLargestEmptyGap(layoutTemplate.slots),
+          `${layoutTemplate.id} leaves too large an uncovered region`,
+        ).toBeLessThanOrEqual(EMPTY_GAP_LIMITS[count])
+      }
+    },
+  )
+
+  it('avoids regular-polygon arrangements in every template', () => {
+    const layoutTemplates = [
+      ...CARD_LAYOUT_TEMPLATES,
+      ...Object.values(SOLO_CARD_LAYOUT_TEMPLATES).flat(),
+    ]
+
+    for (const layoutTemplate of layoutTemplates) {
+      const centroidX =
+        layoutTemplate.slots.reduce((sum, { x }) => sum + x, 0) /
+        layoutTemplate.slots.length
+      const centroidY =
+        layoutTemplate.slots.reduce((sum, { y }) => sum + y, 0) /
+        layoutTemplate.slots.length
+      const centroidDistances = layoutTemplate.slots.map(({ x, y }) =>
+        Math.hypot(x - centroidX, y - centroidY),
+      )
+
+      expect(
+        Math.max(...centroidDistances) - Math.min(...centroidDistances),
+        `${layoutTemplate.id} sits on a regular polygon`,
+      ).toBeGreaterThanOrEqual(MIN_CENTROID_DISTANCE_SPREAD)
+    }
   })
 
   it('rejects malformed card input before rendering', () => {

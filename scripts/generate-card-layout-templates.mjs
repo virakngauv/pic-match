@@ -1,6 +1,6 @@
 import { validateCardLayoutTemplate } from '../lib/card-layout.ts'
 
-const TEMPLATE_NAMES = [
+const PRODUCTION_TEMPLATE_NAMES = [
   'aurora',
   'borealis',
   'cascade',
@@ -15,13 +15,12 @@ const TEMPLATE_NAMES = [
   'lagoon',
 ]
 
-const SYMBOL_SIZES = [0.2, 0.175, 0.155, 0.135, 0.118, 0.102, 0.088, 0.076]
-const COLLISION_RADII = [
+const PRODUCTION_SYMBOL_SIZES = [
+  0.2, 0.175, 0.155, 0.135, 0.118, 0.102, 0.088, 0.076,
+]
+const PRODUCTION_COLLISION_RADII = [
   0.3024, 0.2646, 0.2344, 0.2041, 0.1784, 0.17, 0.17, 0.17,
 ]
-const GENERATION_EDGE_PADDING = 0.07
-const GENERATION_SLOT_GAP = 0.055
-const CANDIDATES_PER_TEMPLATE = 300
 const CURATED_ADJUSTMENTS = {
   borealis: {
     5: { x: -0.437, y: -0.026 },
@@ -38,11 +37,81 @@ const CURATED_SIZE_OVERRIDES = {
   isotope: { 5: 0.11, 6: 0.105, 7: 0.095 },
 }
 
-for (
-  let templateIndex = 0;
-  templateIndex < TEMPLATE_NAMES.length;
-  templateIndex += 1
-) {
+// Per-count ladders for the solo decks. Each spans a meaningful slice of the
+// 0.2 -> 0.076 reviewed range so small boards keep a size hierarchy instead of
+// collapsing into evenly sized rings. Names continue the alphabetical run.
+const SOLO_COUNT_CONFIGS = [
+  {
+    symbolCount: 3,
+    templateNames: ['maple', 'nectar', 'orbit'],
+    symbolSizes: [0.2, 0.145, 0.105],
+  },
+  {
+    symbolCount: 4,
+    templateNames: ['prairie', 'quiver', 'ripple'],
+    symbolSizes: [0.2, 0.155, 0.118, 0.088],
+  },
+  {
+    symbolCount: 6,
+    templateNames: ['saffron', 'thicket', 'umbra'],
+    symbolSizes: [0.19, 0.16, 0.135, 0.115, 0.098, 0.084],
+  },
+]
+
+const GENERATION_EDGE_PADDING = 0.07
+const GENERATION_SLOT_GAP = 0.055
+const CANDIDATES_PER_TEMPLATE = 300
+
+// Empty-space pressure for the solo counts: deterministic sample points across
+// the usable card disk penalize candidates that leave one large uncovered
+// region, the signature of a regular polygon centered on the card.
+const EMPTY_SPACE_SAMPLE_COUNT = 48
+const GOLDEN_ANGLE = 2.399963229728653
+const EMPTY_SPACE_LARGEST_WEIGHT = 0.3
+const EMPTY_SPACE_MEAN_WEIGHT = 0.2
+
+// Collision radii follow the production rule: 1.512x the glyph size, floored
+// at the minimum 48px tap target on a 288px card.
+function collisionRadiusFor(size) {
+  return Math.max(0.17, Math.round(size * 1.512 * 10_000) / 10_000)
+}
+
+const COUNT_CONFIGS = [
+  {
+    symbolCount: 8,
+    templateNames: PRODUCTION_TEMPLATE_NAMES,
+    symbolSizes: PRODUCTION_SYMBOL_SIZES,
+    collisionRadii: PRODUCTION_COLLISION_RADII,
+    usesEmptySpaceScoring: false,
+  },
+  ...SOLO_COUNT_CONFIGS.map((config) => ({
+    ...config,
+    collisionRadii: config.symbolSizes.map(collisionRadiusFor),
+    usesEmptySpaceScoring: true,
+  })),
+]
+
+let templateIndex = 0
+const soloBlocks = []
+
+for (const config of COUNT_CONFIGS) {
+  const lines = config.templateNames.map((templateName) =>
+    generateTemplate(templateName, config, templateIndex++),
+  )
+
+  if (config.symbolCount === 8) {
+    lines.forEach((line) => console.log(`${line},`))
+  } else {
+    soloBlocks.push(
+      `  ${config.symbolCount}: [\n    ${lines.join(',\n    ')},\n  ],`,
+    )
+  }
+}
+
+console.log('\n// SOLO_CARD_LAYOUT_TEMPLATES body:')
+console.log(soloBlocks.join('\n'))
+
+function generateTemplate(templateName, config, templateIndex) {
   let bestCandidate
 
   for (
@@ -52,6 +121,7 @@ for (
   ) {
     const candidate = generateCandidate(
       0x71f00d + templateIndex * 100_003 + candidateIndex * 101,
+      config,
     )
 
     if (
@@ -63,21 +133,20 @@ for (
   }
 
   if (!bestCandidate) {
-    throw new Error(`Unable to generate template ${templateIndex}.`)
+    throw new Error(`Unable to generate template ${templateName}.`)
   }
 
-  const templateName = TEMPLATE_NAMES[templateIndex]
   const slots = bestCandidate.points.map((point, slotIndex) => {
     const adjustment = CURATED_ADJUSTMENTS[templateName]?.[slotIndex]
     const size =
       CURATED_SIZE_OVERRIDES[templateName]?.[slotIndex] ??
-      SYMBOL_SIZES[slotIndex]
+      config.symbolSizes[slotIndex]
 
     return [
       round(point.x + (adjustment?.x ?? 0)),
       round(point.y + (adjustment?.y ?? 0)),
       size,
-      round(COLLISION_RADII[slotIndex]),
+      round(config.collisionRadii[slotIndex]),
     ]
   })
 
@@ -97,12 +166,13 @@ for (
     )
   }
 
-  console.log(`template('${templateName}', ${JSON.stringify(slots)}),`)
+  return `template('${templateName}', ${JSON.stringify(slots)})`
 }
 
-function generateCandidate(seed) {
+function generateCandidate(seed, config) {
+  const radii = config.collisionRadii
   const random = createRandom(seed)
-  const points = COLLISION_RADII.map((radius) => {
+  const points = radii.map((radius) => {
     const limit = 1 - GENERATION_EDGE_PADDING - radius
     const angle = random() * Math.PI * 2
     const distance = Math.sqrt(random()) * limit
@@ -124,8 +194,8 @@ function generateCandidate(seed) {
       ) {
         const firstPoint = points[firstIndex]
         const secondPoint = points[secondIndex]
-        const firstRadius = COLLISION_RADII[firstIndex]
-        const secondRadius = COLLISION_RADII[secondIndex]
+        const firstRadius = radii[firstIndex]
+        const secondRadius = radii[secondIndex]
 
         if (!firstPoint || !secondPoint || !firstRadius || !secondRadius) {
           throw new Error('Unable to resolve candidate slot geometry.')
@@ -164,7 +234,7 @@ function generateCandidate(seed) {
     }
 
     points.forEach((point, index) => {
-      const radius = COLLISION_RADII[index]
+      const radius = radii[index]
 
       if (!radius) {
         throw new Error('Unable to resolve a candidate collision radius.')
@@ -185,29 +255,76 @@ function generateCandidate(seed) {
     }
   }
 
-  const minimumClearance = getMinimumClearance(points)
+  const minimumClearance = getMinimumClearance(points, radii)
   const centerX = average(points.map(({ x }) => x))
   const centerY = average(points.map(({ y }) => y))
   const balance = Math.hypot(centerX, centerY)
   const width = range(points.map(({ x }) => x))
   const height = range(points.map(({ y }) => y))
 
+  let score =
+    minimumClearance -
+    balance * 0.65 -
+    Math.abs(width - height) * 0.1 +
+    (width + height) * 0.02
+
+  if (config.usesEmptySpaceScoring) {
+    const { largestGap, meanGap } = measureEmptySpace(points, radii)
+    score -= largestGap * EMPTY_SPACE_LARGEST_WEIGHT
+    score -= meanGap * EMPTY_SPACE_MEAN_WEIGHT
+  }
+
   return {
     minimumClearance,
     points,
-    score:
-      minimumClearance -
-      balance * 0.65 -
-      Math.abs(width - height) * 0.1 +
-      (width + height) * 0.02,
+    score,
   }
 }
 
-function getMinimumClearance(points) {
+/**
+ * Samples deterministic points on a sunflower spiral across the usable card
+ * disk and reports how far the emptiest sample sits from the nearest collision
+ * envelope (or the card edge), plus the mean over all samples.
+ */
+function measureEmptySpace(points, radii) {
+  let largestGap = 0
+  let gapSum = 0
+
+  for (
+    let sampleIndex = 0;
+    sampleIndex < EMPTY_SPACE_SAMPLE_COUNT;
+    sampleIndex += 1
+  ) {
+    const distance =
+      Math.sqrt((sampleIndex + 0.5) / EMPTY_SPACE_SAMPLE_COUNT) *
+      (1 - GENERATION_EDGE_PADDING)
+    const angle = sampleIndex * GOLDEN_ANGLE
+    const x = Math.cos(angle) * distance
+    const y = Math.sin(angle) * distance
+
+    let nearest = 1 - GENERATION_EDGE_PADDING - Math.hypot(x, y)
+    points.forEach((point, index) => {
+      const radius = radii[index]
+
+      if (!radius) {
+        throw new Error('Unable to measure empty space for a candidate.')
+      }
+
+      nearest = Math.min(nearest, Math.hypot(x - point.x, y - point.y) - radius)
+    })
+
+    largestGap = Math.max(largestGap, nearest)
+    gapSum += nearest
+  }
+
+  return { largestGap, meanGap: gapSum / EMPTY_SPACE_SAMPLE_COUNT }
+}
+
+function getMinimumClearance(points, radii) {
   let minimumClearance = Number.POSITIVE_INFINITY
 
   points.forEach((point, index) => {
-    const radius = COLLISION_RADII[index]
+    const radius = radii[index]
 
     if (!radius) {
       throw new Error('Unable to resolve a candidate collision radius.')
@@ -220,7 +337,7 @@ function getMinimumClearance(points) {
 
     for (let otherIndex = 0; otherIndex < index; otherIndex += 1) {
       const otherPoint = points[otherIndex]
-      const otherRadius = COLLISION_RADII[otherIndex]
+      const otherRadius = radii[otherIndex]
 
       if (!otherPoint || !otherRadius) {
         throw new Error('Unable to resolve paired candidate geometry.')

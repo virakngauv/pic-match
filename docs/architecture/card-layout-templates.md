@@ -1,10 +1,11 @@
 # Card layout templates
 
-Game cards use 12 fixed numerical templates from `lib/card-layout.ts`. Each
-template defines eight symbol centers, sizes, and conservative collision radii
-in a normalized card whose center is `(0, 0)` and radius is `1`. The card
-component enforces the validator's 288px minimum rendered diameter; changing
-that responsive floor requires updating and revalidating the target geometry.
+Game cards use fixed numerical templates from `lib/card-layout.ts`: twelve
+eight-symbol templates plus per-count sets for the smaller solo decks. Each
+template defines symbol centers, sizes, and conservative collision radii in a
+normalized card whose center is `(0, 0)` and radius is `1`. The card component
+enforces the validator's 288px minimum rendered diameter; changing that
+responsive floor requires updating and revalidating the target geometry.
 
 ## Spatial rotation versus glyph rotation
 
@@ -54,19 +55,41 @@ generation clearances are intentionally larger than the runtime validation
 constants so rounding the committed coordinates does not erase the safety
 margin.
 
-Generation never runs in the browser. Candidate output must be visually
-reviewed before it is copied into `CARD_LAYOUT_TEMPLATES`. The committed data is
-validated immediately after rounding and curated overrides, before it is
-printed, and is then protected by unit tests that require:
+## Solo deck templates
 
-- exactly eight slots per template;
+`SOLO_CARD_LAYOUT_TEMPLATES` holds generated templates for the smaller solo
+decks (three, four, and six symbols per card) alongside the eight-symbol
+production set. The same generator emits them from per-count configs: each
+count has stable template names (continuing the alphabetical run), a size
+ladder that spans a meaningful slice of the `0.2`–`0.076` reviewed range so
+small boards keep a hierarchy instead of evenly sized rings, and collision
+radii derived with the production rule (`max(0.17, 1.512 × size)`).
+
+Solo candidates add an empty-space term to the selection score: deterministic
+sample points on a sunflower spiral across the usable card disk penalize
+candidates that leave one large uncovered region. Note the term alone cannot
+distinguish a centered regular polygon from an irregular layout — a centered
+triangle is nearly optimal at covering the disk — so unit tests also reject
+regular-polygon geometry directly (per-slot centroid-distance spread) and flat
+size ladders. Together with the empty-region ceiling these guard rails keep
+regressions to radial layouts out of the committed data.
+
+Generation never runs in the browser. Candidate output must be visually
+reviewed before it is copied into `CARD_LAYOUT_TEMPLATES` (or
+`SOLO_CARD_LAYOUT_TEMPLATES`). The committed data is validated immediately
+after rounding and curated overrides, before it is printed, and is then
+protected by unit tests that require:
+
+- exactly 3, 4, 6, or 8 slots per template;
 - a 48px target at the smallest supported card diameter;
 - a collision circle at least 1.5 times the normalized font size, large enough
   to contain freely rotated square glyph boxes and unusually wide platform
   emoji;
 - pairwise collision-radius clearance plus the configured breathing-room gap;
 - collision-radius clearance from the circular card edge;
-- the same invariants after non-right-angle whole-template rotations.
+- the same invariants after non-right-angle whole-template rotations;
+- per-count solo size spreads, bounded largest empty regions, and
+  non-regular-polygon slot arrangements.
 
 Small reviewed coordinate and size corrections may be recorded in the
 generator's `CURATED_ADJUSTMENTS` and `CURATED_SIZE_OVERRIDES` maps when browser
