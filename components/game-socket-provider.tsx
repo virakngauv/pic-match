@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { io, type Socket } from 'socket.io-client'
 import {
   createContext,
@@ -26,6 +27,9 @@ import {
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected'
 export type RoomEndedReason = 'expired' | 'removed' | 'server_restart'
+
+/** Client-only routes that must never reach the multiplayer server. */
+const SOCKETLESS_ROUTE_PREFIXES = ['/solo'] as const
 
 type GameSocketContextValue = {
   connectionStatus: ConnectionStatus
@@ -59,6 +63,10 @@ export function defaultGameServerUrl(hostname: string): string {
 
 export function GameSocketProvider({ children }: { children: ReactNode }) {
   const { clientToken, ensureClientToken } = usePlayerSession()
+  const pathname = usePathname()
+  const socketRequired = !SOCKETLESS_ROUTE_PREFIXES.some((prefix) =>
+    pathname?.startsWith(prefix),
+  )
   const socketRef = useRef<GameSocket | null>(null)
   const watchedRoomsRef = useRef(new Map<string, number>())
   const memberRoomsRef = useRef(new Set<string>())
@@ -71,11 +79,11 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    if (clientToken === null) ensureClientToken()
-  }, [clientToken, ensureClientToken])
+    if (socketRequired && clientToken === null) ensureClientToken()
+  }, [clientToken, ensureClientToken, socketRequired])
 
   useEffect(() => {
-    if (!clientToken) return
+    if (!clientToken || !socketRequired) return
 
     const memberRooms = memberRoomsRef.current
     const gameServerUrl =
@@ -171,7 +179,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
       setEndedRooms({})
       socket.disconnect()
     }
-  }, [clientToken])
+  }, [clientToken, socketRequired])
 
   const watchRoom = useCallback((roomCode: string) => {
     const watchers = watchedRoomsRef.current

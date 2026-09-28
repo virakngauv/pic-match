@@ -92,3 +92,28 @@ test('finishes a solo run and opens the same seeded challenge', async ({
     )
     .toBe(true)
 })
+
+test('solo never attempts a multiplayer socket connection', async ({ page }) => {
+  const socketAttempts: string[] = []
+  // Socket.IO always traffics over the /socket.io path; other websockets
+  // (for example Next.js dev HMR) are unrelated.
+  page.on('websocket', (socket) => {
+    if (socket.url().includes('/socket.io')) socketAttempts.push(socket.url())
+  })
+  page.on('request', (request) => {
+    if (request.url().includes('/socket.io')) socketAttempts.push(request.url())
+  })
+
+  // Simulate a returning multiplayer player whose session token persists.
+  await page.addInitScript(() => {
+    localStorage.setItem('pic-match:client-token', 'a'.repeat(32))
+  })
+
+  await page.goto('/solo?seed=e2e-socketless')
+  await expect(page.getByTestId('solo-score')).toBeVisible()
+
+  // Allow any eager or retried connection attempt to surface before asserting.
+  await page.waitForTimeout(2_000)
+
+  expect(socketAttempts).toEqual([])
+})
