@@ -45,7 +45,11 @@ describe('player session storage', () => {
     expect(generateClientToken()).toMatch(/^[0-9a-f]{32}$/)
   })
 
-  it('treats a blocked storage read as an empty session without throwing', () => {
+  it('treats a blocked storage read as an empty session without throwing', async () => {
+    // Each fallback test starts from fresh module state so the module-level
+    // blocked-storage token never leaks between cases.
+    vi.resetModules()
+    const { getClientToken } = await import('./player-session')
     vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
       throw new Error('blocked')
     })
@@ -53,7 +57,10 @@ describe('player session storage', () => {
     expect(getClientToken()).toBeNull()
   })
 
-  it('keeps one stable token when reads succeed but writes fail', () => {
+  it('keeps one stable token when reads succeed but writes fail', async () => {
+    vi.resetModules()
+    const { getOrCreateClientToken, getClientToken } =
+      await import('./player-session')
     vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => null)
     vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
       throw new Error('quota exceeded')
@@ -67,7 +74,10 @@ describe('player session storage', () => {
     expect(getClientToken()).toBe(firstToken)
   })
 
-  it('keeps one stable session token when storage persistence is blocked', () => {
+  it('keeps one stable session token when storage persistence is blocked', async () => {
+    vi.resetModules()
+    const { getOrCreateClientToken, getClientToken } =
+      await import('./player-session')
     vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
       throw new Error('blocked')
     })
