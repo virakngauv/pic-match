@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,6 +12,7 @@ describe('SoloResults', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     // Keep share/clipboard stubs from leaking between tests.
     Object.defineProperty(navigator, 'share', {
       value: undefined,
@@ -64,7 +65,7 @@ describe('SoloResults', () => {
 
     expect(screen.getByRole('link', { name: 'Play again' })).toHaveAttribute(
       'href',
-      '/solo',
+      '/solo/play',
     )
     expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(
       'href',
@@ -75,8 +76,8 @@ describe('SoloResults', () => {
     ).toBeVisible()
   })
 
-  it('copies the invite text and flips the button when clipboard write works', async () => {
-    const user = userEvent.setup()
+  it('copies the invite text, confirms on the button, then reverts', async () => {
+    vi.useFakeTimers()
     const written: string[] = []
     Object.defineProperty(navigator, 'clipboard', {
       value: {
@@ -88,40 +89,53 @@ describe('SoloResults', () => {
     })
 
     render(<SoloResults score={9} />)
-    await screen.findByText('Personal best: 9 — new best!')
+    await act(async () => {})
+    expect(screen.getByText('Personal best: 9 — new best!')).toBeVisible()
 
-    await user.click(screen.getByRole('button', { name: 'Challenge a friend' }))
-
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Link copied' })).toBeVisible(),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Challenge a friend' }))
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Link copied' })).toBeVisible()
     expect(written[0]).toBe(
       formatSoloShareText(9, 'http://localhost:3000/solo'),
     )
     // Success is announced by the button text alone; no extra status line.
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+    // The confirmation is momentary; the action label comes back.
+    await act(async () => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(
+      screen.getByRole('button', { name: 'Challenge a friend' }),
+    ).toBeVisible()
   })
 
-  it('flips the button to Shared after a native share completes', async () => {
-    const user = userEvent.setup()
+  it('confirms a native share on the button, then reverts', async () => {
+    vi.useFakeTimers()
     Object.defineProperty(navigator, 'share', {
       value: vi.fn(async () => {}),
       configurable: true,
     })
 
     render(<SoloResults score={5} />)
-    await screen.findByText('Personal best: 5 — new best!')
+    await act(async () => {})
+    expect(screen.getByText('Personal best: 5 — new best!')).toBeVisible()
 
-    await user.click(screen.getByRole('button', { name: 'Challenge a friend' }))
-
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Shared ✓' })).toBeVisible(),
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Challenge a friend' }))
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Shared ✓' })).toBeVisible()
     expect(navigator.share).toHaveBeenCalledWith({
       title: 'Pic Match Solo',
       text: formatSoloShareText(5, 'http://localhost:3000/solo'),
       url: 'http://localhost:3000/solo',
     })
+
+    await act(async () => {
+      vi.advanceTimersByTime(2_000)
+    })
+    expect(
+      screen.getByRole('button', { name: 'Challenge a friend' }),
+    ).toBeVisible()
   })
 
   it('falls back to showing the link when clipboard write fails', async () => {

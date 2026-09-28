@@ -12,6 +12,9 @@ import {
 
 type ShareState = 'idle' | 'copied' | 'shared' | 'error'
 
+// How long the button keeps its success confirmation before reverting.
+const SHARE_CONFIRMATION_MS = 2_000
+
 export function SoloResults({ score }: { score: number }) {
   // Null until the stored best is read; the pre-run best decides "new best".
   const [storedBest, setStoredBest] = useState<number | null>(null)
@@ -40,6 +43,16 @@ export function SoloResults({ score }: { score: number }) {
       setStoredBest(previousBest)
     })
   }, [score])
+
+  // "Link copied" / "Shared ✓" are momentary confirmations, not new labels.
+  useEffect(() => {
+    if (shareState !== 'copied' && shareState !== 'shared') return
+    const timer = window.setTimeout(
+      () => setShareState('idle'),
+      SHARE_CONFIRMATION_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [shareState])
 
   const displayedBest = Math.max(storedBest ?? 0, score)
   const isNewBest = storedBest !== null && score > storedBest
@@ -96,7 +109,7 @@ export function SoloResults({ score }: { score: number }) {
         </p>
         <div className="mt-8 grid justify-items-center gap-3">
           <Button asChild className="min-w-28">
-            <Link href="/solo">Play again</Link>
+            <Link href="/solo/play">Play again</Link>
           </Button>
           <Button
             type="button"

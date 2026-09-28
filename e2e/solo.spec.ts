@@ -69,7 +69,8 @@ test('plays the three-page solo loop and shares a challenge link', async ({
     )
     .toBe(4)
 
-  // Sharing flips the button itself instead of surfacing a status line.
+  // Sharing flips the button itself instead of surfacing a status line, and
+  // the confirmation reverts to the action label.
   await page.getByRole('button', { name: 'Challenge a friend' }).click()
   await expect(page.getByRole('button', { name: 'Link copied' })).toBeVisible()
   const copied = await page.evaluate(() =>
@@ -78,6 +79,10 @@ test('plays the three-page solo loop and shares a challenge link', async ({
   expect(copied).toMatch(
     /^I matched 4 pairs in Pic Match Solo\. Can you beat me\? https?:\/\/\S+\/solo$/,
   )
+  await page.clock.fastForward('00:02')
+  await expect(
+    page.getByRole('button', { name: 'Challenge a friend' }),
+  ).toBeVisible()
 
   // The plain solo link lands a friend on a fresh start screen.
   const sharedUrl = copied?.match(/https?:\/\/\S+/)?.[0]
