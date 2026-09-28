@@ -10,7 +10,7 @@ import {
   parseSoloScore,
 } from '@/lib/solo-mode'
 
-type ShareState = 'idle' | 'copied' | 'error'
+type ShareState = 'idle' | 'copied' | 'shared' | 'error'
 
 export function SoloResults({ score }: { score: number }) {
   // Null until the stored best is read; the pre-run best decides "new best".
@@ -60,7 +60,7 @@ export function SoloResults({ score }: { score: number }) {
           text,
           url,
         })
-        setShareState('copied')
+        setShareState('shared')
         return
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
@@ -104,7 +104,11 @@ export function SoloResults({ score }: { score: number }) {
             className="min-w-28"
             onClick={shareChallenge}
           >
-            {shareState === 'copied' ? 'Link copied' : 'Challenge a friend'}
+            {shareState === 'copied'
+              ? 'Link copied'
+              : shareState === 'shared'
+                ? 'Shared ✓'
+                : 'Challenge a friend'}
           </Button>
           <Button asChild variant="outline">
             <Link href="/home">Go home</Link>

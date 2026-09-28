@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { SOLO_STORAGE_KEY, formatSoloShareText } from '@/lib/solo-mode'
 
@@ -9,6 +9,18 @@ import { SoloResults } from './solo-results'
 describe('SoloResults', () => {
   beforeEach(() => {
     localStorage.clear()
+  })
+
+  afterEach(() => {
+    // Keep share/clipboard stubs from leaking between tests.
+    Object.defineProperty(navigator, 'share', {
+      value: undefined,
+      configurable: true,
+    })
+    Object.defineProperty(navigator, 'clipboard', {
+      value: undefined,
+      configurable: true,
+    })
   })
 
   it('records a new personal best for the run', async () => {
@@ -88,6 +100,28 @@ describe('SoloResults', () => {
     )
     // Success is announced by the button text alone; no extra status line.
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('flips the button to Shared after a native share completes', async () => {
+    const user = userEvent.setup()
+    Object.defineProperty(navigator, 'share', {
+      value: vi.fn(async () => {}),
+      configurable: true,
+    })
+
+    render(<SoloResults score={5} />)
+    await screen.findByText('Personal best: 5 — new best!')
+
+    await user.click(screen.getByRole('button', { name: 'Challenge a friend' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Shared ✓' })).toBeVisible(),
+    )
+    expect(navigator.share).toHaveBeenCalledWith({
+      title: 'Pic Match Solo',
+      text: formatSoloShareText(5, 'http://localhost:3000/solo'),
+      url: 'http://localhost:3000/solo',
+    })
   })
 
   it('falls back to showing the link when clipboard write fails', async () => {
