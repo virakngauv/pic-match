@@ -1,18 +1,15 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { GameCard } from '@/components/game-card'
 import { getPairLayoutPlans } from '@/lib/card-layout'
 import {
   SOLO_CHALLENGE,
-  SOLO_LAST_RUN_KEY,
   answerSolo,
   createSoloSeed,
   getSoloPair,
   getSoloStage,
-  rememberSoloRunScore,
   startSoloState,
   tickSolo,
   type SoloState,
@@ -26,10 +23,10 @@ const START_ANNOUNCEMENT = `Timer started. ${
   SOLO_CHALLENGE.initialTimeMs / 1000
 } seconds.`
 
-export function SoloPlay() {
-  const router = useRouter()
+export function SoloPlay({ onFinish }: { onFinish: (score: number) => void }) {
   const [state, setState] = useState<SoloState | null>(null)
   const startAnnouncedRef = useRef(false)
+  const finishAnnouncedRef = useRef(false)
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -63,20 +60,10 @@ export function SoloPlay() {
   }, [state?.status])
 
   useEffect(() => {
-    if (state?.status !== 'finished') return
-    // The score rides the in-memory handoff across the route transition;
-    // session storage only preserves it across reloads when available.
-    rememberSoloRunScore(state.score)
-    try {
-      sessionStorage.setItem(
-        SOLO_LAST_RUN_KEY,
-        JSON.stringify({ version: 1, score: state.score }),
-      )
-    } catch {
-      // Storage is optional; the memory handoff still carries the score.
-    }
-    router.replace('/solo/results')
-  }, [router, state?.score, state?.status])
+    if (state?.status !== 'finished' || finishAnnouncedRef.current) return
+    finishAnnouncedRef.current = true
+    onFinish(state.score)
+  }, [onFinish, state?.score, state?.status])
 
   const seed = state?.seed
   const pairIndex = state?.pairIndex

@@ -20,26 +20,6 @@ export const SOLO_CHALLENGE = {
 
 export const SOLO_STORAGE_KEY = 'pic-match:solo:v1'
 
-export const SOLO_RULES_PATH = '/solo/rules'
-
-// Hands the finished run's score from the play screen to the results screen
-// through session storage so the score never appears in the URL.
-export const SOLO_LAST_RUN_KEY = 'pic-match:solo:last-run:v1'
-
-// The score rides module memory across the client-side route transition even
-// when storage is blocked; session storage only preserves it across reloads.
-let lastRunScore: number | null = null
-
-/** Records the finished run's score; pass null to reset (tests use this). */
-export function rememberSoloRunScore(score: number | null): void {
-  lastRunScore = score
-}
-
-/** Reads the finished run's score: the memory handoff first, then storage. */
-export function readSoloRunScore(raw: string | null): number | null {
-  return lastRunScore ?? parseSoloRunScore(raw)
-}
-
 export type SoloState = Readonly<{
   seed: string
   score: number
@@ -195,35 +175,6 @@ export function parseSoloScore(raw: string | null): {
     return { bestScore: score('bestScore'), lastScore: score('lastScore') }
   } catch {
     return { bestScore: 0, lastScore: 0 }
-  }
-}
-
-export function parseSoloScoreParam(value: string | undefined): number | null {
-  return value && /^(0|[1-9]\d{0,8})$/.test(value) ? Number(value) : null
-}
-
-/** Reads the score handed over from a finished run, or null when absent. */
-export function parseSoloRunScore(raw: string | null): number | null {
-  if (!raw) return null
-  try {
-    const value: unknown = JSON.parse(raw)
-    if (
-      !value ||
-      typeof value !== 'object' ||
-      !('version' in value) ||
-      value.version !== 1
-    ) {
-      return null
-    }
-    const candidate =
-      'score' in value ? (value as Record<string, unknown>).score : null
-    return typeof candidate === 'number' &&
-      Number.isSafeInteger(candidate) &&
-      candidate >= 0
-      ? candidate
-      : null
-  } catch {
-    return null
   }
 }
 

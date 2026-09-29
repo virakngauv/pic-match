@@ -4,38 +4,18 @@ import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  SOLO_LAST_RUN_KEY,
   SOLO_STORAGE_KEY,
   formatSoloShareText,
-  rememberSoloRunScore,
 } from '@/lib/solo-mode'
-
-const mocks = vi.hoisted(() => {
-  const replace = vi.fn()
-  // A stable router object: the mount effect depends on the router identity,
-  // and Next's real useRouter returns a stable value across renders.
-  return { replace, router: { replace } }
-})
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => mocks.router,
-}))
 
 import { SoloResults } from './solo-results'
 
-function seedRun(score: number) {
-  sessionStorage.setItem(
-    SOLO_LAST_RUN_KEY,
-    JSON.stringify({ version: 1, score }),
-  )
-}
+const onPlayAgain = vi.fn()
 
 describe('SoloResults', () => {
   beforeEach(() => {
-    mocks.replace.mockReset()
+    onPlayAgain.mockReset()
     localStorage.clear()
-    sessionStorage.clear()
-    rememberSoloRunScore(null)
   })
 
   afterEach(() => {
@@ -57,8 +37,7 @@ describe('SoloResults', () => {
       SOLO_STORAGE_KEY,
       JSON.stringify({ version: 1, bestScore: 5, lastScore: 2 }),
     )
-    seedRun(7)
-    render(<SoloResults />)
+    render(<SoloResults score={7} onPlayAgain={onPlayAgain} />)
     await act(async () => {})
 
     expect(screen.getByText('You scored 7 pairs.')).toBeVisible()
@@ -75,8 +54,7 @@ describe('SoloResults', () => {
       SOLO_STORAGE_KEY,
       JSON.stringify({ version: 1, bestScore: 12, lastScore: 9 }),
     )
-    seedRun(3)
-    render(<SoloResults />)
+    render(<SoloResults score={3} onPlayAgain={onPlayAgain} />)
     await act(async () => {})
 
     expect(screen.getByText('Personal best: 12')).toBeVisible()
@@ -89,36 +67,14 @@ describe('SoloResults', () => {
     })
   })
 
-  it('returns to the rules page without a finished run', async () => {
-    render(<SoloResults />)
-    await act(async () => {})
-
-    expect(mocks.replace).toHaveBeenCalledWith('/solo/rules')
-    expect(screen.queryByText(/You scored/)).not.toBeInTheDocument()
-  })
-
-  it('still shows the finished run when session storage access throws', async () => {
-    rememberSoloRunScore(7)
-    vi.spyOn(sessionStorage, 'getItem').mockImplementation(() => {
-      throw new Error('blocked')
-    })
-    render(<SoloResults />)
-    await act(async () => {})
-
-    expect(screen.getByText('You scored 7 pairs.')).toBeVisible()
-    expect(screen.getByText('Personal best: 7 — new best!')).toBeVisible()
-    expect(mocks.replace).not.toHaveBeenCalled()
-  })
-
   it('keeps the new-best flag when Strict Mode replays the mount effect', async () => {
     localStorage.setItem(
       SOLO_STORAGE_KEY,
       JSON.stringify({ version: 1, bestScore: 5, lastScore: 2 }),
     )
-    seedRun(7)
     render(
       <StrictMode>
-        <SoloResults />
+        <SoloResults score={7} onPlayAgain={onPlayAgain} />
       </StrictMode>,
     )
     await act(async () => {})
@@ -131,16 +87,13 @@ describe('SoloResults', () => {
     })
   })
 
-  it('mirrors the multiplayer result actions', async () => {
-    seedRun(7)
-    render(<SoloResults />)
+  it('mirrors the multiplayer result actions without changing routes', async () => {
+    render(<SoloResults score={7} onPlayAgain={onPlayAgain} />)
     await act(async () => {})
 
     expect(screen.getByText('You scored 7 pairs.')).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Play again' })).toHaveAttribute(
-      'href',
-      '/solo/play',
-    )
+    fireEvent.click(screen.getByRole('button', { name: 'Play again' }))
+    expect(onPlayAgain).toHaveBeenCalledOnce()
     expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(
       'href',
       '/home',
@@ -162,8 +115,7 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    seedRun(9)
-    render(<SoloResults />)
+    render(<SoloResults score={9} onPlayAgain={onPlayAgain} />)
     await act(async () => {})
     expect(screen.getByText('Personal best: 9 — new best!')).toBeVisible()
 
@@ -171,7 +123,7 @@ describe('SoloResults', () => {
     await act(async () => {})
     expect(screen.getByRole('button', { name: 'Link copied' })).toBeVisible()
     expect(written[0]).toBe(
-      formatSoloShareText(9, 'http://localhost:3000/solo/rules'),
+      formatSoloShareText(9, 'http://localhost:3000/solo'),
     )
     // Success is announced by the button text alone; no extra status line.
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -192,8 +144,7 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    seedRun(5)
-    render(<SoloResults />)
+    render(<SoloResults score={5} onPlayAgain={onPlayAgain} />)
     await act(async () => {})
     expect(screen.getByText('Personal best: 5 — new best!')).toBeVisible()
 
@@ -202,8 +153,8 @@ describe('SoloResults', () => {
     expect(screen.getByRole('button', { name: 'Shared ✓' })).toBeVisible()
     expect(navigator.share).toHaveBeenCalledWith({
       title: 'Pic Match Solo',
-      text: formatSoloShareText(5, 'http://localhost:3000/solo/rules'),
-      url: 'http://localhost:3000/solo/rules',
+      text: formatSoloShareText(5, 'http://localhost:3000/solo'),
+      url: 'http://localhost:3000/solo',
     })
 
     await act(async () => {
@@ -223,8 +174,7 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    seedRun(3)
-    render(<SoloResults />)
+    render(<SoloResults score={3} onPlayAgain={onPlayAgain} />)
     await act(async () => {})
 
     fireEvent.click(screen.getByRole('button', { name: 'Challenge a friend' }))
@@ -263,8 +213,7 @@ describe('SoloResults', () => {
       configurable: true,
     })
 
-    seedRun(9)
-    render(<SoloResults />)
+    render(<SoloResults score={9} onPlayAgain={onPlayAgain} />)
     await waitFor(() =>
       expect(screen.getByText('Personal best: 9 — new best!')).toBeVisible(),
     )
@@ -273,7 +222,7 @@ describe('SoloResults', () => {
 
     await waitFor(() =>
       expect(screen.getByRole('status')).toHaveTextContent(
-        'Copy failed. Share this link instead: http://localhost:3000/solo/rules',
+        'Copy failed. Share this link instead: http://localhost:3000/solo',
       ),
     )
     expect(

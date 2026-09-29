@@ -1,5 +1,5 @@
-import { SoloPlay } from '@/components/solo-play'
+import { redirect } from 'next/navigation'
 
 export default function SoloPlayPage() {
-  return <SoloPlay />
+  redirect('/solo')
 }

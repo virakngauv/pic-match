@@ -1,5 +1,5 @@
-import { SoloResults } from '@/components/solo-results'
+import { redirect } from 'next/navigation'
 
 export default function SoloResultsPage() {
-  return <SoloResults />
+  redirect('/solo')
 }

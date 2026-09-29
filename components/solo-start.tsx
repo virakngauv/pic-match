@@ -12,7 +12,7 @@ function secondsLabel(seconds: number) {
 }
 
 /** Solo rules screen, styled to match the create and join screens. */
-export function SoloStart() {
+export function SoloStart({ onStart }: { onStart: () => void }) {
   return (
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
       <section className="bg-card mx-auto w-full max-w-lg rounded-[2rem] border p-7 shadow-sm sm:p-10">
@@ -26,8 +26,12 @@ export function SoloStart() {
           <li>matching symbol: +{secondsLabel(bonusSeconds)}</li>
           <li>wrong symbol: −{secondsLabel(penaltySeconds)}</li>
         </ul>
-        <Button asChild className="mt-6 h-12 w-full text-base">
-          <Link href="/solo/play">Play solo game</Link>
+        <Button
+          type="button"
+          className="mt-6 h-12 w-full text-base"
+          onClick={onStart}
+        >
+          Play solo game
         </Button>
         <Button asChild variant="outline" className="mt-3 w-full">
           <Link href="/home">Back to home</Link>
