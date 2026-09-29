@@ -55,8 +55,9 @@ test('plays the three-page solo loop and shares a challenge link', async ({
   // The page still never scrolls, even on the smallest supported phone.
   await expectNoPageOverflow(page, 320, 568)
 
-  // Expiry lands on page 3, the results screen.
-  await page.clock.fastForward('00:35')
+  // Expiry lands on page 3, the results screen. The jump unconditionally
+  // outruns the clock, which four +2s bonuses can push to about 37s.
+  await page.clock.fastForward('01:00')
   await expect(page).toHaveURL(/\/solo\/results$/)
   await expect(page.getByText('You scored 4 pairs.')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Play again' })).toBeVisible()
