@@ -10,10 +10,9 @@ describe('SoloStart', () => {
     expect(screen.getByRole('heading', { name: 'play solo.' })).toBeVisible()
     expect(screen.queryByText('Ready?')).not.toBeInTheDocument()
     expect(screen.queryByText(/Personal best/)).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Play now' })).toHaveAttribute(
-      'href',
-      '/solo/play',
-    )
+    expect(
+      screen.getByRole('link', { name: 'Play solo game' }),
+    ).toHaveAttribute('href', '/solo/play')
     expect(screen.getByRole('link', { name: 'Back to home' })).toHaveAttribute(
       'href',
       '/home',

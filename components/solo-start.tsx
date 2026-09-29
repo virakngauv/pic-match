@@ -28,7 +28,7 @@ export function SoloStart() {
           <li>wrong symbol: −{secondsLabel(penaltySeconds)}</li>
         </ul>
         <Button asChild className="mt-6 h-12 w-full text-base">
-          <Link href="/solo/play">Play now</Link>
+          <Link href="/solo/play">Play solo game</Link>
         </Button>
         <Button asChild variant="outline" className="mt-3 w-full">
           <Link href="/home">Back to home</Link>

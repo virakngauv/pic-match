@@ -22,7 +22,7 @@ test('plays the three-page solo loop and shares a challenge link', async ({
   // Page 1: the rules screen invites the player to begin.
   await page.goto('/solo/rules')
   await expect(page.getByRole('heading', { name: 'play solo.' })).toBeVisible()
-  await page.getByRole('link', { name: 'Play now' }).click()
+  await page.getByRole('link', { name: 'Play solo game' }).click()
 
   // Page 2: the clock is already running on the play screen.
   await expect(page).toHaveURL(/\/solo\/play$/)
@@ -111,7 +111,7 @@ test('solo never attempts a multiplayer socket connection', async ({
   })
 
   await page.goto('/solo/rules')
-  await page.getByRole('link', { name: 'Play now' }).click()
+  await page.getByRole('link', { name: 'Play solo game' }).click()
   await expect(page.locator('article[data-card-id]')).toHaveCount(2)
 
   // The results screen redirects to the rules page without a run.
