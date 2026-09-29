@@ -97,20 +97,10 @@ describe('generatePicMatchDeck', () => {
 
   it.each([
     ['empty seed', FIRST_PLAYABLE_CONFIGURATION, ''],
-    ['unsupported order', { ...FIRST_PLAYABLE_CONFIGURATION, order: 5 }, SEED],
+    ['unsupported order', { ...FIRST_PLAYABLE_CONFIGURATION, order: 4 }, SEED],
     [
       'unsupported symbols per card',
       { ...FIRST_PLAYABLE_CONFIGURATION, symbolsPerCard: 7 },
-      SEED,
-    ],
-    [
-      'unsupported participant capacity',
-      { ...FIRST_PLAYABLE_CONFIGURATION, participantCapacity: 63 },
-      SEED,
-    ],
-    [
-      'unsupported winning score',
-      { ...FIRST_PLAYABLE_CONFIGURATION, winningScore: 10 },
       SEED,
     ],
     [
@@ -145,6 +135,31 @@ describe('generatePicMatchDeck', () => {
     'rejects an invalid configuration: %s',
     (_name, configuration, seed) => {
       expect(() => generatePicMatchDeck(configuration, seed)).toThrow()
+    },
+  )
+})
+
+describe('supported deck orders', () => {
+  it.each([2, 3, 5, 7])(
+    'order %s has one shared symbol for every pair',
+    (order) => {
+      const symbolIds = FIRST_PLAYABLE_SYMBOL_IDS.slice(
+        0,
+        order * order + order + 1,
+      )
+      const deck = generatePicMatchDeck(
+        { order, symbolsPerCard: order + 1, symbolIds },
+        SEED,
+      )
+      expect(deck.cards).toHaveLength(symbolIds.length)
+      for (const [index, left] of deck.cards.entries()) {
+        expect(left.symbolIds).toHaveLength(order + 1)
+        for (const right of deck.cards.slice(index + 1)) {
+          expect(
+            left.symbolIds.filter((symbol) => right.symbolIds.includes(symbol)),
+          ).toHaveLength(1)
+        }
+      }
     },
   )
 })

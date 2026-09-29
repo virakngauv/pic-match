@@ -13,6 +13,8 @@ import type { RoomSnapshot } from '../lib/game-protocol'
 
 const mocks = vi.hoisted(() => ({
   clientToken: 'a'.repeat(32) as string | null,
+  pathname: '/home' as string,
+  ensureClientToken: vi.fn(),
   handlers: new Map<string, (...args: never[]) => void>(),
   resumeSnapshots: new Map<string, RoomSnapshot>(),
   emitWithAck: vi.fn(),
@@ -45,10 +47,14 @@ vi.mock('socket.io-client', () => ({
   io: mocks.io,
 }))
 
+vi.mock('next/navigation', () => ({
+  usePathname: () => mocks.pathname,
+}))
+
 vi.mock('@/components/player-session-provider', () => ({
   usePlayerSession: () => ({
     clientToken: mocks.clientToken,
-    ensureClientToken: vi.fn(),
+    ensureClientToken: mocks.ensureClientToken,
   }),
 }))
 
@@ -70,6 +76,11 @@ function RoomProbe({ roomCode }: { roomCode: string }) {
       </button>
     </>
   )
+}
+
+function StatusProbe() {
+  const { connectionStatus } = useGameSocket()
+  return <div data-testid="connection">{connectionStatus}</div>
 }
 
 function MembershipProbe({
@@ -107,6 +118,8 @@ function MembershipProbe({
 describe('GameSocketProvider', () => {
   beforeEach(() => {
     mocks.clientToken = 'a'.repeat(32)
+    mocks.pathname = '/home'
+    mocks.ensureClientToken.mockReset()
     mocks.handlers.clear()
     mocks.resumeSnapshots.clear()
     mocks.emitWithAck.mockReset().mockResolvedValue({ status: 'success' })
@@ -135,6 +148,85 @@ describe('GameSocketProvider', () => {
         'http://localhost:3200',
         expect.any(Object),
       ),
+    )
+  })
+
+  it('does not connect or create a token while a socketless solo route is active', async () => {
+    mocks.pathname = '/solo'
+    render(
+      <GameSocketProvider>
+        <RoomProbe roomCode="bcdf2" />
+      </GameSocketProvider>,
+    )
+
+    // Flush effects so an incorrect eager connection would have run by now.
+    await act(async () => {})
+
+    expect(mocks.io).not.toHaveBeenCalled()
+    expect(mocks.ensureClientToken).not.toHaveBeenCalled()
+  })
+
+  it('connects only after leaving a socketless solo route', async () => {
+    mocks.pathname = '/solo'
+    const roomCode = 'bcdf2'
+    const view = render(
+      <GameSocketProvider>
+        <RoomProbe roomCode={roomCode} />
+      </GameSocketProvider>,
+    )
+    await act(async () => {})
+    expect(mocks.io).not.toHaveBeenCalled()
+
+    mocks.pathname = '/home'
+    view.rerender(
+      <GameSocketProvider>
+        <RoomProbe roomCode={roomCode} />
+      </GameSocketProvider>,
+    )
+
+    await waitFor(() => expect(mocks.io).toHaveBeenCalledTimes(1))
+  })
+
+  it('resets the connection status when a socketless detour tears down the socket', async () => {
+    mocks.pathname = '/home'
+    const view = render(
+      <GameSocketProvider>
+        <StatusProbe />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalledTimes(1))
+    act(() => mocks.handlers.get('connect')?.())
+    await waitFor(() =>
+      expect(screen.getByTestId('connection')).toHaveTextContent('connected'),
+    )
+
+    // Navigating to a solo route tears the socket down; the stale connected
+    // status must not leak out of the detached connection.
+    mocks.pathname = '/solo'
+    view.rerender(
+      <GameSocketProvider>
+        <StatusProbe />
+      </GameSocketProvider>,
+    )
+    expect(screen.getByTestId('connection')).toHaveTextContent('disconnected')
+    expect(mocks.socket.disconnect).toHaveBeenCalled()
+
+    // Coming back dials again and starts from connecting, so forms keep
+    // their actions disabled until the new socket actually connects.
+    mocks.pathname = '/create'
+    view.rerender(
+      <GameSocketProvider>
+        <StatusProbe />
+      </GameSocketProvider>,
+    )
+    await waitFor(() => expect(mocks.io).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(screen.getByTestId('connection')).toHaveTextContent('connecting'),
+    )
+
+    act(() => mocks.handlers.get('connect')?.())
+    await waitFor(() =>
+      expect(screen.getByTestId('connection')).toHaveTextContent('connected'),
     )
   })
 

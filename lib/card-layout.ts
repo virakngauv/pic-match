@@ -21,16 +21,7 @@ export type CardLayoutTemplate = Readonly<{
 
 export type CardRotationProfile = Readonly<{
   id: string
-  angles: readonly [
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-    number,
-  ]
+  angles: readonly number[]
 }>
 
 export type CardLayoutCard = Readonly<{
@@ -183,6 +174,79 @@ export const CARD_LAYOUT_TEMPLATES: readonly CardLayoutTemplate[] = [
 ]
 
 /**
+ * Generated irregular arrangements for the smaller solo decks, produced by
+ * scripts/generate-card-layout-templates.mjs with per-count size ladders and
+ * empty-space scoring (regular polygons centered on the card score poorly).
+ */
+export const SOLO_CARD_LAYOUT_TEMPLATES: Readonly<
+  Record<number, readonly CardLayoutTemplate[]>
+> = {
+  3: [
+    template('maple', [
+      [0.041, 0.358, 0.2, 0.302],
+      [-0.331, -0.419, 0.145, 0.219],
+      [0.324, -0.296, 0.105, 0.17],
+    ]),
+    template('nectar', [
+      [0.348, 0.283, 0.2, 0.302],
+      [0.043, -0.458, 0.145, 0.219],
+      [-0.541, 0.147, 0.105, 0.17],
+    ]),
+    template('orbit', [
+      [-0.327, 0.378, 0.2, 0.302],
+      [0.02, -0.334, 0.145, 0.219],
+      [0.309, 0.163, 0.105, 0.17],
+    ]),
+  ],
+  4: [
+    template('prairie', [
+      [-0.368, 0.433, 0.2, 0.302],
+      [-0.042, -0.162, 0.155, 0.234],
+      [-0.393, -0.512, 0.118, 0.178],
+      [0.61, 0.254, 0.088, 0.17],
+    ]),
+    template('quiver', [
+      [0.205, -0.304, 0.2, 0.302],
+      [-0.554, -0.008, 0.155, 0.234],
+      [0.436, 0.237, 0.118, 0.178],
+      [-0.087, 0.197, 0.088, 0.17],
+    ]),
+    template('ripple', [
+      [0.044, 0.37, 0.2, 0.302],
+      [0.471, -0.187, 0.155, 0.234],
+      [-0.014, -0.585, 0.118, 0.178],
+      [-0.452, -0.313, 0.088, 0.17],
+    ]),
+  ],
+  6: [
+    template('saffron', [
+      [-0.175, -0.522, 0.19, 0.287],
+      [-0.615, 0.099, 0.16, 0.242],
+      [0.184, 0.209, 0.135, 0.204],
+      [0.32, -0.339, 0.115, 0.174],
+      [-0.428, 0.528, 0.098, 0.17],
+      [0.553, -0.012, 0.084, 0.17],
+    ]),
+    template('thicket', [
+      [-0.519, -0.077, 0.19, 0.287],
+      [0.628, 0.233, 0.16, 0.242],
+      [0.226, -0.268, 0.135, 0.204],
+      [-0.308, -0.551, 0.115, 0.174],
+      [-0.026, 0.471, 0.098, 0.17],
+      [-0.03, 0.076, 0.084, 0.17],
+    ]),
+    template('umbra', [
+      [-0.643, 0.006, 0.19, 0.287],
+      [0.052, -0.564, 0.16, 0.242],
+      [0.299, 0.093, 0.135, 0.204],
+      [-0.147, -0.137, 0.115, 0.174],
+      [-0.099, 0.259, 0.098, 0.17],
+      [0.529, 0.499, 0.084, 0.17],
+    ]),
+  ],
+}
+
+/**
  * Curated glyph-orientation palettes, independent of the spatial templates.
  * Each profile assigns one angle per symbol; roughly four or five angles stay
  * mostly upright while the rest spread across moderate and strong tilts.
@@ -212,7 +276,11 @@ export function getPairLayoutPlans(
   }
 
   const pairSeed = `${pairRevision}:${firstCard.id}:${secondCard.id}`
-  const templateCount = CARD_LAYOUT_TEMPLATES.length
+  if (firstCard.symbolIds.length !== secondCard.symbolIds.length) {
+    throw new Error('Paired cards must have the same symbol count.')
+  }
+  const templates = getTemplates(firstCard.symbolIds.length)
+  const templateCount = templates.length
   const firstTemplateIndex =
     hashText(`${pairSeed}:template:first`) % templateCount
   const secondTemplateCandidate =
@@ -223,8 +291,20 @@ export function getPairLayoutPlans(
       : secondTemplateCandidate
 
   return [
-    buildCardLayoutPlan(firstCard, pairSeed, firstTemplateIndex),
-    buildCardLayoutPlan(secondCard, pairSeed, secondTemplateIndex),
+    buildCardLayoutPlan(
+      firstCard,
+      pairSeed,
+      firstTemplateIndex,
+      undefined,
+      templates,
+    ),
+    buildCardLayoutPlan(
+      secondCard,
+      pairSeed,
+      secondTemplateIndex,
+      undefined,
+      templates,
+    ),
   ]
 }
 
@@ -242,6 +322,7 @@ export function getCardLayoutPreviewPlan(
     `preview:${templateIndex}`,
     templateIndex,
     templateIndex % CARD_ROTATION_PROFILES.length,
+    getTemplates(card.symbolIds.length),
   )
 }
 
@@ -251,8 +332,8 @@ export function validateCardLayoutTemplate(
 ): string[] {
   const errors: string[] = []
 
-  if (layoutTemplate.slots.length !== 8) {
-    errors.push(`${layoutTemplate.id} must contain exactly eight slots.`)
+  if (![3, 4, 6, 8].includes(layoutTemplate.slots.length)) {
+    errors.push(`${layoutTemplate.id} must contain 3, 4, 6, or 8 slots.`)
   }
 
   layoutTemplate.slots.forEach((slot, index) => {
@@ -429,12 +510,15 @@ function buildCardLayoutPlan(
   pairSeed: string,
   templateIndex: number,
   previewProfileIndex?: number,
+  templates: readonly CardLayoutTemplate[] = CARD_LAYOUT_TEMPLATES,
 ): CardLayoutPlan {
-  if (card.symbolIds.length !== 8) {
-    throw new Error('Exactly eight symbols are required to plan a card.')
+  if (![3, 4, 6, 8].includes(card.symbolIds.length)) {
+    throw new Error(
+      'Exactly 3, 4, 6, or 8 symbols are required to plan a card.',
+    )
   }
 
-  const selectedTemplate = CARD_LAYOUT_TEMPLATES[templateIndex]
+  const selectedTemplate = templates[templateIndex]
 
   if (!selectedTemplate) {
     throw new Error('Unable to resolve the selected card layout template.')
@@ -492,6 +576,13 @@ function buildCardLayoutPlan(
       }
     }),
   }
+}
+
+function getTemplates(symbolCount: number): readonly CardLayoutTemplate[] {
+  if (symbolCount === 8) return CARD_LAYOUT_TEMPLATES
+  const templates = SOLO_CARD_LAYOUT_TEMPLATES[symbolCount]
+  if (!templates) throw new Error('Unsupported symbol count for card layout.')
+  return templates
 }
 
 function shuffleIndexes(length: number, seed: string): number[] {

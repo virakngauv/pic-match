@@ -61,20 +61,23 @@ export const FIRST_PLAYABLE_SYMBOL_IDS = [
 export const FIRST_PLAYABLE_CONFIGURATION_ID = 'first-playable-v1' as const
 
 const SUPPORTED_ORDER = 7
+export const SUPPORTED_DECK_ORDERS = [2, 3, 5, 7] as const
 const SUPPORTED_SYMBOLS_PER_CARD = SUPPORTED_ORDER + 1
-const SUPPORTED_CARD_COUNT =
-  SUPPORTED_ORDER * SUPPORTED_ORDER + SUPPORTED_ORDER + 1
 const SUPPORTED_PARTICIPANT_CAPACITY = 64
 export const FIRST_PLAYABLE_WINNING_SCORE = 12
 const MIN_PARTICIPANTS = 1
 
-export type PicMatchConfiguration = Readonly<{
+export type DeckConfiguration = Readonly<{
   order: number
   symbolsPerCard: number
-  participantCapacity: number
-  winningScore: number
   symbolIds: readonly string[]
 }>
+
+export type PicMatchConfiguration = DeckConfiguration &
+  Readonly<{
+    participantCapacity: number
+    winningScore: number
+  }>
 
 export const FIRST_PLAYABLE_CONFIGURATION = {
   order: SUPPORTED_ORDER,
@@ -101,10 +104,10 @@ export type TwoCardMatchup = Readonly<{
 }>
 
 export function generatePicMatchDeck(
-  configuration: PicMatchConfiguration,
+  configuration: DeckConfiguration,
   seed: string,
 ): PicMatchDeck {
-  validateConfiguration(configuration)
+  validateDeckConfiguration(configuration)
   validateSeed(seed)
 
   const cards = buildCanonicalCards(configuration).map((symbolIds, index) =>
@@ -121,7 +124,7 @@ export function generatePicMatchDeck(
 }
 
 export function generateTwoCardMatchup(
-  configuration: PicMatchConfiguration,
+  configuration: DeckConfiguration,
   seed: string,
   revision: number,
 ): TwoCardMatchup {
@@ -185,6 +188,7 @@ export function getMaximumAcceptedClaims(
 }
 
 function validateConfiguration(configuration: PicMatchConfiguration): void {
+  validateDeckConfiguration(configuration)
   if (configuration.order !== SUPPORTED_ORDER) {
     throw new Error(
       `Unsupported card order: expected ${SUPPORTED_ORDER}, received ${configuration.order}.`,
@@ -214,11 +218,20 @@ function validateConfiguration(configuration: PicMatchConfiguration): void {
       `Unsupported winning score: expected ${FIRST_PLAYABLE_WINNING_SCORE}, received ${configuration.winningScore}.`,
     )
   }
+}
 
-  if (configuration.symbolIds.length !== SUPPORTED_CARD_COUNT) {
-    throw new Error(
-      `Symbol set must contain exactly ${SUPPORTED_CARD_COUNT} identifiers.`,
-    )
+function validateDeckConfiguration(configuration: DeckConfiguration): void {
+  if (!SUPPORTED_DECK_ORDERS.includes(configuration.order as 2 | 3 | 5 | 7)) {
+    throw new Error(`Unsupported card order: ${configuration.order}.`)
+  }
+
+  if (configuration.symbolsPerCard !== configuration.order + 1) {
+    throw new Error(`Symbols per card must equal order + 1.`)
+  }
+
+  const cardCount = configuration.order ** 2 + configuration.order + 1
+  if (configuration.symbolIds.length !== cardCount) {
+    throw new Error(`Symbol set must contain exactly ${cardCount} identifiers.`)
   }
 
   if (
@@ -240,7 +253,7 @@ function validateSeed(seed: string): void {
   }
 }
 
-function buildCanonicalCards(configuration: PicMatchConfiguration): string[][] {
+function buildCanonicalCards(configuration: DeckConfiguration): string[][] {
   const { order, symbolIds } = configuration
   const cards: string[][] = []
 

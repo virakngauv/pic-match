@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   generateClientToken,
@@ -11,6 +11,10 @@ describe('player session storage', () => {
   beforeEach(() => {
     window.localStorage.clear()
     window.sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('keeps one client token in persistent browser storage', () => {
@@ -39,5 +43,53 @@ describe('player session storage', () => {
 
   it('generates a 128-bit hexadecimal token', () => {
     expect(generateClientToken()).toMatch(/^[0-9a-f]{32}$/)
+  })
+
+  it('treats a blocked storage read as an empty session without throwing', async () => {
+    // Each fallback test starts from fresh module state so the module-level
+    // blocked-storage token never leaks between cases.
+    vi.resetModules()
+    const { getClientToken } = await import('./player-session')
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+
+    expect(getClientToken()).toBeNull()
+  })
+
+  it('keeps one stable token when reads succeed but writes fail', async () => {
+    vi.resetModules()
+    const { getOrCreateClientToken, getClientToken } =
+      await import('./player-session')
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => null)
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded')
+    })
+
+    const firstToken = getOrCreateClientToken()
+    const secondToken = getOrCreateClientToken()
+
+    expect(firstToken).toMatch(/^[0-9a-f]{32}$/)
+    expect(secondToken).toBe(firstToken)
+    expect(getClientToken()).toBe(firstToken)
+  })
+
+  it('keeps one stable session token when storage persistence is blocked', async () => {
+    vi.resetModules()
+    const { getOrCreateClientToken, getClientToken } =
+      await import('./player-session')
+    vi.spyOn(window.localStorage, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+
+    const firstToken = getOrCreateClientToken()
+    const secondToken = getOrCreateClientToken()
+
+    expect(firstToken).toMatch(/^[0-9a-f]{32}$/)
+    expect(secondToken).toBe(firstToken)
+    expect(getClientToken()).toBe(firstToken)
   })
 })

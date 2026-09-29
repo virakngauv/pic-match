@@ -35,6 +35,7 @@ export function GameCard({
   selectedSymbolId,
   revealedMatch,
   showIncorrectFeedback,
+  incorrectFeedbackText,
   disabled,
   onSelectSymbol,
 }: {
@@ -44,6 +45,8 @@ export function GameCard({
   selectedSymbolId: string | null
   revealedMatch: RevealedMatch | null
   showIncorrectFeedback: boolean
+  /** Replaces the default × mark, e.g. a timer penalty like "−2s". */
+  incorrectFeedbackText?: string
   disabled: boolean
   onSelectSymbol: (symbolId: string) => void
 }) {
@@ -146,9 +149,12 @@ export function GameCard({
             {isIncorrect ? (
               <span
                 aria-hidden="true"
-                className="pic-match-incorrect-mark pointer-events-none absolute inset-0 z-10 inline-flex items-center justify-center text-5xl font-black text-red-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]"
+                className={cn(
+                  'pic-match-incorrect-mark pointer-events-none absolute inset-0 z-10 inline-flex items-center justify-center font-black text-red-700 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]',
+                  incorrectFeedbackText ? 'text-3xl' : 'text-5xl',
+                )}
               >
-                ×
+                {incorrectFeedbackText ?? '×'}
               </span>
             ) : null}
             {isRevealed && revealedMatch ? (

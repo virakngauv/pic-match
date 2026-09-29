@@ -18,5 +18,8 @@ describe('HomePage', () => {
       'href',
       '/join',
     )
+    expect(
+      screen.getByRole('link', { name: 'Play solo game' }),
+    ).toHaveAttribute('href', '/solo/rules')
   })
 })

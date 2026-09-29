@@ -1,0 +1,202 @@
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+import { GameCard } from '@/components/game-card'
+import { getPairLayoutPlans } from '@/lib/card-layout'
+import {
+  SOLO_CHALLENGE,
+  SOLO_LAST_RUN_KEY,
+  answerSolo,
+  createSoloSeed,
+  getSoloPair,
+  getSoloStage,
+  rememberSoloRunScore,
+  startSoloState,
+  tickSolo,
+  type SoloState,
+} from '@/lib/solo-mode'
+
+// Tap feedback spells out the timer swing instead of a generic mark.
+const CORRECT_FEEDBACK_TEXT = `+${SOLO_CHALLENGE.correctBonusMs / 1000}s`
+const INCORRECT_FEEDBACK_TEXT = `−${SOLO_CHALLENGE.incorrectPenaltyMs / 1000}s`
+// Announced once the game mounts; the clock itself never speaks per tick.
+const START_ANNOUNCEMENT = `Timer started. ${
+  SOLO_CHALLENGE.initialTimeMs / 1000
+} seconds.`
+
+export function SoloPlay() {
+  const router = useRouter()
+  const [state, setState] = useState<SoloState | null>(null)
+  const startAnnouncedRef = useRef(false)
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      // The clock starts the moment the play screen mounts; every run deals
+      // a fresh random board that is never shared through the URL.
+      setState(startSoloState(createSoloSeed(), Date.now()))
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!state || state.announcement !== '' || startAnnouncedRef.current) return
+    // The live region mounts empty with the game, so the start message lands
+    // as a content change instead of initial content assistive tech skips.
+    startAnnouncedRef.current = true
+    queueMicrotask(() => {
+      setState((current) =>
+        current && current.announcement === ''
+          ? { ...current, announcement: START_ANNOUNCEMENT }
+          : current,
+      )
+    })
+  }, [state])
+
+  useEffect(() => {
+    if (state?.status !== 'playing') return
+    const timer = window.setInterval(
+      () => setState((current) => current && tickSolo(current, Date.now())),
+      100,
+    )
+    return () => window.clearInterval(timer)
+  }, [state?.status])
+
+  useEffect(() => {
+    if (state?.status !== 'finished') return
+    // The score rides the in-memory handoff across the route transition;
+    // session storage only preserves it across reloads when available.
+    rememberSoloRunScore(state.score)
+    try {
+      sessionStorage.setItem(
+        SOLO_LAST_RUN_KEY,
+        JSON.stringify({ version: 1, score: state.score }),
+      )
+    } catch {
+      // Storage is optional; the memory handoff still carries the score.
+    }
+    router.replace('/solo/results')
+  }, [router, state?.score, state?.status])
+
+  const seed = state?.seed
+  const pairIndex = state?.pairIndex
+  const pair = useMemo(
+    () =>
+      seed !== undefined && pairIndex !== undefined
+        ? getSoloPair(seed, pairIndex, pairIndex)
+        : null,
+    [seed, pairIndex],
+  )
+  const plans = useMemo(
+    () => (pair ? getPairLayoutPlans(pair.cards, pair.revision) : null),
+    [pair],
+  )
+
+  if (!state || !pair || !plans) {
+    return (
+      <main className="game-surface" aria-label="Solo game">
+        <div className="game-shell">
+          <p className="text-muted-foreground place-self-center text-sm">
+            Preparing Solo…
+          </p>
+        </div>
+      </main>
+    )
+  }
+
+  const stage = getSoloStage(state.pairIndex)
+  const stats = [
+    { label: 'Score', value: state.score },
+    { label: 'Time left', value: `${Math.ceil(state.remainingMs / 1000)}s` },
+    { label: 'Symbols', value: stage.symbolsPerCard },
+  ]
+
+  return (
+    <main className="game-surface" aria-label="Solo game">
+      <div className="game-shell">
+        <header
+          className="game-header justify-center"
+          aria-labelledby="solo-heading"
+        >
+          <h1
+            id="solo-heading"
+            className="truncate text-center text-xl leading-none font-bold tracking-[-0.04em] sm:text-2xl lg:text-4xl"
+          >
+            solo<span className="text-accent">.</span>
+          </h1>
+        </header>
+        <p className="sr-only" role="status" aria-live="polite">
+          {state.announcement}
+        </p>
+        <aside
+          className="game-scoreboard bg-card border shadow-sm"
+          aria-labelledby="solo-stats-heading"
+        >
+          <h2 id="solo-stats-heading" className="sr-only">
+            Solo stats
+          </h2>
+          <div
+            className="game-score-viewport"
+            role="region"
+            aria-label="Solo progress"
+            tabIndex={0}
+          >
+            <ol
+              className="game-score-list"
+              aria-label="Score, time, and difficulty"
+            >
+              {stats.map((stat) => (
+                <li
+                  className="game-score-entry bg-background border"
+                  key={stat.label}
+                >
+                  <span className="game-score-name text-xs font-semibold sm:text-base">
+                    {stat.label}
+                  </span>
+                  <output
+                    className="game-score-value font-mono text-sm font-bold sm:text-lg"
+                    aria-label={`${stat.label} value`}
+                    data-testid={`solo-${stat.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    {stat.value}
+                  </output>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </aside>
+        <section className="game-board" aria-label="Solo game board">
+          {pair.cards.map((card, index) => (
+            <div className="game-card-slot" key={`${state.pairIndex}:${index}`}>
+              <GameCard
+                card={card}
+                cardNumber={index + 1}
+                layoutPlan={plans[index as 0 | 1]}
+                selectedSymbolId={state.feedback?.symbolId ?? null}
+                revealedMatch={
+                  state.feedback?.kind === 'correct'
+                    ? {
+                        symbolId: state.feedback.symbolId,
+                        scorerName: CORRECT_FEEDBACK_TEXT,
+                      }
+                    : null
+                }
+                showIncorrectFeedback={state.feedback?.kind === 'incorrect'}
+                incorrectFeedbackText={INCORRECT_FEEDBACK_TEXT}
+                disabled={
+                  state.status === 'finished' || state.feedback !== null
+                }
+                onSelectSymbol={(symbolId) =>
+                  setState(
+                    (current) =>
+                      current && answerSolo(current, symbolId, Date.now()),
+                  )
+                }
+              />
+            </div>
+          ))}
+        </section>
+      </div>
+    </main>
+  )
+}
