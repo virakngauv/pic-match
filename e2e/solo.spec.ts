@@ -5,7 +5,7 @@ import { expectValidCardGeometry } from './card-layout-assertions'
 // Mirrors SOLO_CHALLENGE.successFeedbackMs; e2e specs do not import lib code.
 const SOLO_SUCCESS_FEEDBACK_MS = 220
 
-test('plays the three-page solo loop and shares a challenge link', async ({
+test('plays the single-route solo loop and shares a challenge link', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -19,15 +19,14 @@ test('plays the three-page solo loop and shares a challenge link', async ({
   })
   await page.clock.install()
 
-  // Page 1: the rules screen invites the player to begin.
-  await page.goto('/solo/rules')
+  await page.goto('/solo')
   await expect(
     page.getByRole('heading', { name: 'play solo game.' }),
   ).toBeVisible()
-  await page.getByRole('link', { name: 'Play solo game' }).click()
+  await page.getByRole('button', { name: 'Play solo game' }).click()
 
-  // Page 2: the clock is already running on the play screen.
-  await expect(page).toHaveURL(/\/solo\/play$/)
+  // The URL remains stable while the in-memory flow moves into play.
+  await expect(page).toHaveURL(/\/solo$/)
   await expect(page.getByTestId('solo-time-left')).toHaveText('30s')
   const cards = page.locator('article[data-card-id]')
   await expect(cards).toHaveCount(2)
@@ -55,12 +54,12 @@ test('plays the three-page solo loop and shares a challenge link', async ({
   // The page still never scrolls, even on the smallest supported phone.
   await expectNoPageOverflow(page, 320, 568)
 
-  // Expiry lands on page 3, the results screen. The jump unconditionally
+  // Expiry swaps the same route into results. The jump unconditionally
   // outruns the clock, which four +2s bonuses can push to about 37s.
   await page.clock.fastForward('01:00')
-  await expect(page).toHaveURL(/\/solo\/results$/)
+  await expect(page).toHaveURL(/\/solo$/)
   await expect(page.getByText('You scored 4 pairs.')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Play again' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Play again' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Go home' })).toBeVisible()
   await expect
     .poll(() =>
@@ -80,18 +79,31 @@ test('plays the three-page solo loop and shares a challenge link', async ({
     sessionStorage.getItem('solo-copied'),
   )
   expect(copied).toMatch(
-    /^I matched 4 pairs in Pic Match Solo\. Can you beat me\? https?:\/\/\S+\/solo\/rules$/,
+    /^I matched 4 pairs in Pic Match Solo\. Can you beat me\? https?:\/\/\S+\/solo$/,
   )
   await page.clock.fastForward('00:01')
   await expect(
     page.getByRole('button', { name: 'Challenge a friend' }),
   ).toBeVisible()
 
-  // The plain solo link lands a friend on the fresh rules screen.
+  // Reloading results resets the ephemeral flow but keeps the personal best.
+  await page.reload()
+  await expect(page).toHaveURL(/\/solo$/)
+  await expect(
+    page.getByRole('heading', { name: 'play solo game.' }),
+  ).toBeVisible()
+  expect(
+    await page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem('pic-match:solo:v1') ?? '{}').bestScore,
+    ),
+  ).toBe(4)
+
+  // Challenge links open the fresh rules state on the single solo route.
   const sharedUrl = copied?.match(/https?:\/\/\S+/)?.[0]
   expect(sharedUrl).toBeTruthy()
   await page.goto(sharedUrl!)
-  await expect(page).toHaveURL(/\/solo\/rules$/)
+  await expect(page).toHaveURL(/\/solo$/)
   await expect(
     page.getByRole('heading', { name: 'play solo game.' }),
   ).toBeVisible()
@@ -115,13 +127,24 @@ test('solo never attempts a multiplayer socket connection', async ({
     localStorage.setItem('pic-match:client-token', 'a'.repeat(32))
   })
 
-  await page.goto('/solo/rules')
-  await page.getByRole('link', { name: 'Play solo game' }).click()
+  await page.goto('/solo')
+  await page.getByRole('button', { name: 'Play solo game' }).click()
   await expect(page.locator('article[data-card-id]')).toHaveCount(2)
 
-  // The results screen redirects to the rules page without a run.
-  await page.goto('/solo/results')
-  await expect(page).toHaveURL(/\/solo\/rules$/)
+  // Reloading mid-run starts the client flow over at rules.
+  await page.reload()
+  await expect(
+    page.getByRole('heading', { name: 'play solo game.' }),
+  ).toBeVisible()
+
+  // Legacy routes all converge on the single entry point.
+  for (const legacyPath of ['/solo/rules', '/solo/play', '/solo/results']) {
+    await page.goto(legacyPath)
+    await expect(page).toHaveURL(/\/solo$/)
+    await expect(
+      page.getByRole('heading', { name: 'play solo game.' }),
+    ).toBeVisible()
+  }
 
   // Allow any eager or retried connection attempt to surface before asserting.
   await page.waitForTimeout(2_000)

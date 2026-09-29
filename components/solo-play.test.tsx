@@ -1,12 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  SOLO_LAST_RUN_KEY,
-  getSoloPair,
-  readSoloRunScore,
-  rememberSoloRunScore,
-} from '@/lib/solo-mode'
+import { getSoloPair } from '@/lib/solo-mode'
 
 vi.mock('@/lib/solo-mode', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/solo-mode')>()),
@@ -16,15 +11,8 @@ vi.mock('@/lib/solo-mode', async (importOriginal) => ({
 
 import { SoloPlay } from './solo-play'
 
-const mocks = vi.hoisted(() => ({
-  replace: vi.fn(),
-}))
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: mocks.replace }),
-}))
-
 const seed = 'fixed-challenge'
+const onFinish = vi.fn()
 
 function sharedSymbolOf(pairIndex: number) {
   const [left, right] = getSoloPair(seed, pairIndex, pairIndex).cards
@@ -47,9 +35,7 @@ function tapSymbol(symbolId: string, instance = 0) {
 
 describe('SoloPlay', () => {
   beforeEach(() => {
-    mocks.replace.mockReset()
-    sessionStorage.clear()
-    rememberSoloRunScore(null)
+    onFinish.mockReset()
   })
 
   afterEach(() => {
@@ -59,7 +45,7 @@ describe('SoloPlay', () => {
 
   it('renders the stats strip and starts the clock without a first tap', async () => {
     vi.useFakeTimers()
-    render(<SoloPlay />)
+    render(<SoloPlay onFinish={onFinish} />)
 
     await act(async () => {})
 
@@ -78,7 +64,7 @@ describe('SoloPlay', () => {
 
   it('announces the timer start once the game mounts', async () => {
     vi.useFakeTimers()
-    render(<SoloPlay />)
+    render(<SoloPlay onFinish={onFinish} />)
 
     await act(async () => {})
 
@@ -90,7 +76,7 @@ describe('SoloPlay', () => {
 
   it('scores a shared-symbol tap on either card and rewards time', async () => {
     vi.useFakeTimers()
-    render(<SoloPlay />)
+    render(<SoloPlay onFinish={onFinish} />)
     await act(async () => {})
     await act(async () => {
       vi.advanceTimersByTime(1_000)
@@ -117,7 +103,7 @@ describe('SoloPlay', () => {
 
   it('penalizes an incorrect tap and keeps the current pair', async () => {
     vi.useFakeTimers()
-    render(<SoloPlay />)
+    render(<SoloPlay onFinish={onFinish} />)
     await act(async () => {})
     await act(async () => {
       vi.advanceTimersByTime(2_000)
@@ -142,36 +128,16 @@ describe('SoloPlay', () => {
     ).not.toBeNull()
   })
 
-  it('hands the score to session storage and routes to a clean results URL', async () => {
+  it('reports the finished score without navigating or persisting a handoff', async () => {
     vi.useFakeTimers()
-    render(<SoloPlay />)
+    render(<SoloPlay onFinish={onFinish} />)
     await act(async () => {})
 
     await act(async () => {
       vi.advanceTimersByTime(30_100)
     })
 
-    expect(mocks.replace).toHaveBeenCalledWith('/solo/results')
-    expect(sessionStorage.getItem(SOLO_LAST_RUN_KEY)).toBe(
-      JSON.stringify({ version: 1, score: 0 }),
-    )
-  })
-
-  it('still hands off the score when session storage throws', async () => {
-    vi.useFakeTimers()
-    vi.spyOn(sessionStorage, 'setItem').mockImplementation(() => {
-      throw new Error('blocked')
-    })
-    render(<SoloPlay />)
-    await act(async () => {})
-
-    await act(async () => {
-      vi.advanceTimersByTime(30_100)
-    })
-
-    expect(mocks.replace).toHaveBeenCalledWith('/solo/results')
-    // The in-memory handoff keeps the finished run reachable by the results
-    // even though nothing could be persisted.
-    expect(readSoloRunScore(null)).toBe(0)
+    expect(onFinish).toHaveBeenCalledOnce()
+    expect(onFinish).toHaveBeenCalledWith(0)
   })
 })
