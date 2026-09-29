@@ -33,7 +33,7 @@ export default function HomePage() {
               <Link href="/join">Join a room</Link>
             </Button>
             <Button asChild variant="outline" className="h-12 w-full text-base">
-              <Link href="/solo/rules">Play a solo game</Link>
+              <Link href="/solo/rules">Play solo game</Link>
             </Button>
           </div>
         </section>
