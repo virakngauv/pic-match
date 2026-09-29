@@ -17,12 +17,11 @@ export function SoloStart() {
     <main className="flex min-h-screen items-center px-5 py-10 sm:px-8">
       <section className="bg-card mx-auto w-full max-w-lg rounded-[2rem] border p-7 shadow-sm sm:p-10">
         <h1 className="text-center text-4xl leading-[1.05] font-bold tracking-[-0.04em] text-balance sm:text-5xl">
-          play solo<span className="text-accent">.</span>
+          play solo game<span className="text-accent">.</span>
         </h1>
         {/* Every value comes straight from SOLO_CHALLENGE, so the rules can
             never drift from what the game actually does. */}
         <ul className="text-foreground mt-4 space-y-1 text-center text-sm leading-6 sm:text-base">
-          <li>goal: tap the one symbol both cards share — either card works</li>
           <li>timer: {secondsLabel(initialSeconds)}</li>
           <li>matching symbol: +{secondsLabel(bonusSeconds)}</li>
           <li>wrong symbol: −{secondsLabel(penaltySeconds)}</li>

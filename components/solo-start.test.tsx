@@ -7,7 +7,9 @@ describe('SoloStart', () => {
   it('presents the solo rules like the other entry screens', () => {
     render(<SoloStart />)
 
-    expect(screen.getByRole('heading', { name: 'play solo.' })).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'play solo game.' }),
+    ).toBeVisible()
     expect(screen.queryByText('Ready?')).not.toBeInTheDocument()
     expect(screen.queryByText(/Personal best/)).not.toBeInTheDocument()
     expect(
@@ -24,9 +26,6 @@ describe('SoloStart', () => {
 
     const rules = screen.getByRole('list')
     expect(rules).toBeVisible()
-    expect(rules).toHaveTextContent(
-      'goal: tap the one symbol both cards share — either card works',
-    )
     expect(rules).toHaveTextContent('timer: 30 seconds')
     expect(rules).toHaveTextContent('matching symbol: +2 seconds')
     expect(rules).toHaveTextContent('wrong symbol: −3 seconds')

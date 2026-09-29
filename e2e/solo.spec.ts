@@ -21,7 +21,9 @@ test('plays the three-page solo loop and shares a challenge link', async ({
 
   // Page 1: the rules screen invites the player to begin.
   await page.goto('/solo/rules')
-  await expect(page.getByRole('heading', { name: 'play solo.' })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'play solo game.' }),
+  ).toBeVisible()
   await page.getByRole('link', { name: 'Play solo game' }).click()
 
   // Page 2: the clock is already running on the play screen.
@@ -89,7 +91,9 @@ test('plays the three-page solo loop and shares a challenge link', async ({
   expect(sharedUrl).toBeTruthy()
   await page.goto(sharedUrl!)
   await expect(page).toHaveURL(/\/solo\/rules$/)
-  await expect(page.getByRole('heading', { name: 'play solo.' })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'play solo game.' }),
+  ).toBeVisible()
 })
 
 test('solo never attempts a multiplayer socket connection', async ({
