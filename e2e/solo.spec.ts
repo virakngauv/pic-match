@@ -23,6 +23,9 @@ test('plays the single-route solo loop and shares a challenge link', async ({
   await expect(
     page.getByRole('heading', { name: 'play solo game.' }),
   ).toBeVisible()
+  await expect(
+    page.getByText('matching symbol: +1 second', { exact: true }),
+  ).toBeVisible()
   await page.getByRole('button', { name: 'Play solo game' }).click()
 
   // The URL remains stable while the in-memory flow moves into play.
@@ -35,6 +38,7 @@ test('plays the single-route solo loop and shares a challenge link', async ({
   const shared = await readSharedSymbol(page)
   await cards.nth(1).locator(`button[data-symbol-id="${shared}"]`).click()
   await expect(page.getByTestId('solo-score')).toHaveText('1')
+  await expect(page.locator('[data-score-reveal]').first()).toHaveText('+1s')
 
   // Three more correct answers climb into the four-symbol stage, whose
   // layout follows the same geometry rules on the rendered board.
@@ -55,7 +59,7 @@ test('plays the single-route solo loop and shares a challenge link', async ({
   await expectNoPageOverflow(page, 320, 568)
 
   // Expiry swaps the same route into results. The jump unconditionally
-  // outruns the clock, which four +2s bonuses can push to about 37s.
+  // outruns the clock even after four correct-answer bonuses extend it.
   await page.clock.fastForward('01:00')
   await expect(page).toHaveURL(/\/solo$/)
   await expect(page.getByText('You scored 4 pairs.')).toBeVisible()
