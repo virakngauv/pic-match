@@ -70,14 +70,13 @@ describe('solo challenge', () => {
     )
   })
 
-  it('scores either card, rewards time, and advances after feedback', () => {
+  it('scores either card, rewards one second, and advances after feedback', () => {
     const first = answerSolo(startSoloState(seed, 1_000), shared(), 1_000)
+    expect(SOLO_CHALLENGE.correctBonusMs).toBe(1_000)
     expect(first.status).toBe('playing')
     expect(first.announcement).toBe('')
     expect(first.score).toBe(1)
-    expect(first.remainingMs).toBe(
-      SOLO_CHALLENGE.initialTimeMs + SOLO_CHALLENGE.correctBonusMs,
-    )
+    expect(first.remainingMs).toBe(SOLO_CHALLENGE.initialTimeMs + 1_000)
     expect(first.pairIndex).toBe(0)
     expect(tickSolo(first, 1_220).pairIndex).toBe(1)
 
