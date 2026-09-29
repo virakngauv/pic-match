@@ -77,7 +77,9 @@ describe('solo challenge', () => {
     expect(first.status).toBe('playing')
     expect(first.announcement).toBe('')
     expect(first.score).toBe(1)
-    expect(first.remainingMs).toBe(SOLO_CHALLENGE.initialTimeMs + 1_000)
+    expect(first.remainingMs).toBe(
+      SOLO_CHALLENGE.initialTimeMs + SOLO_CHALLENGE.correctBonusMs,
+    )
     expect(first.pairIndex).toBe(0)
     expect(tickSolo(first, 1_220).pairIndex).toBe(1)
 
@@ -94,7 +96,7 @@ describe('solo challenge', () => {
       (symbol) => !pair.cards[1].symbolIds.includes(symbol),
     )!
     const first = answerSolo(startSoloState(seed, 0), wrong, 100)
-    expect(first.remainingMs).toBe(27_900)
+    expect(first.remainingMs).toBe(26_900)
     expect(first.pairIndex).toBe(0)
     const nearEnd = {
       ...first,
@@ -110,8 +112,10 @@ describe('solo challenge', () => {
 
   it('does not cap correct rewards at 30 seconds and ends on elapsed time', () => {
     const answered = answerSolo(startSoloState(seed, 0), shared(), 0)
-    expect(answered.remainingMs).toBe(31_000)
-    expect(tickSolo(answered, 31_000).status).toBe('finished')
+    const rewardCeiling =
+      SOLO_CHALLENGE.initialTimeMs + SOLO_CHALLENGE.correctBonusMs
+    expect(answered.remainingMs).toBe(rewardCeiling)
+    expect(tickSolo(answered, rewardCeiling).status).toBe('finished')
   })
 
   it('uses the entering score for a difficulty step after success feedback', () => {

@@ -29,7 +29,7 @@ describe('SoloStart', () => {
       'goal: tap the one symbol both cards share — either card works',
     )
     expect(rules).toHaveTextContent('timer: 30 seconds')
-    expect(rules).toHaveTextContent('matching symbol: +1 second')
-    expect(rules).toHaveTextContent('wrong symbol: −2 seconds')
+    expect(rules).toHaveTextContent('matching symbol: +2 seconds')
+    expect(rules).toHaveTextContent('wrong symbol: −3 seconds')
   })
 })
