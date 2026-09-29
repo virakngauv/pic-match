@@ -38,7 +38,7 @@ test('plays the single-route solo loop and shares a challenge link', async ({
   const shared = await readSharedSymbol(page)
   await cards.nth(1).locator(`button[data-symbol-id="${shared}"]`).click()
   await expect(page.getByTestId('solo-score')).toHaveText('1')
-  await expect(page.locator('[data-score-reveal]').first()).toHaveText('+1s')
+  await expect(cards.nth(1).getByText('+1s', { exact: true })).toBeVisible()
 
   // Three more correct answers climb into the four-symbol stage, whose
   // layout follows the same geometry rules on the rendered board.
