@@ -16,9 +16,7 @@ export function SoloFlow() {
 
   if (phase.name === 'play') {
     return (
-      <SoloPlay
-        onFinish={(score) => setPhase({ name: 'results', score })}
-      />
+      <SoloPlay onFinish={(score) => setPhase({ name: 'results', score })} />
     )
   }
 

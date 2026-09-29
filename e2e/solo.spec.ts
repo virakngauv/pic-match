@@ -109,7 +109,9 @@ test('plays the single-route solo loop and shares a challenge link', async ({
   ).toBeVisible()
 })
 
-test('solo never attempts a multiplayer socket connection', async ({ page }) => {
+test('solo never attempts a multiplayer socket connection', async ({
+  page,
+}) => {
   const socketAttempts: string[] = []
   // Socket.IO always traffics over the /socket.io path; other websockets
   // (for example Next.js dev HMR) are unrelated.

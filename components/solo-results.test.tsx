@@ -3,10 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  SOLO_STORAGE_KEY,
-  formatSoloShareText,
-} from '@/lib/solo-mode'
+import { SOLO_STORAGE_KEY, formatSoloShareText } from '@/lib/solo-mode'
 
 import { SoloResults } from './solo-results'
 
