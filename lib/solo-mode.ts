@@ -6,7 +6,7 @@ import {
 
 export const SOLO_CHALLENGE = {
   initialTimeMs: 30_000,
-  correctBonusMs: 2_000,
+  correctBonusMs: 1_000,
   incorrectPenaltyMs: 3_000,
   successFeedbackMs: 220,
   incorrectFeedbackMs: 400,

@@ -87,9 +87,9 @@ describe('SoloPlay', () => {
     })
 
     expect(screen.getByTestId('solo-score')).toHaveTextContent('1')
-    expect(screen.getByTestId('solo-time-left')).toHaveTextContent('31s')
+    expect(screen.getByTestId('solo-time-left')).toHaveTextContent('30s')
     // The cards announce the timer swing, not a generic mark.
-    expect(screen.getAllByText('+2s')).toHaveLength(2)
+    expect(screen.getAllByText('+1s')).toHaveLength(2)
 
     await act(async () => {
       vi.advanceTimersByTime(300)
