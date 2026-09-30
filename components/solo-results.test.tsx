@@ -37,7 +37,9 @@ describe('SoloResults', () => {
     render(<SoloResults score={7} onPlayAgain={onPlayAgain} />)
     await act(async () => {})
 
-    expect(screen.getByText('You scored 7 pairs.')).toBeVisible()
+    expect(screen.getByRole('heading', { name: "Time's up" })).toBeVisible()
+    expect(screen.queryByText('Solo', { exact: true })).not.toBeInTheDocument()
+    expect(screen.getByText('You scored 7 pairs')).toBeVisible()
     expect(screen.getByText('Personal best: 7 — new best!')).toBeVisible()
     expect(JSON.parse(localStorage.getItem(SOLO_STORAGE_KEY) ?? '{}')).toEqual({
       version: 1,
@@ -55,7 +57,7 @@ describe('SoloResults', () => {
     await act(async () => {})
 
     expect(screen.getByText('Personal best: 12')).toBeVisible()
-    expect(screen.getByText('You scored 3 pairs.')).toBeVisible()
+    expect(screen.getByText('You scored 3 pairs')).toBeVisible()
     expect(screen.queryByText(/new best/)).not.toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(SOLO_STORAGE_KEY) ?? '{}')).toEqual({
       version: 1,
@@ -88,7 +90,7 @@ describe('SoloResults', () => {
     render(<SoloResults score={7} onPlayAgain={onPlayAgain} />)
     await act(async () => {})
 
-    expect(screen.getByText('You scored 7 pairs.')).toBeVisible()
+    expect(screen.getByText('You scored 7 pairs')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Play again' }))
     expect(onPlayAgain).toHaveBeenCalledOnce()
     expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(

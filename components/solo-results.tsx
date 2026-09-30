@@ -112,14 +112,11 @@ export function SoloResults({
       aria-label="Solo results"
     >
       <section className="bg-card mx-auto w-full max-w-xl rounded-[2rem] border p-7 text-center shadow-sm sm:p-10">
-        <p className="text-accent text-xs font-bold tracking-[0.18em] uppercase">
-          Solo
-        </p>
-        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-          Time&apos;s up.
+        <h1 className="text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
+          Time&apos;s up
         </h1>
         <p className="mt-4 text-2xl font-semibold tracking-[-0.03em] [overflow-wrap:anywhere]">
-          You scored {score} {score === 1 ? 'pair' : 'pairs'}.
+          You scored {score} {score === 1 ? 'pair' : 'pairs'}
         </p>
         <p className="text-muted-foreground mt-2 text-sm leading-6 sm:text-base">
           {storedBest === null

@@ -62,7 +62,9 @@ test('plays the single-route solo loop and shares a challenge link', async ({
   // outruns the clock even after four correct-answer bonuses extend it.
   await page.clock.fastForward('01:00')
   await expect(page).toHaveURL(/\/solo$/)
-  await expect(page.getByText('You scored 4 pairs.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: "Time's up" })).toBeVisible()
+  await expect(page.getByText('Solo', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('You scored 4 pairs')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Play again' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Go home' })).toBeVisible()
   await expect
