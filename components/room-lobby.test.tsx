@@ -153,6 +153,22 @@ describe('RoomLobby', () => {
     expect(screen.getByRole('button', { name: 'Reload page' })).toBeEnabled()
   })
 
+  it('prioritizes protocol update over a stale server-restart room state', () => {
+    mocks.snapshot = lobby()
+    mocks.endedReason = 'server_restart'
+    mocks.connectionStatus = 'disconnected'
+    mocks.connectionError =
+      'This game version is no longer supported. Reload or update the page.'
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Reload to keep playing.' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'This room has ended.' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('offers join UI to a token without room membership', () => {
     mocks.snapshot = { status: 'joinable', roomCode: 'frvg7' }
     render(<RoomLobby roomCode="frvg7" />)
