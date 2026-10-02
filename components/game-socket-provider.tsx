@@ -16,10 +16,12 @@ import {
 import { usePlayerSession } from '@/components/player-session-provider'
 import {
   GAME_PROTOCOL_VERSION,
+  MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
   isMemberSnapshot,
   type ClientToServerEvents,
   type CommandResult,
   type MatchClaimCommand,
+  type ProtocolCompatibilityErrorData,
   type RoomSnapshot,
   type ServerToClientEvents,
 } from '@/lib/game-protocol'
@@ -33,6 +35,7 @@ const SOCKETLESS_ROUTE_PREFIXES = ['/solo'] as const
 
 type GameSocketContextValue = {
   connectionStatus: ConnectionStatus
+  connectionError: string | null
   snapshots: Readonly<Record<string, RoomSnapshot>>
   endedRooms: Readonly<Record<string, RoomEndedReason>>
   watchRoom: (roomCode: string) => () => void
@@ -73,6 +76,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
   const receiveSnapshotRef = useRef<(snapshot: RoomSnapshot) => void>(() => {})
   const [connectionStatus, setConnectionStatus] =
     useState<ConnectionStatus>('connecting')
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const [snapshots, setSnapshots] = useState<Record<string, RoomSnapshot>>({})
   const [endedRooms, setEndedRooms] = useState<Record<string, RoomEndedReason>>(
     {},
@@ -98,7 +102,11 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
       process.env.NEXT_PUBLIC_GAME_SERVER_URL?.trim() ||
       defaultGameServerUrl(window.location.hostname)
     const socket: GameSocket = io(gameServerUrl, {
-      auth: { token: clientToken, protocolVersion: GAME_PROTOCOL_VERSION },
+      auth: {
+        token: clientToken,
+        protocolVersion: GAME_PROTOCOL_VERSION,
+        minProtocolVersion: MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
+      },
       autoConnect: true,
       reconnection: true,
     })
@@ -106,6 +114,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
 
     const resumeWatchedRooms = () => {
       setConnectionStatus('connected')
+      setConnectionError(null)
       for (const roomCode of watchedRoomsRef.current.keys()) {
         socket.emit('session:resume', { roomCode }, (result) => {
           if (result.status === 'success' && result.snapshot) {
@@ -144,7 +153,12 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     }
     receiveSnapshotRef.current = receiveSnapshot
     const handleDisconnect = () => setConnectionStatus('disconnected')
-    const handleConnectError = () => setConnectionStatus('disconnected')
+    const handleConnectError = (error: Error & { data?: unknown }) => {
+      setConnectionStatus('disconnected')
+      setConnectionError(
+        isProtocolCompatibilityError(error.data) ? error.message : null,
+      )
+    }
     const handleExpired = ({ roomCode }: { roomCode: string }) => {
       memberRooms.delete(roomCode)
       setEndedRooms((current) => ({ ...current, [roomCode]: 'expired' }))
@@ -186,6 +200,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
       memberRooms.clear()
       setSnapshots({})
       setEndedRooms({})
+      setConnectionError(null)
       // A socketless detour (or a re-key) tears the socket down, so the stale
       // connected status must not leak into the next route's forms.
       setConnectionStatus('disconnected')
@@ -289,6 +304,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
   const value = useMemo<GameSocketContextValue>(
     () => ({
       connectionStatus,
+      connectionError,
       snapshots,
       endedRooms,
       watchRoom,
@@ -302,6 +318,7 @@ export function GameSocketProvider({ children }: { children: ReactNode }) {
     }),
     [
       claimMatch,
+      connectionError,
       connectionStatus,
       createRoom,
       endedRooms,
@@ -331,13 +348,31 @@ export function useGameSocket() {
 }
 
 export function useRoomSnapshot(roomCode: string) {
-  const { watchRoom, snapshots, endedRooms, connectionStatus } = useGameSocket()
+  const {
+    watchRoom,
+    snapshots,
+    endedRooms,
+    connectionStatus,
+    connectionError,
+  } = useGameSocket()
   useEffect(() => watchRoom(roomCode), [roomCode, watchRoom])
   return {
     snapshot: snapshots[roomCode],
     endedReason: endedRooms[roomCode] ?? null,
     connectionStatus,
+    connectionError,
   }
+}
+
+function isProtocolCompatibilityError(
+  value: unknown,
+): value is ProtocolCompatibilityErrorData {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'code' in value &&
+    value.code === 'protocol_incompatible'
+  )
 }
 
 async function runCommand<TResult extends object>(
