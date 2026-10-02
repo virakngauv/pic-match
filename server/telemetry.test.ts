@@ -66,6 +66,7 @@ describe('server telemetry', () => {
 
     telemetry.countHandshakeRejected('origin_not_allowed')
     telemetry.countHandshakeRejected('invalid_auth')
+    telemetry.countHandshakeRejected('unsupported_protocol')
     telemetry.countHandshakeRejected('origin_not_allowed')
     expect(logger.warn).not.toHaveBeenCalled()
 
@@ -79,12 +80,17 @@ describe('server telemetry', () => {
     })
     expect(events).toContainEqual({
       event: 'handshake_rejected',
+      reason: 'unsupported_protocol',
+      occurrences: 1,
+    })
+    expect(events).toContainEqual({
+      event: 'handshake_rejected',
       reason: 'invalid_auth',
       occurrences: 1,
     })
 
     telemetry.flush()
-    expect(logger.warn).toHaveBeenCalledTimes(2)
+    expect(logger.warn).toHaveBeenCalledTimes(3)
   })
 
   it('emits direct events with stable shapes', () => {
@@ -94,6 +100,13 @@ describe('server telemetry', () => {
     telemetry.expirationSweep(3, 42)
     telemetry.expirationSweep(0, 1)
     telemetry.claimStreak('bcdf2', 7, 20)
+    telemetry.protocolVersionDrift({
+      receivedVersion: 2,
+      receivedMinVersion: 1,
+      currentVersion: 1,
+      minSupportedVersion: 1,
+      negotiatedVersion: 1,
+    })
     telemetry.shutdownStarted()
     telemetry.shutdownCompleted()
 
@@ -104,12 +117,41 @@ describe('server telemetry', () => {
         pairRevision: 7,
         incorrectInARow: 20,
       },
+      {
+        event: 'protocol_version_drift',
+        receivedVersion: 2,
+        receivedMinVersion: 1,
+        currentVersion: 1,
+        minSupportedVersion: 1,
+        negotiatedVersion: 1,
+      },
     ])
     expect(logger.info.mock.calls.map(parseCall)).toEqual([
       { event: 'expiration_sweep', roomsExpired: 3, durationMs: 42 },
       { event: 'server_shutdown_started' },
       { event: 'server_shutdown_completed' },
     ])
+  })
+
+  it('caps protocol drift warnings within each telemetry window', () => {
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() }
+    const telemetry = createTelemetry(logger, { flushIntervalMs: 0 })
+    const drift = {
+      receivedVersion: 2,
+      receivedMinVersion: 1,
+      currentVersion: 1,
+      minSupportedVersion: 1,
+      negotiatedVersion: 1,
+    }
+
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      telemetry.protocolVersionDrift(drift)
+    }
+    expect(logger.warn).toHaveBeenCalledTimes(10)
+
+    telemetry.flush()
+    telemetry.protocolVersionDrift(drift)
+    expect(logger.warn).toHaveBeenCalledTimes(11)
   })
 
   it('flushes counted events on an interval and stops after dispose', () => {

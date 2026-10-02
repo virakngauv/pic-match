@@ -6,6 +6,7 @@ import { CreateRoomForm } from './create-room-form'
 
 const mocks = vi.hoisted(() => ({
   connectionStatus: 'connected' as 'connecting' | 'connected' | 'disconnected',
+  connectionError: null as string | null,
   createRoom: vi.fn(),
   routerPush: vi.fn(),
 }))
@@ -14,6 +15,7 @@ vi.mock('@/components/game-socket-provider', () => ({
   useGameSocket: () => ({
     createRoom: mocks.createRoom,
     connectionStatus: mocks.connectionStatus,
+    connectionError: mocks.connectionError,
   }),
 }))
 
@@ -24,6 +26,7 @@ vi.mock('next/navigation', () => ({
 describe('CreateRoomForm', () => {
   beforeEach(() => {
     mocks.connectionStatus = 'connected'
+    mocks.connectionError = null
     mocks.createRoom.mockReset().mockResolvedValue({
       status: 'success',
       roomCode: 'frvg7',
@@ -51,6 +54,43 @@ describe('CreateRoomForm', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       'Connecting to the game server…',
     )
+  })
+
+  it('asks the player to reload when no protocol overlap exists', () => {
+    mocks.connectionStatus = 'disconnected'
+    mocks.connectionError =
+      'This game version is no longer supported. Reload or update the page.'
+    render(<CreateRoomForm />)
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'This game version is no longer supported. Reload or update the page.',
+    )
+    expect(screen.getByRole('button', { name: 'Reload page' })).toBeEnabled()
+  })
+
+  it('prioritizes protocol incompatibility over a local form error', async () => {
+    const user = userEvent.setup()
+    mocks.createRoom.mockResolvedValue({
+      status: 'rate_limited',
+      message: 'Too many commands.',
+    })
+    const view = render(<CreateRoomForm />)
+
+    await user.type(screen.getByLabelText('Name'), 'Ada')
+    await user.click(screen.getByRole('button', { name: 'Create' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many commands.',
+    )
+
+    mocks.connectionStatus = 'disconnected'
+    mocks.connectionError =
+      'This game version is no longer supported. Reload or update the page.'
+    view.rerender(<CreateRoomForm />)
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'This game version is no longer supported. Reload or update the page.',
+    )
+    expect(screen.queryByText('Too many commands.')).not.toBeInTheDocument()
   })
 
   it('shows a typed server failure without navigating', async () => {

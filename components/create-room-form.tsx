@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useSyncExternalStore, type FormEvent } from 'react'
 
 import { useGameSocket } from '@/components/game-socket-provider'
+import { ReloadPageButton } from '@/components/reload-page-button'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -12,7 +13,7 @@ const getHydratedSnapshot = () => true
 const getServerHydrationSnapshot = () => false
 
 export function CreateRoomForm() {
-  const { createRoom, connectionStatus } = useGameSocket()
+  const { createRoom, connectionStatus, connectionError } = useGameSocket()
   const router = useRouter()
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -73,13 +74,17 @@ export function CreateRoomForm() {
       />
       <p
         className="text-accent mt-3 min-h-5 text-sm"
-        role={error ? 'alert' : 'status'}
+        role={connectionError ? 'status' : error ? 'alert' : 'status'}
       >
-        {error ??
+        {connectionError ??
+          error ??
           (connectionStatus === 'connected'
             ? null
             : 'Connecting to the game server…')}
       </p>
+      {connectionError ? (
+        <ReloadPageButton className="mt-2 h-12 w-full text-base" />
+      ) : null}
       <Button
         className="mt-2 h-12 w-full text-base"
         disabled={isCreating || connectionStatus !== 'connected'}

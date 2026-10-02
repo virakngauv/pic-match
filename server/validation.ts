@@ -1,5 +1,6 @@
 import {
   GAME_PROTOCOL_VERSION,
+  MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
   type CreateRoomPayload,
   type JoinRoomPayload,
   type MatchClaimCommand,
@@ -21,14 +22,100 @@ const UNSAFE_PLAYER_NAME_CHARACTERS =
 
 type UnknownRecord = Record<string, unknown>
 
-export function parseHandshakeAuth(value: unknown): SocketHandshakeAuth | null {
-  if (!isRecord(value)) return null
+export type ProtocolSupport = {
+  currentVersion: number
+  minSupportedVersion: number
+}
 
-  return value.protocolVersion === GAME_PROTOCOL_VERSION &&
-    typeof value.token === 'string' &&
-    CLIENT_TOKEN_PATTERN.test(value.token)
-    ? { token: value.token, protocolVersion: GAME_PROTOCOL_VERSION }
-    : null
+export type NegotiatedHandshakeAuth = SocketHandshakeAuth & {
+  minProtocolVersion: number
+  negotiatedProtocolVersion: number
+  legacyExactVersion: boolean
+}
+
+export type HandshakeAuthResult =
+  | { status: 'success'; auth: NegotiatedHandshakeAuth }
+  | { status: 'invalid_auth' }
+  | {
+      status: 'unsupported_protocol'
+      receivedVersion: number
+      receivedMinVersion: number
+      currentVersion: number
+      minSupportedVersion: number
+    }
+
+const DEFAULT_PROTOCOL_SUPPORT: ProtocolSupport = {
+  currentVersion: GAME_PROTOCOL_VERSION,
+  minSupportedVersion: MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
+}
+
+export function negotiateHandshakeAuth(
+  value: unknown,
+  server = DEFAULT_PROTOCOL_SUPPORT,
+): HandshakeAuthResult {
+  if (!isRecord(value)) return { status: 'invalid_auth' }
+
+  if (
+    typeof value.token !== 'string' ||
+    !CLIENT_TOKEN_PATTERN.test(value.token) ||
+    !isProtocolVersion(value.protocolVersion) ||
+    (value.minProtocolVersion !== undefined &&
+      !isProtocolVersion(value.minProtocolVersion))
+  ) {
+    return { status: 'invalid_auth' }
+  }
+
+  const protocolVersion = value.protocolVersion
+  const legacyExactVersion = value.minProtocolVersion === undefined
+  const minProtocolVersion =
+    typeof value.minProtocolVersion === 'number'
+      ? value.minProtocolVersion
+      : protocolVersion
+  if (minProtocolVersion > protocolVersion) {
+    return { status: 'invalid_auth' }
+  }
+
+  const negotiatedProtocolVersion = Math.min(
+    protocolVersion,
+    server.currentVersion,
+  )
+  if (
+    (legacyExactVersion && protocolVersion !== server.currentVersion) ||
+    negotiatedProtocolVersion < minProtocolVersion ||
+    negotiatedProtocolVersion < server.minSupportedVersion
+  ) {
+    return {
+      status: 'unsupported_protocol',
+      receivedVersion: protocolVersion,
+      receivedMinVersion: minProtocolVersion,
+      currentVersion: server.currentVersion,
+      minSupportedVersion: server.minSupportedVersion,
+    }
+  }
+
+  return {
+    status: 'success',
+    auth: {
+      token: value.token,
+      protocolVersion,
+      minProtocolVersion,
+      negotiatedProtocolVersion,
+      legacyExactVersion,
+    },
+  }
+}
+
+export function parseHandshakeAuth(value: unknown): SocketHandshakeAuth | null {
+  const result = negotiateHandshakeAuth(value)
+  if (result.status !== 'success') return null
+  const { auth } = result
+  return auth.legacyExactVersion
+    ? { token: auth.token, protocolVersion: auth.protocolVersion }
+    : {
+        token: auth.token,
+        protocolVersion: auth.protocolVersion,
+        minProtocolVersion: auth.minProtocolVersion,
+      }
 }
 
 export function parseSessionResume(
@@ -117,4 +204,8 @@ export function parsePlayerName(value: unknown) {
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isProtocolVersion(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) > 0
 }

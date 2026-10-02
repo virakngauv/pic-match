@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   snapshot: undefined as RoomSnapshot | undefined,
   endedReason: null as 'expired' | 'removed' | 'server_restart' | null,
   connectionStatus: 'connected' as 'connecting' | 'connected' | 'disconnected',
+  connectionError: null as string | null,
   leaveRoom: vi.fn(),
   removePlayer: vi.fn(),
   startGame: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('@/components/game-socket-provider', () => ({
     snapshot: mocks.snapshot,
     endedReason: mocks.endedReason,
     connectionStatus: mocks.connectionStatus,
+    connectionError: mocks.connectionError,
   }),
   useGameSocket: () => ({
     leaveRoom: mocks.leaveRoom,
@@ -121,6 +123,7 @@ describe('RoomLobby', () => {
     mocks.snapshot = lobby()
     mocks.endedReason = null
     mocks.connectionStatus = 'connected'
+    mocks.connectionError = null
     mocks.leaveRoom.mockReset().mockResolvedValue({ status: 'success' })
     mocks.removePlayer.mockReset().mockResolvedValue({ status: 'success' })
     mocks.startGame.mockReset().mockResolvedValue({ status: 'success' })
@@ -135,6 +138,19 @@ describe('RoomLobby', () => {
     expect(
       screen.getByRole('main', { name: 'Checking room access' }),
     ).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('replaces reconnecting with an actionable protocol update message', () => {
+    mocks.snapshot = undefined
+    mocks.connectionStatus = 'disconnected'
+    mocks.connectionError =
+      'This game version is no longer supported. Reload or update the page.'
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', { name: 'Reload to keep playing.' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reload page' })).toBeEnabled()
   })
 
   it('offers join UI to a token without room membership', () => {

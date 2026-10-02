@@ -7,6 +7,7 @@ import { JoinRoomForm } from './join-room-form'
 
 const mocks = vi.hoisted(() => ({
   connectionStatus: 'connected' as 'connecting' | 'connected' | 'disconnected',
+  connectionError: null as string | null,
   joinRoom: vi.fn(),
   onJoined: vi.fn(),
 }))
@@ -15,6 +16,7 @@ vi.mock('@/components/game-socket-provider', () => ({
   useGameSocket: () => ({
     joinRoom: mocks.joinRoom,
     connectionStatus: mocks.connectionStatus,
+    connectionError: mocks.connectionError,
   }),
 }))
 
@@ -34,6 +36,7 @@ function renderForm(props: JoinRoomFormProps = {}) {
 describe('JoinRoomForm', () => {
   beforeEach(() => {
     mocks.connectionStatus = 'connected'
+    mocks.connectionError = null
     mocks.joinRoom.mockReset()
     mocks.joinRoom.mockResolvedValue({ status: 'success', roomCode: 'frvg7' })
     mocks.onJoined.mockReset()
@@ -90,6 +93,43 @@ describe('JoinRoomForm', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       'Connecting to the game server…',
     )
+  })
+
+  it('offers a reload action when no protocol overlap exists', () => {
+    mocks.connectionStatus = 'disconnected'
+    mocks.connectionError =
+      'This game version is no longer supported. Reload or update the page.'
+    renderForm()
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'This game version is no longer supported. Reload or update the page.',
+    )
+    expect(screen.getByRole('button', { name: 'Reload page' })).toBeEnabled()
+  })
+
+  it('prioritizes protocol incompatibility over a local form error', async () => {
+    const user = userEvent.setup()
+    mocks.joinRoom.mockResolvedValue({
+      status: 'room_full',
+      message: 'This room is full.',
+    })
+    const { rerenderForm } = renderForm({ roomCode: 'frvg7' })
+
+    await user.type(screen.getByLabelText('Name'), 'Late player')
+    await user.click(screen.getByRole('button', { name: 'Join' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This room is full.',
+    )
+
+    mocks.connectionStatus = 'disconnected'
+    mocks.connectionError =
+      'This game version is no longer supported. Reload or update the page.'
+    rerenderForm({ roomCode: 'frvg7' })
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'This game version is no longer supported. Reload or update the page.',
+    )
+    expect(screen.queryByText('This room is full.')).not.toBeInTheDocument()
   })
 
   it('invokes onJoined with the room after a successful join', async () => {
