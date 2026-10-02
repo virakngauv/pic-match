@@ -119,12 +119,15 @@ function PresentRoomLobby({
 
   const displayedRoomView = leavingSnapshot?.view ?? roomView
 
-  if (!leavingSnapshot && connectionError) {
-    return <ProtocolIncompatible message={connectionError} />
+  if (!leavingSnapshot && endedReason) {
+    if (endedReason === 'server_restart' && connectionError) {
+      return <ProtocolIncompatible message={connectionError} />
+    }
+    return <RoomEnded roomCode={roomCode} reason={endedReason} />
   }
 
-  if (!leavingSnapshot && endedReason) {
-    return <RoomEnded roomCode={roomCode} reason={endedReason} />
+  if (!leavingSnapshot && connectionError) {
+    return <ProtocolIncompatible message={connectionError} />
   }
 
   if (displayedRoomView === undefined) {
