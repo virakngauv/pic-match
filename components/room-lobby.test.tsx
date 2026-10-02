@@ -169,6 +169,22 @@ describe('RoomLobby', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('keeps a definitive removal outcome ahead of a later protocol error', () => {
+    mocks.snapshot = { status: 'removed_from_room', roomCode: 'frvg7' }
+    mocks.endedReason = 'removed'
+    mocks.connectionStatus = 'disconnected'
+    mocks.connectionError =
+      'This game version is no longer supported. Reload or update the page.'
+    render(<RoomLobby roomCode="frvg7" />)
+
+    expect(
+      screen.getByRole('heading', { name: 'You were removed from this room.' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Reload to keep playing.' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('offers join UI to a token without room membership', () => {
     mocks.snapshot = { status: 'joinable', roomCode: 'frvg7' }
     render(<RoomLobby roomCode="frvg7" />)
