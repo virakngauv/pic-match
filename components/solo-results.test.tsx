@@ -136,7 +136,7 @@ describe('SoloResults', () => {
     ).toBeVisible()
   })
 
-  it('confirms a native share on the button, then reverts', async () => {
+  it('shares only the message followed by one URL, confirms, then reverts', async () => {
     vi.useFakeTimers()
     Object.defineProperty(navigator, 'share', {
       value: vi.fn(async () => {}),
@@ -151,9 +151,7 @@ describe('SoloResults', () => {
     await act(async () => {})
     expect(screen.getByRole('button', { name: 'Shared ✓' })).toBeVisible()
     expect(navigator.share).toHaveBeenCalledWith({
-      title: 'Pic Match Solo',
-      text: formatSoloShareText(5, 'http://localhost:3000/solo'),
-      url: 'http://localhost:3000/solo',
+      text: 'I matched 5 pairs in Pic Match Solo. Can you beat me? http://localhost:3000/solo',
     })
 
     await act(async () => {
@@ -162,6 +160,31 @@ describe('SoloResults', () => {
     expect(
       screen.getByRole('button', { name: 'Challenge a friend' }),
     ).toBeVisible()
+  })
+
+  it('copies the message with one URL when native sharing fails', async () => {
+    const share = vi.fn().mockRejectedValue(new Error('Share unavailable'))
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'share', {
+      value: share,
+      configurable: true,
+    })
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+
+    render(<SoloResults score={1} onPlayAgain={onPlayAgain} />)
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Challenge a friend' }))
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Link copied' })).toBeVisible(),
+    )
+
+    expect(share).toHaveBeenCalledOnce()
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(
+      'I matched 1 pair in Pic Match Solo. Can you beat me? http://localhost:3000/solo',
+    )
   })
 
   it('restarts the confirmation when sharing again while it shows', async () => {
