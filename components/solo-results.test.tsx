@@ -136,7 +136,7 @@ describe('SoloResults', () => {
     ).toBeVisible()
   })
 
-  it('shares the message followed by one URL, confirms, then reverts', async () => {
+  it('shares only the message followed by one URL, confirms, then reverts', async () => {
     vi.useFakeTimers()
     Object.defineProperty(navigator, 'share', {
       value: vi.fn(async () => {}),
@@ -151,7 +151,6 @@ describe('SoloResults', () => {
     await act(async () => {})
     expect(screen.getByRole('button', { name: 'Shared ✓' })).toBeVisible()
     expect(navigator.share).toHaveBeenCalledWith({
-      title: 'Pic Match Solo',
       text: 'I matched 5 pairs in Pic Match Solo. Can you beat me? http://localhost:3000/solo',
     })
 

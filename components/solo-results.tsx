@@ -86,7 +86,6 @@ export function SoloResults({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Pic Match Solo',
           text,
         })
         setShareState('shared')
