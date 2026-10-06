@@ -88,7 +88,6 @@ export function SoloResults({
         await navigator.share({
           title: 'Pic Match Solo',
           text,
-          url,
         })
         setShareState('shared')
         setShareNonce((nonce) => nonce + 1)
