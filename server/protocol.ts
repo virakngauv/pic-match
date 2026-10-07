@@ -3,6 +3,8 @@ import type { Server as HttpServer } from 'node:http'
 import { Server, type Socket } from 'socket.io'
 
 import {
+  GAME_PROTOCOL_VERSION,
+  MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
   isMemberSnapshot,
   type ClientToServerEvents,
   type CommandFailure,
@@ -20,8 +22,8 @@ import {
 import { isPrivateNetworkOrigin } from './origins'
 import { isTrustedProxy } from './proxy-trust'
 import {
+  negotiateHandshakeAuth,
   parseCreateRoom,
-  parseHandshakeAuth,
   parseJoinRoom,
   parseMatchClaim,
   parseRemovePlayer,
@@ -30,7 +32,11 @@ import {
 } from './validation'
 
 type InterServerEvents = Record<string, never>
-type SocketData = { token: string; address: string }
+type SocketData = {
+  token: string
+  address: string
+  negotiatedProtocolVersion: number
+}
 type GameSocket = Socket<
   ClientToServerEvents,
   ServerToClientEvents,
@@ -60,6 +66,7 @@ export type GameSocketServerOptions = {
   expirationSweepMs?: number
   telemetryFlushIntervalMs?: number
   entryCommandLimits?: EntryCommandLimits
+  commandProtocolVersions?: Partial<Record<keyof ClientToServerEvents, number>>
   logger?: Pick<Console, 'info' | 'warn' | 'error'>
 }
 
@@ -108,6 +115,7 @@ export function createGameSocketServer(
     entryLimits.globalPerMinute,
     60_000,
   )
+  const commandProtocolVersions = options.commandProtocolVersions ?? {}
   let acceptingCommands = true
 
   const io = new Server<
@@ -131,13 +139,28 @@ export function createGameSocketServer(
   })
 
   io.use((socket, next) => {
-    const auth = parseHandshakeAuth(socket.handshake.auth)
-    if (!auth) {
-      telemetry.countHandshakeRejected('invalid_auth')
-      return next(new Error('Unsupported or invalid game session.'))
+    const result = negotiateHandshakeAuth(socket.handshake.auth)
+    if (result.status === 'invalid_auth') {
+      telemetry.countHandshakeRejected(result.status)
+      return next(new Error('Invalid game session. Reload the page.'))
     }
+    if (result.status === 'unsupported_protocol') {
+      telemetry.countHandshakeRejected(result.status)
+      return next(protocolCompatibilityError(result))
+    }
+    const { auth } = result
     socket.data.token = auth.token
     socket.data.address = clientAddress(socket, trustedProxyAddresses)
+    socket.data.negotiatedProtocolVersion = auth.negotiatedProtocolVersion
+    if (auth.protocolVersion !== GAME_PROTOCOL_VERSION) {
+      telemetry.protocolVersionDrift({
+        receivedVersion: auth.protocolVersion,
+        receivedMinVersion: auth.minProtocolVersion,
+        currentVersion: GAME_PROTOCOL_VERSION,
+        minSupportedVersion: MIN_SUPPORTED_GAME_PROTOCOL_VERSION,
+        negotiatedVersion: auth.negotiatedProtocolVersion,
+      })
+    }
     next()
   })
 
@@ -149,7 +172,7 @@ export function createGameSocketServer(
     socket.on('session:resume', (payload, acknowledge) => {
       const ack = trackOutcome('session:resume', acknowledge)
       const parsed = parseSessionResume(payload)
-      if (!canRun(socket, ack)) return
+      if (!canRun('session:resume', socket, ack)) return
       safely('session:resume', ack, async () => {
         if (!parsed) return ack(invalid())
         if (!parsed.roomCode) return ack({ status: 'success' })
@@ -171,7 +194,7 @@ export function createGameSocketServer(
 
     socket.on('room:create', (payload, acknowledge) => {
       const ack = trackOutcome('room:create', acknowledge)
-      if (!canRun(socket, ack, true)) return
+      if (!canRun('room:create', socket, ack, true)) return
       safely('room:create', ack, async () => {
         const parsed = parseCreateRoom(payload)
         if (!parsed) return ack(invalid())
@@ -186,7 +209,7 @@ export function createGameSocketServer(
 
     socket.on('room:join', (payload, acknowledge) => {
       const ack = trackOutcome('room:join', acknowledge)
-      if (!canRun(socket, ack, true)) return
+      if (!canRun('room:join', socket, ack, true)) return
       safely('room:join', ack, async () => {
         const parsed = parseJoinRoom(payload)
         if (!parsed) return ack(invalid())
@@ -205,7 +228,7 @@ export function createGameSocketServer(
 
     socket.on('room:leave', (payload, acknowledge) => {
       const ack = trackOutcome('room:leave', acknowledge)
-      if (!canRun(socket, ack)) return
+      if (!canRun('room:leave', socket, ack)) return
       safely('room:leave', ack, async () => {
         const parsed = parseRoomCommand(payload)
         if (!parsed) return ack(invalid())
@@ -222,7 +245,7 @@ export function createGameSocketServer(
 
     socket.on('room:remove-player', (payload, acknowledge) => {
       const ack = trackOutcome('room:remove-player', acknowledge)
-      if (!canRun(socket, ack)) return
+      if (!canRun('room:remove-player', socket, ack)) return
       safely('room:remove-player', ack, async () => {
         const parsed = parseRemovePlayer(payload)
         if (!parsed) return ack(invalid())
@@ -246,7 +269,7 @@ export function createGameSocketServer(
 
     socket.on('game:start', (payload, acknowledge) => {
       const ack = trackOutcome('game:start', acknowledge)
-      if (!canRun(socket, ack)) return
+      if (!canRun('game:start', socket, ack)) return
       safely('game:start', ack, () => {
         const parsed = parseRoomCommand(payload)
         if (!parsed) return ack(invalid())
@@ -261,7 +284,7 @@ export function createGameSocketServer(
 
     socket.on('game:claim', (payload, acknowledge) => {
       const ack = trackOutcome('game:claim', acknowledge)
-      if (!canRun(socket, ack)) return
+      if (!canRun('game:claim', socket, ack)) return
       safely('game:claim', ack, () => {
         const parsed = parseMatchClaim(payload)
         if (!parsed) return ack(invalid())
@@ -286,7 +309,7 @@ export function createGameSocketServer(
 
     socket.on('game:prepare-rematch', (payload, acknowledge) => {
       const ack = trackOutcome('game:prepare-rematch', acknowledge)
-      if (!canRun(socket, ack)) return
+      if (!canRun('game:prepare-rematch', socket, ack)) return
       safely('game:prepare-rematch', ack, () => {
         const parsed = parseRoomCommand(payload)
         if (!parsed) return ack(invalid())
@@ -418,6 +441,7 @@ export function createGameSocketServer(
   }
 
   function canRun(
+    command: keyof ClientToServerEvents,
     socket: GameSocket,
     acknowledge: (result: CommandFailure) => void,
     isEntryCommand = false,
@@ -449,6 +473,16 @@ export function createGameSocketServer(
             : 'entry'
       telemetry.countRateLimited(budget)
       acknowledge({ status: 'rate_limited', message: 'Too many commands.' })
+      return false
+    }
+
+    const requiredProtocolVersion =
+      commandProtocolVersions[command] ?? MIN_SUPPORTED_GAME_PROTOCOL_VERSION
+    if (socket.data.negotiatedProtocolVersion < requiredProtocolVersion) {
+      acknowledge({
+        status: 'unsupported',
+        message: 'This action requires a newer game version. Reload the page.',
+      })
       return false
     }
     return true
@@ -483,6 +517,25 @@ export function createGameSocketServer(
       telemetry.shutdownCompleted()
     },
   }
+}
+
+function protocolCompatibilityError(result: {
+  receivedVersion: number
+  receivedMinVersion: number
+  currentVersion: number
+  minSupportedVersion: number
+}) {
+  const error = new Error(
+    'This game version is no longer supported. Reload or update the page.',
+  ) as Error & { data: Record<string, number | string> }
+  error.data = {
+    code: 'protocol_incompatible',
+    receivedVersion: result.receivedVersion,
+    receivedMinVersion: result.receivedMinVersion,
+    currentVersion: result.currentVersion,
+    minSupportedVersion: result.minSupportedVersion,
+  }
+  return error
 }
 
 function snapshotRevision(snapshot: RoomSnapshot) {
